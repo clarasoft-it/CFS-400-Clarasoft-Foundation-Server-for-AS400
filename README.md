@@ -18,6 +18,7 @@ Copy the files on your AS400 in a source file named QCSRC (the CFSREG source nee
 
 From the AS400 command line, execute the following comamnds to create the above modules:
 
+```bash
 CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRC) DBGVIEW(*ALL)  
 
 CRTCMOD MODULE(CLARAD) SRCFILE(QCSRC) DBGVIEW(*ALL) 
@@ -30,7 +31,7 @@ CRTCMOD MODULE(CSLIST) SRCFILE(QCSRC) DBGVIEW(*ALL)
 CRTCMOD MODULE(CSSTR) SRCFILE(QCSRC) DBGVIEW(*ALL) 
 
 CRTCMOD MODULE(CSWSCK) SRCFILE(QCSRC) DBGVIEW(*ALL)  
-
+```
 
 Next, you need to create a SRVPGM object that exports the CFS-400 toolkit functions (we will call it CFSAPI) by issuing the following command:
 
