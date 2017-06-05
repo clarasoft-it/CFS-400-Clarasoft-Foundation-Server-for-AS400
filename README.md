@@ -40,13 +40,34 @@ CRTSRVPGM SRVPGM(CFSAPI)
         MODULE(CFSAPI CSLIST  CSSTR CSWSCK) EXPORT(*ALL) 
 ```
         
-Finally, you will create the main TCP server (daemon) and the demonstration echo handler (respectively CLARAD and CLARAH) by issuing the following command:
+Next, you must create the CFSREG file as follow:
+
+```bash
+CRTPF FILE(CFSREG3) SRCMBR(CFSREG)
+```
+
+You will now create the the main TCP server (daemon) and the demonstration echo handler (respectively CLARAD and CLARAH) by issuing the following command:
 
 ```bash
 CRTPGM PGM(CLARAD) MODULE(CLARAD) BNDSRVPGM(CFSAPI)
 
 CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
 ```
+
+To show how an ILE RPG program can be used to run as a handler, you will create the ILE RPG version of the echo handler as follow: copy the ECHO.RPGLE and the ECHO.RPGH files from this repository to the QRPGLESRC source file on your system. You will then compile this source into a module by issuing the following command:
+
+```bash
+CRTRPGMOD MODULE(ECHOMOD) SRCFILE(QRPGLESRC) SRCMBR(ECHO.RPGLE) DBGVIEW(*ALL)  
+```
+Next, you will create a SRVPGM object from the above module (notice this uses the CFSAPI service program built above):
+
+```bash
+CRTSRVPGM SRVPGM(ECHOSRV)
+        MODULE(ECHOMOD) BNDSRVPGM(CFSAPI) EXPORT(*ALL) 
+```
+
+For the CLARAH program to use the ILE RPG echo service, a record must be inserted into the CFSREG file: 
+
 
 
 
