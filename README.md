@@ -35,15 +35,18 @@ CRTCMOD MODULE(CSWSCK) SRCFILE(QCSRC) DBGVIEW(*ALL)
 
 Next, you need to create a SRVPGM object that exports the CFS-400 toolkit functions (we will call it CFSAPI) by issuing the following command:
 
+```bash
 CRTSRVPGM SRVPGM(CFSAPI)
         MODULE(CFSAPI CSLIST  CSSTR CSWSCK) EXPORT(*ALL) 
+```
         
 Finally, you will create the main TCP server (daemon) and the demonstration echo handler (respectively CLARAD and CLARAH) by issuing the following command:
 
-
+```bash
 CRTPGM PGM(CLARAD) MODULE(CLARAD) BNDSRVPGM(CFSAPI)
 
 CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
+```
 
 
 
