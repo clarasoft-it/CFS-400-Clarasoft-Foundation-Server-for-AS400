@@ -192,6 +192,7 @@
           // This sends a Websocket CLOSE operation
           CSWSCK_Close(pCONN: *Null: 0: -1);
 
+          *InLr = *On;
           Return 0;
 
       /End-Free
