@@ -75,7 +75,7 @@ RGPRCHD: ECHOSRV
 RGPRCNM: ECHOHANDLER    
 ```
 
-Where LIBNAME is the name of the library where the ECHOSRV service program resides. All other fields have to be as shown above. Now, to use this ILE RPG service, you must execute the CFS daemon and instruct it to use the ECHOSRV service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME although this is not mandatory: the service library does not have to match the library where the daemon resides):
+Where LIBNAME is the name of the library where the ECHOSRV service program resides. All other fields have to be as shown above. Now, to use this ILE RPG service, you must execute the CFS-400 daemon and instruct it to use the ECHOSRV service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME although this is not mandatory: the service library does not have to match the library where the daemon resides):
 
 ```bash
 call CLARAD                                                     
@@ -93,7 +93,7 @@ Opt  Job         User        Type     -----Status-----  Function
      DUSER       DUSER       INTER    ACTIVE            PGM-CLARAD    
 ```
      
-There are 3 handlers running, waiting fr client connections; if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion (that is the meaning of the '3' '4' parameters to the command). To test the handler, you can open a websocket test client from your web browser at http://www.websocket.org/echo.html:
+There are 3 handlers running, waiting for client connections; if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion (that is the meaning of the '3' '4' parameters to the command). To test the handler, you can open a websocket test client from your web browser at http://www.websocket.org/echo.html:
 
 In the "Location" text box, input your AS400 machine address:
 
@@ -101,7 +101,7 @@ In the "Location" text box, input your AS400 machine address:
 ws://myAS400.mydomain.com:41101
 ```
 
-Notice that the port number is the same as the one from the command line to execute the CFS-400 daemon. Click on the "Connect" button. You should get a "CONNECTED" message in the "Log" text area. You can then write messages to send over to your ILE RPG service in the "Message" text box and by clicking on the "Send" button. Your ILE RPG service will echo back the data you sent in the "Log" text area. One of your CLARAH jobs is busy servicing this connection. The other two CLARAH jobs are available for other connections. When you click on the "DISCONNECT" button, the CLARAH job that was servicing your connection continues to execute but is no longer busy is now available for another connection.
+Notice that the port number is the same as the one from the command line used to execute the CFS-400 daemon. Click on the "Connect" button. You should get a "CONNECTED" message in the "Log" text area. You can then write messages to send over to your ILE RPG service in the "Message" text box and by clicking on the "Send" button. Your ILE RPG service will echo back the data you sent in the "Log" text area. One of your CLARAH jobs is busy servicing this connection. The other two CLARAH jobs are available for other connections. When you click on the "DISCONNECT" button, the CLARAH job that was servicing your connection continues to execute but is no longer busy is now available for another connection.
 
 
 
