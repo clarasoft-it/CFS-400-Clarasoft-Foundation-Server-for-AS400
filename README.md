@@ -56,7 +56,7 @@ CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
 
 ## CFS-400 example ILE RPG servcie for use by network clients
 
-To show how an ILE RPG program can be used to run as a handler, you will create the ILE RPG version of the echo handler as follow: copy the ECHO.RPGLE and the ECHO.RPGH files from this repository to the QRPGLESRC source file on your system. You will then compile this source into a module by issuing the following command:
+To show how an ILE RPG program can be used to run as a handler, you will create the ILE RPG version of the websocket echo handler as follow: copy the ECHO.RPGLE and the ECHO.RPGH files from this repository to the QRPGLESRC source file on your system. You will then compile this source into a module by issuing the following command:
 
 ```bash
 CRTRPGMOD MODULE(ECHOMOD) SRCFILE(QRPGLESRC) SRCMBR(ECHO.RPGLE) DBGVIEW(*ALL)  
@@ -105,7 +105,7 @@ ws://myAS400.mydomain.com:41101
 
 Notice that the port number is the same as the one from the command line used to execute the CFS-400 daemon. Click on the "Connect" button. You should get a "CONNECTED" message in the "Log" text area. You can then write messages to send over to your ILE RPG service in the "Message" text box and by clicking on the "Send" button. Your ILE RPG service will echo back the data you sent in the "Log" text area. One of your CLARAH jobs is busy servicing this connection. The other two CLARAH jobs are available for other connections. When you click on the "DISCONNECT" button, the CLARAH job that was servicing your connection continues to execute but is no longer busy and is now available for another connection.
 
-
+This example shows how easy it is to create web front ends with CFS-400. You are not limited to the Websocket protocol. CFS-400 provides all the functions needed to use basic TCP sockets (either secured with SSL or not) and create your own networking protocols or to create clients for any other networking protocols: this means you can create your own HTTP, FTP, SMTP, etc clients in ILE RPG (but this requires in-depth knowledge of those protocols)!
 
 
 
