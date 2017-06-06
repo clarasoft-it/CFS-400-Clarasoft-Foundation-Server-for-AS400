@@ -69,6 +69,40 @@ CRTSRVPGM SRVPGM(ECHOSRV)
 For the CLARAH program to use the ILE RPG echo service, a record must be inserted into the CFSREG file: 
 
 
+RGSRVNM: ECHO           
+RGLIBNM: LIBNAME        
+RGPRCHD: ECHOSRV        
+RGPRCNM: ECHOHANDLER    
+
+Where LIBNAME is the name of the library where the ECHOSRV service program resides. Now, to use this ILE RPG service, you must execute the CFS daemon and instruct it to use the ECHOSRV service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME althiough this is not mandatory: the service library does not have to match the library where the daemon resides):
+
+```bash
+call clarad                                                     
+ parm('41101' '3' '4' '/QSYS.LIB/LIBANME.LIB/CLARAH.PGM' 'ECHO') 
+```
+
+The above command will run three jobs:
+
+
+```bash
+Opt  Job         User        Type     -----Status-----  Function      
+     CLARAH      DUSER       BATCHI   ACTIVE            PGM-CLARAH    
+     CLARAH      DUSER       BATCHI   ACTIVE            PGM-CLARAH    
+     CLARAH      DUSER      BATCHI   ACTIVE            PGM-CLARAH    
+     FSOUC01     DUSER      INTER    ACTIVE            PGM-CLARAD    
+```
+     
+There are 3 handlers running, waiting fr client connections; if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion (that is the meaning of the '3' '4' parameters to the command). To test the handler, you can open a websocket test client from your web browser at http://www.websocket.org/echo.html:
+
+
+
+     
+ 
+ 
+
+
+
+
 
 
 
