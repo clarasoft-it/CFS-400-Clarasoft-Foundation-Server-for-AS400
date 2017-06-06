@@ -105,7 +105,7 @@ ws://myAS400.mydomain.com:41101
 
 Notice that the port number is the same as the one from the command line used to execute the CFS-400 daemon. Click on the "Connect" button. You should get a "CONNECTED" message in the "Log" text area. You can then write messages to send over to your ILE RPG service in the "Message" text box and by clicking on the "Send" button. Your ILE RPG service will echo back the data you sent in the "Log" text area. One of your CLARAH jobs is busy servicing this connection. The other two CLARAH jobs are available for other connections. When you click on the "DISCONNECT" button, the CLARAH job that was servicing your connection continues to execute but is no longer busy and is now available for another connection.
 
-This example shows how easy it is to create web front ends with CFS-400. You are not limited to the Websocket protocol. CFS-400 provides all the functions needed to use basic TCP sockets (either secured with SSL or not) and create your own networking protocols or to create clients for any other networking protocols: this means you can create your own HTTP, FTP, SMTP, etc clients in ILE RPG (but this requires in-depth knowledge of those protocols)!
+This example shows how easy it is to create web front ends with CFS-400. You are not limited to the Websocket protocol. CFS-400 provides all the functions needed to use basic TCP sockets (either secured with SSL or not) and create your own networking protocols or to create clients for any other networking protocol: this means you can create your own HTTP, FTP, SMTP, etc clients in ILE RPG (but this requires in-depth knowledge of those protocols however)!
 
 
 
