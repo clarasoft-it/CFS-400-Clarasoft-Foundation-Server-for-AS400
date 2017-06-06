@@ -68,13 +68,14 @@ CRTSRVPGM SRVPGM(ECHOSRV)
 
 For the CLARAH program to use the ILE RPG echo service, a record must be inserted into the CFSREG file: 
 
-
+```bash
 RGSRVNM: ECHO           
 RGLIBNM: LIBNAME        
 RGPRCHD: ECHOSRV        
 RGPRCNM: ECHOHANDLER    
+```
 
-Where LIBNAME is the name of the library where the ECHOSRV service program resides. Now, to use this ILE RPG service, you must execute the CFS daemon and instruct it to use the ECHOSRV service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME although this is not mandatory: the service library does not have to match the library where the daemon resides):
+Where LIBNAME is the name of the library where the ECHOSRV service program resides. All other fields have to be as shown above. Now, to use this ILE RPG service, you must execute the CFS daemon and instruct it to use the ECHOSRV service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME although this is not mandatory: the service library does not have to match the library where the daemon resides):
 
 ```bash
 call CLARAD                                                     
