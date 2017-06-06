@@ -54,6 +54,8 @@ CRTPGM PGM(CLARAD) MODULE(CLARAD) BNDSRVPGM(CFSAPI)
 CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
 ```
 
+## CFS-400 example ILE RPG servcie for use by network clients
+
 To show how an ILE RPG program can be used to run as a handler, you will create the ILE RPG version of the echo handler as follow: copy the ECHO.RPGLE and the ECHO.RPGH files from this repository to the QRPGLESRC source file on your system. You will then compile this source into a module by issuing the following command:
 
 ```bash
