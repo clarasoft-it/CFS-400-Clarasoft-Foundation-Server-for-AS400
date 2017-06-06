@@ -75,7 +75,7 @@ RGPRCHD: ECHOSRV
 RGPRCNM: ECHOHANDLER    
 ```
 
-Where LIBNAME is the name of the library where the ECHOSRV service program resides. All other fields have to be as shown above. Now, to use this ILE RPG service, you must execute the CFS-400 daemon and instruct it to use the ECHOSRV service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME although this is not mandatory: the service library does not have to match the library where the daemon resides):
+Where LIBNAME is the name of the library where the ECHOSRV service program resides. All other fields have to be as shown above. Now, to test this ILE RPG service, you can execute the CFS-400 daemon from the command line (in production, this command would be run in its own subsystem) and instruct it to use the ECHOSRV service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME although this is not mandatory: the service library does not have to match the library where the daemon resides):
 
 ```bash
 call CLARAD                                                     
