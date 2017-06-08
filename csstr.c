@@ -747,7 +747,7 @@ CSRESULT CSSTRCV_StrCat (CSSTRCV* This,
                This->leftOverSize += i;
                This->missingSize -= i;
 
-               return CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG(hResult);
+               return CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG_EINVAL;
             }
             else {
 
