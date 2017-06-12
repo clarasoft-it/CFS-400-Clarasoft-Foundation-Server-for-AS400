@@ -1976,6 +1976,12 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
      }
      else {
 
+        if (This->dataBuffer != 0) {
+
+           free(This->dataBuffer);
+        }
+
+        This->dataBuffer == 0
         This->dataSize = 0;
      }
 
