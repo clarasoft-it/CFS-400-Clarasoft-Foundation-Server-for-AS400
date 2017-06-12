@@ -5,6 +5,8 @@
   Web Socket Protocol Implementation
   Version 1.0.0
 
+
+
   Compile module with:
 
      CRTCMOD MODULE(CSWSCK) SRCFILE(QCSRC) DBGVIEW(*ALL)
@@ -13,6 +15,8 @@
 
      CRTSRVPGM SRVPGM(CSWSCK)
         MODULE(CSWSCK CSLIST CFSAPI CSSTR) EXPORT(*ALL)
+
+
 
   Distributed under the MIT license
 
@@ -414,6 +418,8 @@ CSWSCK* CSWSCK_OpenServer(int   connfd,
   CSSTRCV       cvts;
 
   This = (CSWSCK*)malloc(sizeof(CSWSCK));
+  memset(This, 0, sizeof(CSWSCK));
+
 
   ///////////////////////////////////////////////////////////////////////////
   // Create conversion objects
@@ -843,15 +849,6 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
   int iSSLResult;
   int iBaseDataLength;
 
-  ///////////////////////////////////////////////////////////////////////////
-  // Since we can get continuation frames on a PING
-  // operation, we must know what was the initial operation
-  // on the first partial frame so that we can process PING
-  // operations internally by this function.
-  ///////////////////////////////////////////////////////////////////////////
-
-  static int initialOperation = -1;
-
   long DataSize;
   long fragmentSize;
   long iCount;
@@ -929,7 +926,6 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
 
      if (CS_FAIL(hResult)) {
 
-        initialOperation = -1;
         return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
      }
 
@@ -960,7 +956,6 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
 
         if (CS_FAIL(hResult)) {
 
-           initialOperation = -1;
            return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
         }
 
@@ -990,7 +985,6 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
 
            free(This->dataBuffer);
            This->dataBuffer = 0;
-           initialOperation = -1;
            return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
         }
 
@@ -1046,6 +1040,12 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
      }
      else {
 
+        if (This->dataBuffer != 0) {
+
+           free(This->dataBuffer);
+           This->dataBuffer = 0;
+        }
+
         This->dataSize = 0;
      }
 
@@ -1055,19 +1055,16 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
 
        case CSWSCK_OP_TEXT:
 
-          initialOperation = CSWSCK_OP_TEXT;
           hResult = CS_SUCCESS | CSWSCK_OPER_TEXT;
           break;
 
        case CSWSCK_OP_CLOSE:
 
-          initialOperation = CSWSCK_OP_CLOSE;
           hResult = CS_SUCCESS | CSWSCK_OPER_CLOSE;
           break;
 
        case CSWSCK_OP_BINARY:
 
-          initialOperation = CSWSCK_OP_BINARY;
           hResult = CS_SUCCESS | CSWSCK_OPER_BINARY;
           break;
 
@@ -1080,43 +1077,21 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
 
           // Send PONG response
 
-          initialOperation = CSWSCK_OP_PING;
-          CSLIST_Clear(This->internalData);
-
           if (This->dataSize > 0) {
 
-             // The data must be sent back as a PONG response
+             /////////////////////////////////////////////////////////////
+             // We got data to send back
+             /////////////////////////////////////////////////////////////
 
-             if (CSWSCK_Fin(ws_header[0])) {
+             hResult = CSWSCK_Send(This,
+                                   CSWSCK_OPER_PONG,
+                                   This->dataBuffer,
+                                   This->dataSize,
+                                   CSWSCK_FIN_ON,
+                                   timeout);
 
-                /////////////////////////////////////////////////////////////
-                // We got all the data to send back
-                /////////////////////////////////////////////////////////////
-
-                hResult = CSWSCK_Send(This,
-                                      CSWSCK_OPER_PONG,
-                                      This->dataBuffer,
-                                      This->dataSize,
-                                      CSWSCK_FIN_ON,
-                                      timeout);
-
-                if (CS_FAIL(hResult)) {
-                   return hResult;
-                }
-             }
-             else {
-
-                /////////////////////////////////////////////////////////////
-                // We got a fraction of the data ...
-                // the rest will come from a CONTINUATION frame
-                // and we must receive again and send a PONG
-                // once the FIN bit is set
-                /////////////////////////////////////////////////////////////
-
-                CSLIST_Insert(This->internalData,
-                              This->dataBuffer,
-                              This->dataSize,
-                              CSLIST_BOTTOM);
+             if (CS_FAIL(hResult)) {
+                return hResult;
              }
           }
           else {
@@ -1142,8 +1117,6 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
 
        case CSWSCK_OP_PONG:
 
-          initialOperation = CSWSCK_OP_PONG;
-
           // Resume reading ...
           goto CSWSCK_LABEL_RECEIVE;
     }
@@ -1155,7 +1128,6 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
        // initial operation flag must be reset.
        //////////////////////////////////////////////////////////////////////
 
-       initialOperation = -1;
        hResult |= CSWSCK_ALLDATA;
     }
     else {
@@ -1334,6 +1306,7 @@ CSWSCK* CSWSCK_SecureOpenServer(int   connfd,
   CSSTRCV       cvts;
 
   This = (CSWSCK*)malloc(sizeof(CSWSCK));
+  memset(This, 0, sizeof(CSWSCK));
 
   ///////////////////////////////////////////////////////////////////////////
   // Create conversion objects
@@ -1768,15 +1741,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
   int iSSLResult;
   int iBaseDataLength;
 
-  ///////////////////////////////////////////////////////////////////////////
-  // Since we can get continuation frames on a PING
-  // operation, we must know what was the initial operation
-  // on the first partial frame so that we can process PING
-  // operations internally by this function.
-  ///////////////////////////////////////////////////////////////////////////
-
-  static int initialOperation = -1;
-
   long DataSize;
   long fragmentSize;
   long iCount;
@@ -1857,7 +1821,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
 
      if (CS_FAIL(hResult)) {
 
-        initialOperation = -1;
         return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
      }
 
@@ -1889,7 +1852,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
 
         if (CS_FAIL(hResult)) {
 
-           initialOperation = -1;
            return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
         }
 
@@ -1920,7 +1882,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
 
            free(This->dataBuffer);
            This->dataBuffer = 0;
-           initialOperation = -1;
            return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
         }
 
@@ -1979,9 +1940,9 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
         if (This->dataBuffer != 0) {
 
            free(This->dataBuffer);
+           This->dataBuffer = 0;
         }
 
-        This->dataBuffer == 0
         This->dataSize = 0;
      }
 
@@ -1991,19 +1952,16 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
 
        case CSWSCK_OP_TEXT:
 
-          initialOperation = CSWSCK_OP_TEXT;
           hResult = CS_SUCCESS | CSWSCK_OPER_TEXT;
           break;
 
        case CSWSCK_OP_CLOSE:
 
-          initialOperation = CSWSCK_OP_CLOSE;
           hResult = CS_SUCCESS | CSWSCK_OPER_CLOSE;
           break;
 
        case CSWSCK_OP_BINARY:
 
-          initialOperation = CSWSCK_OP_BINARY;
           hResult = CS_SUCCESS | CSWSCK_OPER_BINARY;
           break;
 
@@ -2016,43 +1974,23 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
 
           // Send PONG response
 
-          initialOperation = CSWSCK_OP_PING;
           CSLIST_Clear(This->internalData);
 
           if (This->dataSize > 0) {
 
-             // The data must be sent back as a PONG response
+             /////////////////////////////////////////////////////////////
+             // We got data to send back
+             /////////////////////////////////////////////////////////////
 
-             if (CSWSCK_Fin(ws_header[0])) {
+             hResult = CSWSCK_SecureSend(This,
+                                         CSWSCK_OPER_PONG,
+                                         This->dataBuffer,
+                                         This->dataSize,
+                                         CSWSCK_FIN_ON,
+                                         timeout);
 
-                /////////////////////////////////////////////////////////////
-                // We got all the data to send back
-                /////////////////////////////////////////////////////////////
-
-                hResult = CSWSCK_SecureSend(This,
-                                            CSWSCK_OPER_PONG,
-                                            This->dataBuffer,
-                                            This->dataSize,
-                                            CSWSCK_FIN_ON,
-                                            timeout);
-
-                if (CS_FAIL(hResult)) {
-                   return hResult;
-                }
-             }
-             else {
-
-                /////////////////////////////////////////////////////////////
-                // We got a fraction of the data ...
-                // the rest will come from a CONTINUATION frame
-                // and we must receive again and send a PONG
-                // once the FIN bit is set
-                /////////////////////////////////////////////////////////////
-
-                CSLIST_Insert(This->internalData,
-                              This->dataBuffer,
-                              This->dataSize,
-                              CSLIST_BOTTOM);
+             if (CS_FAIL(hResult)) {
+                return hResult;
              }
           }
           else {
@@ -2078,8 +2016,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
 
        case CSWSCK_OP_PONG:
 
-          initialOperation = CSWSCK_OP_PONG;
-
           // Resume reading ...
           goto CSWSCK_LABEL_RECEIVE;
     }
@@ -2091,7 +2027,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
        // initial operation flag must be reset.
        //////////////////////////////////////////////////////////////////////
 
-       initialOperation = -1;
        hResult |= CSWSCK_ALLDATA;
     }
     else {
