@@ -215,7 +215,7 @@ int main (int argc, char **argv)
            // ECHO handler using CSWSCK non-secure functions
            //////////////////////////////////////////////////////////////////
 
-           pCONN = CSWSCK_OpenServer(conn_fd, "WSD", 0, 0, 0, 0);
+           pCONN = CSWSCK_OpenServer(conn_fd, "WSD", 0, 0);
 
            if (pCONN != 0) {
 
@@ -466,4 +466,3 @@ void Cleanup(_CNL_Hndlr_Parms_T* data) {
    close(conn_fd);
 }
 
- 

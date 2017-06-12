@@ -1,13 +1,9 @@
-
 /* ==========================================================================
-
   Clarasoft Foundation Server 400
 
   cswsck.c
   Web Socket Protocol Implementation
   Version 1.0.0
-
-
 
   Compile module with:
 
@@ -17,7 +13,6 @@
 
      CRTSRVPGM SRVPGM(CSWSCK)
         MODULE(CSWSCK CSLIST CFSAPI CSSTR) EXPORT(*ALL)
-
 
   Distributed under the MIT license
 
@@ -30,10 +25,8 @@
   merge, publish, distribute, sublicense, and/or sell
   copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
-
   The above copyright notice and this permission notice shall be
   included in all copies or substantial portions of the Software.
-
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -41,7 +34,6 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 ========================================================================== */
 
 #include <errno.h>
@@ -137,8 +129,6 @@ CSWSCK*
   CSWSCK_OpenServer
     (int   connfd,
      char* szAppID,
-     char* szOverflow,
-     long  iOverflowMax,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -175,8 +165,6 @@ CSWSCK*
   CSWSCK_SecureOpenServer
     (int   connfd,
      char* szAppID,
-     char* szOverflow,
-     long  iOverflowMax,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -363,8 +351,6 @@ CSRESULT CSWSCK_GetData(CSWSCK*   This,
 
 CSWSCK* CSWSCK_OpenServer(int   connfd,
                           char* szAppID,
-                          char* szOverflow,
-                          long  iOverflowMax,
                           void* sessionInfo,
                           int   sessionInfoFmt)
 {
@@ -473,48 +459,7 @@ CSWSCK* CSWSCK_OpenServer(int   connfd,
 
         /////////////////////////////////////////////////////////////////////
         // Parse the HTTP request
-        //
-        // In case we read more than the HTTP headers.
-        // There should not be any overflow but if there is,
-        // we will ignore it since the client should wait for
-        // our end of the handshake.
         /////////////////////////////////////////////////////////////////////
-
-        if (szOverflow) {
-
-           // Assume no overflow
-           szOverflow[0] = 0;
-
-           szHTTPOverflow = CSSTR_StrTok(szHTTPRequest,
-                                         szDoubleNewline);
-
-           if (szHTTPOverflow != 0) {
-
-              // We found the delimiter ... is there something after?
-
-              szHTTPOverflow = CSSTR_StrTok(szHTTPRequest,
-                                            szDoubleNewline);
-
-              if (szHTTPOverflow != 0) {
-
-                 iOverflowSize = iOverflowSize < size-position ?
-                                 iOverflowSize:
-                                 size-position;
-
-                 if (size-position > 0) {
-
-                    // Caller wants to retrieve the overflow data
-
-                    memcpy(szOverflow,
-                           szHTTPOverflow, iOverflowSize);
-
-                    szOverflow[iOverflowSize] = 0;
-                 }
-              }
-           }
-        }
-
-        // Parse HTTP headers
 
         headers[0] = CSSTR_StrTok(szHTTPRequest, szNewline);
 
@@ -1326,8 +1271,6 @@ CSRESULT CSWSCK_SecureClose(CSWSCK*   This,
 
 CSWSCK* CSWSCK_SecureOpenServer(int   connfd,
                                 char* szAppID,
-                                char* szOverflow,
-                                long  iOverflowMax,
                                 void* sessionInfo,
                                 int   sessionInfoFmt)
 {
@@ -1437,48 +1380,7 @@ CSWSCK* CSWSCK_SecureOpenServer(int   connfd,
 
         /////////////////////////////////////////////////////////////////////
         // Parse the HTTP request
-        //
-        // In case we read more than the HTTP headers.
-        // There should not be any overflow but if there is,
-        // we will ignore it since the client should wait for
-        // our end of the handshake.
         /////////////////////////////////////////////////////////////////////
-
-        if (szOverflow) {
-
-           // Assume no overflow
-           szOverflow[0] = 0;
-
-           szHTTPOverflow = CSSTR_StrTok(szHTTPRequest,
-                                         szDoubleNewline);
-
-           if (szHTTPOverflow != 0) {
-
-              // We found the delimiter ... is there something after?
-
-              szHTTPOverflow = CSSTR_StrTok(szHTTPRequest,
-                                            szDoubleNewline);
-
-              if (szHTTPOverflow != 0) {
-
-                 iOverflowSize = iOverflowSize < size-position ?
-                                 iOverflowSize:
-                                 size-position;
-
-                 if (size-position > 0) {
-
-                    // Caller wants to retrieve the overflow data
-
-                    memcpy(szOverflow,
-                           szHTTPOverflow, iOverflowSize);
-
-                    szOverflow[iOverflowSize] = 0;
-                 }
-              }
-           }
-        }
-
-        // Parse HTTP headers
 
         headers[0] = CSSTR_StrTok(szHTTPRequest, szNewline);
 

@@ -117,8 +117,6 @@
      D                 Pr              *     ExtProc('CSWSCK_OpenServer')
      D@ConnFd                        10I 0   Value
      D@szAppID                         *     Value
-     D@data                            *     Value
-     D@dataSize                      10I 0   Value
      D@sessionInfo                     *     Value
      D@sessionInfoFmt                10I 0   Value
 
@@ -135,8 +133,6 @@
      D                 Pr            10U 0   ExtProc('CSWSCK_SecureOpenServer')
      D@ConnFd                        10I 0   Value
      D@szAppID                         *     Value
-     D@data                            *     Value
-     D@dataSize                      10I 0   Value
      D@sessionInfo                     *     Value
      D@sessionInfoFmt                10I 0   Value
 

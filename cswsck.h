@@ -1,13 +1,9 @@
-
 /* ==========================================================================
-
   Clarasoft Foundation Server 400
 
   cswsck.h
   Web Socket Protocol Implementation definitions
   Version 1.0.0
-
-
 
   Distributed under the MIT license
 
@@ -20,10 +16,8 @@
   merge, publish, distribute, sublicense, and/or sell
   copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
-
   The above copyright notice and this permission notice shall be
   included in all copies or substantial portions of the Software.
-
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -31,7 +25,6 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 ========================================================================== */
 
 #ifndef __CSWSCK_H__
@@ -79,8 +72,6 @@ CSWSCK
   CSWSCK_OpenServer
     (int   connfd,
      char* szAppID,
-     char* szOverflow,
-     long  iOverflowMax,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -133,8 +124,6 @@ CSWSCK*
   CSWSCK_SecureOpenServer
     (int   connfd,
      char* szAppID,
-     char* szOverflow,
-     long  iOverflowMax,
      void* sessionInfo,
      int   sessionInfoFmt);
 

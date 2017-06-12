@@ -216,7 +216,7 @@ int main (int argc, char **argv)
            // ID passed as parameter must be valid on your system.
            //////////////////////////////////////////////////////////////////
 
-           pCONN = CSWSCK_SecureOpenServer(conn_fd, "WSD", 0, 0, 0, 0);
+           pCONN = CSWSCK_SecureOpenServer(conn_fd, "WSD", 0, 0);
 
            if (pCONN != 0) {
 
@@ -467,4 +467,4 @@ void Cleanup(_CNL_Hndlr_Parms_T* data) {
    close(conn_fd);
 }
 
- 
+

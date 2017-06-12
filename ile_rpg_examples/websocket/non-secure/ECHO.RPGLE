@@ -73,7 +73,7 @@
                            // in secure connections. This example is a
                            // non SSL handler.
 
-          pCONN = CSWSCK_OpenServer(@Conn: %Addr(appID): *Null: 0: *Null: 0);
+          pCONN = CSWSCK_OpenServer(@Conn: %Addr(appID): *Null: 0);
 
           If (pCONN <> *Null);
 
