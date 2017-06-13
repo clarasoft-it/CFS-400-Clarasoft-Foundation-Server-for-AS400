@@ -124,8 +124,8 @@ CSWSCK*
   CSWSCK_OpenClient
     (int   connfd,
      char* szAppID,
-     void* data,
-     long  dataSize,
+     char* szURL,
+     long  port,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -160,8 +160,8 @@ CSWSCK*
   CSWSCK_SecureOpenClient
     (int   connfd,
      char* szAppID,
-     void* data,
-     long  dataSize,
+     char* szURL,
+     long  port,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -1047,6 +1047,28 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
         }
 
         This->dataSize = 0;
+
+        ////////////////////////////////////////////////////////////////////
+        // It's not clear fromthe RFC if a PONG frame from a client
+        // will have its mask set when no data is sent...
+        // this is just in case
+        ////////////////////////////////////////////////////////////////////
+
+        if (CSWSCK_MaskCode(ws_header[1]) == 1) {
+
+           MaskIsOn = 1;
+           iSize = 4;
+
+           hResult = CFS_ReadRecord(This->Connection,
+                                    ws_mask,
+                                    &iSize,
+                                    timeout);
+        }
+
+        if (CS_FAIL(hResult)) {
+
+           return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
+        }
      }
 
      *iDataSize = This->dataSize;
@@ -1847,7 +1869,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
                                           &iSize,
                                           timeout,
                                           &iSSLResult);
-
         }
 
         if (CS_FAIL(hResult)) {
@@ -1944,6 +1965,30 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
         }
 
         This->dataSize = 0;
+
+        ////////////////////////////////////////////////////////////////////
+        // It's not clear from the RFC if a PONG frame from a client
+        // will have its mask set when no data is sent...
+        // this is just in case.
+        ////////////////////////////////////////////////////////////////////
+
+        if (CSWSCK_MaskCode(ws_header[1]) == 1) {
+
+           MaskIsOn = 1;
+           iSize = 4;
+
+           hResult = CFS_SecureReadRecord(This->Connection,
+                                          ws_mask,
+                                          &iSize,
+                                          timeout,
+                                          &iSSLResult);
+
+        }
+
+        if (CS_FAIL(hResult)) {
+
+           return CS_FAILURE | CSWSCK_OPER_CFSAPI | CS_DIAG(hResult);
+        }
      }
 
      *iDataSize = This->dataSize;

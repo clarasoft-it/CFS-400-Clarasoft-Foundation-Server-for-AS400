@@ -72,6 +72,8 @@ CSWSCK
   CSWSCK_OpenServer
     (int   connfd,
      char* szAppID,
+     char* szURL,
+     long  port,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -115,8 +117,8 @@ CSWSCK
   CSWSCK_SecureOpenClient
     (int   connfd,
      char* szAppID,
-     void* data,
-     long  dataSize,
+     char* szURL,
+     long  port,
      void* sessionInfo,
      int   sessionInfoFmt);
 
