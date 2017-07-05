@@ -121,18 +121,13 @@ CSRESULT
      uint64_t  iMaxDataSize);
 
 CSWSCK*
-  CSWSCK_OpenClient
-    (int   connfd,
-     char* szAppID,
-     char* szURL,
-     long  port,
-     void* sessionInfo,
+  CSWSCK_Connect
+    (void* sessionInfo,
      int   sessionInfoFmt);
 
 CSWSCK*
-  CSWSCK_OpenServer
+  CSWSCK_OpenChannel
     (int   connfd,
-     char* szAppID,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -157,18 +152,13 @@ CSRESULT
      int       timeout);
 
 CSWSCK*
-  CSWSCK_SecureOpenClient
-    (int   connfd,
-     char* szAppID,
-     char* szURL,
-     long  port,
-     void* sessionInfo,
+  CSWSCK_SecureConnect
+    (void* sessionInfo,
      int   sessionInfoFmt);
 
 CSWSCK*
-  CSWSCK_SecureOpenServer
+  CSWSCK_SecureOpenChannel
     (int   connfd,
-     char* szAppID,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -316,7 +306,7 @@ CSRESULT CSWSCK_GetData(CSWSCK*   This,
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CSWSCK_OpenServer
+// CSWSCK_OpenChannel
 //
 // Opens a non-secure websocket server session.
 //
@@ -353,10 +343,9 @@ CSRESULT CSWSCK_GetData(CSWSCK*   This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSWSCK* CSWSCK_OpenServer(int   connfd,
-                          char* szAppID,
-                          void* sessionInfo,
-                          int   sessionInfoFmt)
+CSWSCK* CSWSCK_OpenChannel(int   connfd,
+                           void* sessionInfo,
+                           int   sessionInfoFmt)
 {
   char szHTTPRequest[65536];
   char szHTTPHeader[1025];
@@ -420,16 +409,13 @@ CSWSCK* CSWSCK_OpenServer(int   connfd,
   This = (CSWSCK*)malloc(sizeof(CSWSCK));
   memset(This, 0, sizeof(CSWSCK));
 
-
   ///////////////////////////////////////////////////////////////////////////
   // Create conversion objects
   ///////////////////////////////////////////////////////////////////////////
 
-  This->Connection = CFS_Open(connfd,
-                              szAppID,
-                              CFS_SESSIONTYPE_SERVER,
-                              0,
-                              0);
+  This->Connection = CFS_OpenChannel(connfd,
+                                     sessionInfo,
+                                     sessionInfoFmt);
 
   if (This->Connection != 0) {
 
@@ -1226,7 +1212,7 @@ CSRESULT CSWSCK_SecureClose(CSWSCK*   This,
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CSWSCK_SecureOpenServer
+// CSWSCK_SecureOpenChannel
 //
 // Opens a secure websocket session.
 //
@@ -1263,10 +1249,9 @@ CSRESULT CSWSCK_SecureClose(CSWSCK*   This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSWSCK* CSWSCK_SecureOpenServer(int   connfd,
-                                char* szAppID,
-                                void* sessionInfo,
-                                int   sessionInfoFmt)
+CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
+                                 void* sessionInfo,
+                                 int   sessionInfoFmt)
 {
   char szHTTPRequest[65536];
   char szHTTPHeader[1025];
@@ -1334,12 +1319,10 @@ CSWSCK* CSWSCK_SecureOpenServer(int   connfd,
   // Create conversion objects
   ///////////////////////////////////////////////////////////////////////////
 
-  This->Connection = CFS_SecureOpen(connfd,
-                                    szAppID,
-                                    CFS_SESSIONTYPE_SERVER,
-                                    0,
-                                    0,
-                                    &iSSLResult);
+  This->Connection = CFS_SecureOpenChannel(connfd,
+                                           sessionInfo,
+                                           sessionInfoFmt,
+                                           &iSSLResult);
 
   if (This->Connection != 0) {
 

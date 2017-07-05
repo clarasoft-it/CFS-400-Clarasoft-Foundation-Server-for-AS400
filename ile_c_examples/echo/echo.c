@@ -16,9 +16,23 @@
 
   Build service program with:
 
-     CRTSRVPGM SRVPGM(FSOUC0/ECHO)
-        MODULE(ECHO CFSAPI CSLIST CSSTR) EXPORT(*ALL)
+     CRTSRVPGM SRVPGM(ECHO) MODULE(ECHO)
+        EXPORT(*ALL) BNDSRVPGM((CFSAPI))
 
+  To execute from CLARAD,
+
+    1) Insert the following record in CFSREG:
+
+        RGSRVNM: ECHO
+        RGLIBNM: <the library name where the ECHO service pgm resides>
+        RGPRCHD: ECHO or <the name of the service program
+                          compiled from this source>
+        RGPRCNM: echoProc
+
+    2) Execute the CLARAD daemon with the following command:
+
+       call clarad parm('41101' '3' '4'
+                        '/QSYS.LIB/LIBANME.LIB/CLARAH.PGM' 'ECHO')
 
 
   Distributed under the MIT license
@@ -75,11 +89,7 @@ CSRESULT echoProc(int fd, char* szIP, char* szPORT, void* data) {
    // String Conversion object
    cvtString = CSSTRCV_Constructor();
 
-   pInstance = CFS_Open(fd,
-                        0,
-                        CFS_SESSIONTYPE_SERVER,
-                        0,
-                        0);
+   pInstance = CFS_OpenChannel(fd, 0, 0);
 
    do {
 
@@ -170,4 +180,4 @@ CSRESULT echoProc(int fd, char* szIP, char* szPORT, void* data) {
 
    return CS_SUCCESS;
 }
- 
+

@@ -1,33 +1,33 @@
 
 /* ==========================================================================
   Clarasoft Foundation Server 400
-  
+
   clarah.c
   Clara daemon handler job
   Version 1.0.0
-  
-  
+
+
   Command line arguments
-  
+
      - protocol implementation name
-	 
+
      If argument is *NOLINK, then this handler implements
      the protocol implementation. Any other value identifies
      an implementation exported by a service program.
-	
-	
+
+
   Compile module with:
-  
+
      CRTSQLCI OBJ(CLARAH) SRCFILE(QCSRC)
               SRCMBR(CLARAH) DBGVIEW(*SOURCE)
-			  
+
   Build program with:
-  
-     CRTPGM PGM(CLARAH) MODULE(CLARAH CFSAPI CSLIST CSSTR)
-	 
-	 
+
+     CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
+
+
   Distributed under the MIT license
-  
+
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
@@ -170,11 +170,7 @@ int main (int argc, char **argv)
            // ECHO handler using CFSAPI non-secure functions
            //////////////////////////////////////////////////////////////////
 
-           pInstance = CFS_Open(conn_fd,
-                                0,
-                                CFS_SESSIONTYPE_SERVER,
-                                0,
-                                0);
+           pInstance = CFS_OpenChannel(conn_fd, 0, 0);
 
            do {
 

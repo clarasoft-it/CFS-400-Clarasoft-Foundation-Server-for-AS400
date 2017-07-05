@@ -62,18 +62,13 @@
 typedef void* CSWSCK;
 
 CSWSCK
-  CSWSCK_OpenClient
-    (int   connfd,
-     char* szAppID,
-     char* szURL,
-     long  port,
-     void* sessionInfo,
+  CSWSCK_Connect
+    (void* sessionInfo,
      int   sessionInfoFmt);
 
 CSWSCK
-  CSWSCK_OpenServer
+  CSWSCK_OpenChannel
     (int   connfd,
-     char* szAppID,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -114,18 +109,13 @@ CSRESULT
      uint64_t  iMaxDataSize);
 
 CSWSCK
-  CSWSCK_SecureOpenClient
-    (int   connfd,
-     char* szAppID,
-     char* szURL,
-     long  port,
-     void* sessionInfo,
+  CSWSCK_SecureConnect
+    (void* sessionInfo,
      int   sessionInfoFmt);
 
 CSWSCK*
-  CSWSCK_SecureOpenServer
+  CSWSCK_SecureOpenChannel
     (int   connfd,
-     char* szAppID,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -157,12 +147,5 @@ CSRESULT
      uint64_t  iDataSize,
      char      fin,
      int       timeout);
-
-CSRESULT
-  CSWSCK_SecureGetData
-    (CSWSCK    This,
-     char*     szBuffer,
-     uint64_t  offset,
-     uint64_t  iMaxDataSize);
 
 #endif
