@@ -7,27 +7,30 @@
       //    Definitions for demonstration websocket echo service in ILE RPG
       //    Version 1.0.0
       //
+      //    Note: additional definitions should be taken
+      //          from the CFSAPI.H C language file
       //
-      //     Distributed under the MIT license
       //
-      //     Copyright (c) 2017 Clarasoft I.T. Solutions Inc.
+      //    Distributed under the MIT license
       //
-      //     Permission is hereby granted, free of charge, to any person obtaining
-      //     a copy of this software and associated documentation files
-      //     (the "Software"), to deal in the Software without restriction,
-      //     including without limitation the rights to use, copy, modify,
-      //     merge, publish, distribute, sublicense, and/or sell
-      //     copies of the Software, and to permit persons to whom the Software is
-      //     furnished to do so, subject to the following conditions:
-      //     The above copyright notice and this permission notice shall be
-      //     included in all copies or substantial portions of the Software.
-      //     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-      //     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-      //     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-      //     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
-      //     ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-      //     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
-      //     THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      //    Copyright (c) 2017 Clarasoft I.T. Solutions Inc.
+      //
+      //    Permission is hereby granted, free of charge, to any person obtaining
+      //    a copy of this software and associated documentation files
+      //    (the "Software"), to deal in the Software without restriction,
+      //    including without limitation the rights to use, copy, modify,
+      //    merge, publish, distribute, sublicense, and/or sell
+      //    copies of the Software, and to permit persons to whom the Software is
+      //    furnished to do so, subject to the following conditions:
+      //    The above copyright notice and this permission notice shall be
+      //    included in all copies or substantial portions of the Software.
+      //    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      //    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      //    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+      //    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+      //    ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+      //    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+      //    THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
       //
       /////////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +38,76 @@
       /IF NOT DEFINED(ECHORPGH)
       /DEFINE ECHORPGH
 
+
+      *----------------------------------------------------------------------
+      *  CFS-400 : SSL SERVER SESSION INFORMATIOn STRUCTURE FORMAT ID
+      *----------------------------------------------------------------------
+
+     DCFS_SERVERSESSION_FMT_100...
+     D                 C                     Const(x'00002064')
+
+      *----------------------------------------------------------------------
+      *  CFS-400 : SSL SERVER SESSION INFORMATION STRUCTURE
+      *----------------------------------------------------------------------
+
+     DSERVERSESSIONINFO_100...
+     D                 DS                    Align
+     D                                       Qualified
+     DszApplicationID                  *
+     DgskSessionTypeOverrideDefaults...
+     D                               10I 0
+     DgskAuthTypeOverrideDefaults...
+     D                               10I 0
+     DgskSessionCloseOverrideDefaults...
+     D                               10I 0
+     DgskOverrideNumericDefaults...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV12...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV11...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV10...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV1...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_SSLV3...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_SSLV2...
+     D                               10I 0
+     DgskSessionType_GSK_SERVER_SESSION...
+     D                               10I 0
+     DgskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH...
+     D                               10I 0
+     DgskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL...
+     D                               10I 0
+     DgskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_ENABLE...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_RETRIEVE_VIA_GET...
+     D                               10I 0
+     DgskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER...
+     D                               10I 0
+     DgskAttribute_GSK_CERTREQ_DNLIST_ENABLE...
+     D                               10I 0
+     DgskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE...
+     D                               10I 0
+     DgskSessionClose_GSK_NORMAL_ENVIRONMENT_CLOSE...
+     D                               10I 0
+     DgskAuthType_GSK_CLIENT_AUTH_FULL...
+     D                               10I 0
+     DgskAuthType_GSK_CLIENT_AUTH_PASSTHRU...
+     D                               10I 0
+     DgskAuthType_GSK_OS400_CLIENT_AUTH_REQUIRED...
+     D                               10I 0
+     DiNumericValues...
+     D                               10I 0  Dim(12)
+     DpszBuffers...
+     D                                 *    Dim(20)
 
       *----------------------------------------------------------------------
       *  CFS-400 : Websocket API Constants
@@ -104,35 +177,25 @@
       *  CFS-400 : Websocket Functions
       *----------------------------------------------------------------------
 
-     DCSWSCK_OpenClient...
-     D                 Pr            10U 0   ExtProc('CSWSCK_OpenClient')
-     D@ConnFd                        10I 0   Value
-     D@szAppID                         *     Value
-     D@data                            *     Value
-     D@dataSize                      10I 0   Value
+     DCSWSCK_OpenConnect...
+     D                 Pr            10U 0   ExtProc('CSWSCK_Connect')
      D@sessionInfo                     *     Value
      D@sessionInfoFmt                10I 0   Value
 
-     DCSWSCK_OpenServer...
-     D                 Pr              *     ExtProc('CSWSCK_OpenServer')
+     DCSWSCK_OpenChannel...
+     D                 Pr              *     ExtProc('CSWSCK_OpenChannel')
      D@ConnFd                        10I 0   Value
-     D@szAppID                         *     Value
      D@sessionInfo                     *     Value
      D@sessionInfoFmt                10I 0   Value
 
-     DCSWSCK_SecureOpenClient...
-     D                 Pr              *     ExtProc('CSWSCK_SecureOpenClient')
-     D@ConnFd                        10I 0   Value
-     D@szAppID                         *     Value
-     D@data                            *     Value
-     D@dataSize                      10I 0   Value
+     DCSWSCK_SecureConnect...
+     D                 Pr              *     ExtProc('CSWSCK_SecureConnect')
      D@sessionInfo                     *     Value
      D@sessionInfoFmt                10I 0   Value
 
-     DCSWSCK_SecureOpenServer...
-     D                 Pr            10U 0   ExtProc('CSWSCK_SecureOpenServer')
+     DCSWSCK_SecureOpenChannel...
+     D                 Pr              *     ExtProc('CSWSCK_SecureOpenChannel')
      D@ConnFd                        10I 0   Value
-     D@szAppID                         *     Value
      D@sessionInfo                     *     Value
      D@sessionInfoFmt                10I 0   Value
 

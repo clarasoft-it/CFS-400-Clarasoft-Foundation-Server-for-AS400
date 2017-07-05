@@ -3,34 +3,35 @@
       //
       //    Clarasoft Foundation Server for AS400
       //
-      //    ECHO.RPGLE
+      //    ECHOSRPGLE
       //    Demonstration echo service that uses the websocket protocol
+      //    using SSL
       //    Version 1.0.0
       //
       //    Compile module with:
       //
-      //       CRTRPGMOD MODULE(ECHOMOD) SRCFILE(QRPGLESRC)
-      //                 SRCMBR(ECHO.RPGLE) DBGVIEW(*ALL)
+      //       CRTRPGMOD MODULE(ECHOMODS) SRCFILE(QRPGLESRC)
+      //                 SRCMBR(ECHOSRPGLE) DBGVIEW(*ALL)
       //
       //    Build program with:
       //
-      //       CRTSRVPGM SRVPGM(ECHOSRV) MODULE(ECHOMOD)
+      //       CRTSRVPGM SRVPGM(ECHOSRVS) MODULE(ECHOMODS)
       //       BNDSRVPGM(CFSAPI) EXPORT(*ALL)
       //
       //    To use with the CLARAH handler, do the following:
       //
       //      1) Insert the following in the CFSREG file:
       //
-      //         RGSRVNM: ECHORPG
+      //         RGSRVNM: ECHORPGS
       //         RGLIBNM: <the library name where the ECHO service pgm resides>
-      //         RGPRCHD: ECHOSRV or <the name of the service program
+      //         RGPRCHD: ECHOSRVS or <the name of the service program
       //                          compiled from this source>
       //         RGPRCNM: ECHOHANDLER
       //
       //      2) Execute the CLARAD daemon with the following command:
       //
       //           call clarad parm('41101' '3' '4'
-      //                   '/QSYS.LIB/LIBANME.LIB/CLARAH.PGM' 'ECHORPG')
+      //                   '/QSYS.LIB/LIBANME.LIB/CLARAH.PGM' 'ECHORPGS')
       //
       //
       //     Distributed under the MIT license
@@ -82,13 +83,26 @@
      DDataSize         S             20U 0
      DDataBuffer       S           4096A
 
+     DSessionDS        DS                  LikeDS(SERVERSESSIONINFO_100)
+
       /Free
 
           appID = *Blanks; // Only used to identify SSL certtificate to use
                            // in secure connections. This example is a
                            // non SSL handler.
 
-          pCONN = CSWSCK_OpenChannel(@Conn: *Null: 0);
+          Clear SessionDS;
+
+          appID = 'WSD' + x'00';
+
+          // See the CFSAPI.H header file for the index and add 1
+          // because RPG arrays are one-based.
+
+          SessionDS.pszBuffers(4) = %Addr(appID);
+
+          pCONN = CSWSCK_SecureOpenChannel(@Conn:
+                                           %Addr(SessionDS):
+                                           CFS_SERVERSESSION_FMT_100);
 
           If (pCONN <> *Null);
 
@@ -98,7 +112,7 @@
 
               // Wait for client to send data
 
-              Rc = CSWSCK_Receive(pCONN: %Addr(DataSize): -1);
+              Rc = CSWSCK_SecureReceive(pCONN: %Addr(DataSize): -1);
 
               // CFS-400 functions return complex results;
               // the success code has to be extracted from the result code
@@ -137,7 +151,7 @@
 
                   Dow DiagCode = CSWSCK_MOREDATA;
 
-                    Rc = CSWSCK_Receive(pCONN: %Addr(DataSize): -1);
+                    Rc = CSWSCK_SecureReceive(pCONN: %Addr(DataSize): -1);
 
                     ErrCode   = %bitand(Rc: CSWSCK_MASK_ERROR);
 
@@ -173,12 +187,12 @@
 
                   // Echo back the data
 
-                  Rc = CSWSCK_Send(pCONN:
-                                   CSWSCK_OPER_TEXT:
-                                   %Addr(DataBuffer):
-                                   DataSize:
-                                   CSWSCK_FIN_ON:
-                                   -1);
+                  Rc = CSWSCK_SecureSend(pCONN:
+                                         CSWSCK_OPER_TEXT:
+                                         %Addr(DataBuffer):
+                                         DataSize:
+                                         CSWSCK_FIN_ON:
+                                         -1);
 
                   ErrCode   = %bitand(Rc: CSWSCK_MASK_ERROR);
 
@@ -205,7 +219,7 @@
           EndIf;
 
           // This sends a Websocket CLOSE operation
-          CSWSCK_Close(pCONN: *Null: 0: -1);
+          CSWSCK_SecureClose(pCONN: *Null: 0: -1);
 
           *InLr = *On;
           Return 0;
