@@ -11,12 +11,6 @@
 
      CRTCMOD MODULE(CSWSCK) SRCFILE(QCSRC) DBGVIEW(*ALL)
 
-  To build this as a loadable module:
-
-     CRTSRVPGM SRVPGM(CSWSCK)
-        MODULE(CSWSCK CSLIST CFSAPI CSSTR) EXPORT(*ALL)
-
-
 
   Distributed under the MIT license
 
