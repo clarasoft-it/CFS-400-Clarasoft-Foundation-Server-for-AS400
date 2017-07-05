@@ -1,18 +1,12 @@
 /* ===========================================================================
-
   Clarasoft Foundation Server 400
-
   cfsapi.c
   Networking Primitives
   Version 1.0.0
 
-
-
   Compile module with:
 
      CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
-
 
   Distributed under the MIT license
 
@@ -25,10 +19,8 @@
   merge, publish, distribute, sublicense, and/or sell
   copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
-
   The above copyright notice and this permission notice shall be
   included in all copies or substantial portions of the Software.
-
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -36,8 +28,6 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
 =========================================================================== */
 
 #include <arpa/inet.h>
@@ -46,6 +36,7 @@
 #include <fcntl.h>
 #include <gskssl.h>
 #include <limits.h>
+#include <netdb.h>
 #include "qcsrc/cfsapi.h"
 #include <QSYSINC/MIH/GENUUID>
 #include <QSYSINC/MIH/CVTHC>
@@ -53,12 +44,66 @@
 #include <stdlib.h>
 #include <sys/poll.h>
 
+GSK_ENUM_ID gskEnumIndices[] = {
+
+  GSK_KEYRING_FILE,
+  GSK_KEYRING_PW,
+  GSK_KEYRING_LABEL,
+  GSK_OS400_APPLICATION_ID,
+  GSK_V2_CIPHER_SPECS,
+  GSK_V3_CIPHER_SPECS,
+  GSK_V3_CIPHER_SPECS_EX,
+  GSK_TLSV12_CIPHER_SPECS,
+  GSK_TLSV12_CIPHER_SPECS_EX,
+  GSK_TLSV11_CIPHER_SPECS,
+  GSK_TLSV11_CIPHER_SPECS_EX,
+  GSK_TLSV10_CIPHER_SPECS,
+  GSK_TLSV10_CIPHER_SPECS_EX,
+  GSK_SSL_EXTN_SIGALG,
+  GSK_OCSP_URL,
+  GSK_OCSP_PROXY_SERVER_NAME,
+  GSK_SSL_EXTN_SERVERNAME_REQUEST,
+  GSK_SSL_EXTN_SERVERNAME_CRITICAL_REQUEST,
+  GSK_SSL_EXTN_SERVERNAME_LIST,
+  GSK_SSL_EXTN_SERVERNAME_CRITICAL_LIST
+};
+
+GSK_ENUM_ID gskNumericIndices[] = {
+
+  GSK_FD,
+  GSK_V2_SESSION_TIMEOUT,
+  GSK_V3_SESSION_TIMEOUT,
+  GSK_OS400_READ_TIMEOUT,
+  GSK_HANDSHAKE_TIMEOUT,
+  GSK_OCSP_MAX_RESPONSE_SIZE,
+  GSK_OCSP_TIMEOUT,
+  GSK_OCSP_NONCE_SIZE,
+  GSK_OCSP_CLIENT_CACHE_SIZE,
+  GSK_OCSP_PROXY_SERVER_PORT,
+  GSK_SSL_EXTN_MAXFRAGMENT_SIZE,
+  GSK_TLS_CBCPROTECTION_METHOD
+};
+
 /* ---------------------------------------------------------------------------
    private functions
 --------------------------------------------------------------------------- */
 
-CSRESULT CFS_PRV_SetBlocking(int connfd,
-                             int blocking);
+CSRESULT
+  CFS_PRV_DoSecureConnect_100
+    (CFS_INSTANCE* cfsi,
+     void* sessionInfo,
+     int*  iSSLResult);
+
+CSRESULT
+  CFS_PRV_DoSecureOpenChannel_100
+    (CFS_INSTANCE* cfsi,
+     void* sessionInfo,
+     int*  iSSLResult);
+
+CSRESULT
+  CFS_PRV_SetBlocking
+    (int connfd,
+     int blocking);
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -66,19 +111,6 @@ CSRESULT CFS_PRV_SetBlocking(int connfd,
 // CFS_Close
 //
 // This function closes a non-secure session and environement.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_Open() function to initialise this instance.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -93,57 +125,92 @@ CSRESULT CFS_Close(CFS_INSTANCE* This) {
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_GetAddressInfo
+// CFS_Connect
 //
-// This function returns a network address from a hostname (URL) and
-// optionnally a network service (protocol).
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-//  host: a null-terminated buffer that holds the URL
-//
-//  serv: a null-terminated buffer that holds the name of the service
-//        or protocol.
-//
-//  family:  address family such as AF_INET or AF_INET6.
-//
-//  sockType: socket type (either SOCK_STREAM or SOCK_DGRAM).
-//
-//  result: The address of a pointer to a struct addrinfo; upon
-//          success, this pointer must be released with a call
-//          to freeaddrinfo().
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//    CS_FAILURE
+// This function initialises a non secure session. It also
+// initialises an CFS_INSTANCE structure that must be used for
+// communication with a peer.
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_GetAddressInfo(const char*       host,
-                            const char*       serv,
-                            int               family,
-                            int               sockType,
-                            struct addrinfo** result)
-{
-  struct addrinfo hints;
+CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
+                          int    sessionInfoFmt) {
 
-  memset(&hints, 0, sizeof(hints));
+   int rc;
+   int e;
 
-  hints.ai_flags = AI_CANONNAME;
-  hints.ai_family = family;
-  hints.ai_socktype = sockType;
+   char szPort[11];
 
-  if (getaddrinfo(host, serv, &hints, result) != 0)
-  {
-    *result = 0;
-    return CS_FAILURE;
-  }
+   CFS_INSTANCE* cfsi;
 
-  return CS_SUCCESS;
+   struct addrinfo* addrInfo;
+   struct addrinfo* addrInfo_first;
+   struct addrinfo  hints;
+
+   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
+   cfsi->size = sizeof(CFS_INSTANCE);
+
+   switch(sessionInfoFmt) {
+
+      case CFS_CLIENTSESSION_FMT_100:
+
+         memset(&hints, 0, sizeof(struct addrinfo));
+         hints.ai_family = AF_UNSPEC;
+         hints.ai_socktype = SOCK_STREAM;
+
+         sprintf(szPort, "%d", ((CFS_CLIENTSESSION_100*)sessionInfo)->port);
+
+         if ((rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
+                               ->szHostName,
+                               szPort,
+                               &hints,
+                               &addrInfo)) == 0)
+         {
+
+            addrInfo_first = addrInfo;
+            cfsi->connfd = -1;
+
+            while (addrInfo != 0)
+            {
+               cfsi->connfd = socket(addrInfo->ai_family,
+                                     addrInfo->ai_socktype,
+                                     addrInfo->ai_protocol);
+
+               if (cfsi->connfd >= 0) {
+
+                  rc = connect(cfsi->connfd,
+                               addrInfo->ai_addr,
+                               addrInfo->ai_addrlen);
+
+                  if (rc < 0) {
+
+                     e = errno;
+                     close(cfsi->connfd);
+                     cfsi->connfd = -1;
+                  }
+                  else {
+
+                     // Set socket to non-blocking mode and leave the loop
+                     CFS_PRV_SetBlocking(cfsi->connfd, 0);
+                     break;
+                  }
+               }
+
+               addrInfo = addrInfo->ai_next;
+            }
+
+            freeaddrinfo(addrInfo_first);
+         }
+
+         break;
+   }
+
+   if (cfsi->connfd = -1) {
+      free(cfsi);
+      cfsi = 0;
+   }
+
+   return cfsi;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -151,45 +218,6 @@ CSRESULT CFS_GetAddressInfo(const char*       host,
 // CFS_MakeUUID
 //
 // This function generates a UUID and returns its string representation.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// szUUID: The address of a buffer that will hold the resulting UUID.
-//         On output, the buffer will be null-terminated. The size
-//         of the buffer can be set to CFS_UUID_BUFFERSIZE to
-//         insure enough space for the maximum UUID representation.
-//
-//
-// mode: Indicates how to represent the generated UUID. Hexadicimal digits
-//       above 9 can be represented as either lowercase or uppercase
-//       letters. Also, the string represntation may include (or not)
-//       dashes seperating the UUID fields:
-//
-//       CFS_UUID_UPPERCASE: returns UUID with upercase letters and no dashes.
-//
-//          Example: D4BA3B92BD652AEC3B21107CD5F489D6
-//
-//       CFS_UUID_LOWERCASE: returns UUID with lowercase letters and no dashes.
-//
-//          Example: d4ba3b92bd652aec3b21107cd5f489d6
-//
-//       CFS_UUID_UPPERCASE | CFS_UUID_DASHES : returns UUID with
-//                                              upercase letters and dashes.
-//
-//          Example: D4BA3B92-BD65-2AEC-3B21-107CD5F489D6
-//
-//       CFS_UUID_LOWERCASE | CFS_UUID_DASHES : returns UUID with
-//                                              lowercase letters and dashes.
-//
-//          Example: d4ba3b92-bd65-2aec-3b21-107cd5f489d6
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -247,24 +275,6 @@ CSRESULT CFS_MakeUUID(char* szUUID,
 // CFS_NetworkToPresentation
 //
 // This function returns a string representation of a network address.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// sa: A pointer to a socket address.
-//
-// addrstr: A buffer that will receive the string representation of
-//          the network address.
-//
-// portstr: A buffer that will receive the port number of the network
-//          address.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//    CS_FAILURE
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -350,55 +360,29 @@ CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_Open
+// CFS_OpenChannel
 //
 // This function initialises a non secure session. It also
 // initialises an CFS_INSTANCE structure that must be used for
 // communication with a peer.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an instance of type CFS_INSTANCE.
-//
-// szApplicationID: The name of the application ID: for this version,
-//                  the parameter is ignored.
-//
-// iSessionType: This flag indicates if the session is either a client
-//               session or a server session. Possible values are:
-//
-//                  CFS_SESSIONTYPE_CLIENT
-//                  CFS_SESSIONTYPE_SERVER
-//
-//               If the value passed is other than one of the above,
-//               then the session type is set to CFS_SESSIONTYPE_CLIENT.
-//
-// sessionInfo: A pointer to a data structure containing additional
-//              information: for this version, the parameter is ignored.
-//
-// sessionInfoFmt: An integer identifying the format of the sessionInfo
-//                 parameter: for this version, the parameter is ignored.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    A pointer to an CFS_INSTANCE instance; if the pointer is NULL,
-//    this indicates failure.
-//
 //////////////////////////////////////////////////////////////////////////////
 
-CFS_INSTANCE* CFS_Open(int    connfd,
-                       char*  szApplicationID,
-                       int    iSessionType,
-                       void*  sessionInfo,
-                       int    sessionInfoFmt) {
+CFS_INSTANCE* CFS_OpenChannel(int    connfd,
+                              void*  sessionInfo,
+                              int    sessionInfoFmt) {
+
+   int rc;
 
    CFS_INSTANCE* cfsi;
+
+   struct sockaddr_in6 server_addr;
+   struct hostent *server;
 
    cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
 
    cfsi->size = sizeof(CFS_INSTANCE);
+
    cfsi->connfd = connfd;
 
    // Set socket to non-blocking mode
@@ -412,72 +396,6 @@ CFS_INSTANCE* CFS_Open(int    connfd,
 // CFS_Read
 //
 // This function reads a non-secure socket.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_Open() function to initialise this instance.
-//
-// buffer: The address of a buffer that will receive the data
-//         from the socket.
-//
-// size: The maximum number of bytes the buffer can receive.
-//
-// timeout: The maximum number of seconds to wait for data.
-//          Timeout values can be:
-//
-//            <  0 : wait forever until data arrives.
-//
-//            == 0 : perform a single read and return immediately.
-//
-//            >  0 : wait up to the specified timeout for data to arrive.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    The intent of this function is to read as much data as possible
-//    without error up to a maximum number of bytes.
-//
-//    This function succeeds if data was read without error. Also,
-//    unlike a write operation, a connection close is not considered
-//    to be a failure. It could mean the peer has sent all its data
-//    and then decided to close its connexion. It is up to the caller to
-//    determine if data is missing after a connection close.
-//
-//    CS_SUCCESS | CFS_OPER_READ   | CFS_DIAG_ALLDATA
-//
-//       Data has been read up to the maximum buffer size.
-//
-//    CS_SUCCESS | CFS_OPER_READ   | CFS_DIAG_CONNCLOSE
-//
-//       The connection was closed before the maximum buffer size
-//       was reached. Some data may have been read.
-//
-//    CS_SUCCESS | CFS_OPER_READ   | CFS_DIAG_WOULDBLOCK
-//
-//       Reading blocked before buffer could be filled.
-//       Some data may have been read.
-//
-//    CS_SUCCESS | CFS_OPER_WAIT   | CFS_DIAG_TIMEOUT
-//
-//       We timed out while waiting for data. This can only be
-//       returned if the timeout value is non-zero.
-//
-//    CS_FAILURE | CFS_OPER_READ   | CFS_DIAG_SYSTEM
-//
-//       Some error occured while reading; caller can examine
-//       the value of errno for additional info.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
-//
-//       Some error occured while waiting to read the socket;
-//       caller can examine the value of errno for additional info.
-//
-//    Note that when a failure code is returned, some data may have been
-//    read. The "size" parameter will hold the number of bytes read.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -757,69 +675,6 @@ CSRESULT CFS_Read(CFS_INSTANCE* This,
 //
 // This function reads a specific number of bytes from a non secure socket.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_Open() function to initialise this instance.
-//
-// buffer: The address of a buffer that holds the data
-//         read from the socket.
-//
-// size: The number of bytes to that must be read in the buffer.
-//       Buffer size must be > 0.
-//
-// timeout: The maximum number of seconds to wait for data
-//          to arrive.
-//
-//            <  0 : wait forever for data to arrive.
-//
-//            == 0 : perform a single read and return immediately.
-//
-//            >  0 : wait up to the specified timeout for data to arrive.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    This function only succeeds when the entire buffer has been filled.
-//    If we timed-out or blocked, this could mean the peer is sending data
-//    too slowly and this could be managed by the caller by trying to
-//    read again the remaining data.
-//
-//    CS_SUCCESS
-//
-//        All the requested bytes have been read.
-//
-//    CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE
-//
-//        The connection was closed while reading to the socket.
-//
-//    CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM
-//
-//        An error occured on the read operation.
-//        Caller can check errno for more info.
-//
-//    CS_FAILURE | CFS_OPER_READ | CFS_DIAG_WOULDBLOCK
-//
-//        A zero timeout was specified and the read would
-//        have blocked.
-//
-//    CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT
-//
-//        The timeout expired while waiting to read data. This
-//        can only be returned if the timeout is non-zero.
-//
-//    CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM
-//
-//        An error occured while waiting to read data.
-//        Caller can check errno for more info.
-//
-//
-//    Note that when a failure code is returned, some data may have been
-//    read. The "size" parameter will hold the number of bytes read.
-//    A caller could manage partial reads if necessary.
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CFS_ReadRecord(CFS_INSTANCE* This,
@@ -1018,30 +873,6 @@ CSRESULT CFS_ReadRecord(CFS_INSTANCE* This,
 // It is assumed that the caller has already established a connection to
 // the other process via a local domain (UNIX) socket.
 //
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// fd: The local socket descriptor used to receive the descriptor.
-//
-// descriptor: The address of an integer that will receive the descriptor.
-//
-// timeout: The maximum number of seconds to wait for the descriptor:
-//
-//            <  0 : wait forever until data arrives.
-//
-//            == 0 : try to receive immediately and return.
-//
-//            >  0 : wait up to the specified timeout for data to arrive.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//    CS_FAILURE | CFS_OPER_WAIT  | CFS_DIAG_TIMEDOUT
-//    CS_FAILURE | CFS_OPER_WAIT  | CFS_DIAG_SYSTEM
-//    CS_FAILURE | CFS_OPER_READ  | CFS_DIAG_SYSTEM
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CFS_ReceiveDescriptor(int  fd,
@@ -1197,19 +1028,6 @@ CSRESULT CFS_ReceiveDescriptor(int  fd,
 //
 // This function closes the secure session and environement.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_SecureOpen() function to initialise this instance.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CFS_SecureClose(CFS_INSTANCE* This) {
@@ -1226,123 +1044,160 @@ CSRESULT CFS_SecureClose(CFS_INSTANCE* This) {
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_SecureOpen
+// CFS_SecureConnect
+//
+// This function initialises a secure connection to a secure server.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CFS_INSTANCE* CFS_SecureConnect(void* sessionInfo,
+                                int   sessionInfoFmt,
+                                int*  iSSLResult) {
+
+   int rc;
+   int e;
+
+   char szPort[11];
+   char szAddr[40];
+
+   CFS_INSTANCE* cfsi;
+   CSRESULT hResult;
+
+   struct addrinfo* addrInfo;
+   struct addrinfo* addrInfo_first;
+   struct addrinfo  hints;
+
+   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
+   cfsi->size = sizeof(CFS_INSTANCE);
+
+   hResult = CS_FAILURE;
+
+   switch(sessionInfoFmt) {
+
+      case CFS_CLIENTSESSION_FMT_100:
+
+         memset(&hints, 0, sizeof(struct addrinfo));
+         hints.ai_family = AF_UNSPEC;
+         hints.ai_family = AF_INET;
+         hints.ai_socktype = SOCK_STREAM;
+
+         sprintf(szPort, "%d", ((CFS_CLIENTSESSION_100*)sessionInfo)->port);
+
+         if ((rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
+                               ->szHostName,
+                               szPort,
+                               &hints,
+                               &addrInfo)) == 0)
+         {
+
+            addrInfo_first = addrInfo;
+            cfsi->connfd = -1;
+
+            while (addrInfo != 0)
+            {
+               cfsi->connfd = socket(addrInfo->ai_family,
+                                     addrInfo->ai_socktype,
+                                     addrInfo->ai_protocol);
+
+               if (cfsi->connfd >= 0) {
+
+                  rc = connect(cfsi->connfd,
+                               addrInfo->ai_addr,
+                               addrInfo->ai_addrlen);
+
+                  if (rc < 0) {
+                     e = errno;
+                     close(cfsi->connfd);
+                     cfsi->connfd = -1;
+                  }
+                  else {
+
+                     // Set socket to non-blocking mode and leave the loop
+                     CFS_PRV_SetBlocking(cfsi->connfd, 0);
+
+                     if (CS_SUCCEED(CFS_PRV_DoSecureConnect_100(cfsi,
+                                                            sessionInfo,
+                                                            iSSLResult))) {
+
+                        hResult = CS_SUCCESS;
+                     }
+
+                     break;
+                  }
+               }
+
+               addrInfo = addrInfo->ai_next;
+            }
+
+            freeaddrinfo(addrInfo_first);
+         }
+
+         break;
+   }
+
+   if (CS_FAIL(hResult)) {
+
+      if (cfsi->connfd = -1) {
+
+         free(cfsi);
+      }
+      else {
+
+         CFS_Close(cfsi);
+      }
+
+      cfsi = 0;
+   }
+
+   return cfsi;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_SecureOpenChannel
 //
 // This function initialises a secure environement and session. It also
 // initialises an CFS_INSTANCE structure that must be used for secure
 // communication with a peer.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an instance of type CFS_INSTANCE.
-//
-// szApplicationID: The name of the application ID associated with the
-//                  SSL certificate.
-//
-// iSessionType: This flag indicates if the session is either a client
-//               session or a server session. Possible values are:
-//
-//                  CFS_SESSIONTYPE_CLIENT
-//                  CFS_SESSIONTYPE_SERVER
-//
-//               If the value passed is other than one of the above,
-//               then the session type is set to CFS_SESSIONTYPE_CLIENT.
-//
-// sessionInfo: A pointer to a data structure containing additional
-//              information: for this version, the parameter is ignored.
-//
-// sessionInfoFmt: An integer identifying the format of the sessionInfo
-//                 parameter: for this version, the parameter is ignored.
-//
-// iSSLResult: The address of a variable that will receive on return the
-//             GSK return code from the last call to one of the
-//             GSK Toolkit API functions used by this function.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    A pointer to an CFS_INSTANCE instance; if the pointer is NULL,
-//    this indicates failure. The iSSLResult parameter will hold
-//    the GSK API call error.
-//
 //////////////////////////////////////////////////////////////////////////////
 
-CFS_INSTANCE* CFS_SecureOpen(int   connfd,
-                             char* szApplicationID,
-                             int   iSessionType,
-                             void* sessionInfo,
-                             int   sessionInfoFmt,
-                             int*  iSSLResult) {
+CFS_INSTANCE* CFS_SecureOpenChannel(int   connfd,
+                                    void* sessionInfo,
+                                    int   sessionInfoFmt,
+                                    int*  iSSLResult) {
+
+   int rc;
+   int e;
+   int i;
 
    CFS_INSTANCE* cfsi;
 
    cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
 
    cfsi->size = sizeof(CFS_INSTANCE);
+
    cfsi->connfd = connfd;
 
    // Set socket to non-blocking mode
    CFS_PRV_SetBlocking(cfsi->connfd, 0);
 
-  *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
+   switch(sessionInfoFmt) {
 
-  if (*iSSLResult != GSK_OK) {
-    return NULL;
-  }
+      case CFS_SERVERSESSION_FMT_100:
 
-  *iSSLResult = gsk_attribute_set_buffer(cfsi->ssl_henv,
-                                     GSK_OS400_APPLICATION_ID,
-                                     szApplicationID,
-                                     strlen(szApplicationID));
-  if (*iSSLResult != GSK_OK) {
-    return NULL;
-  }
+         if (CS_FAIL(CFS_PRV_DoSecureOpenChannel_100(cfsi,
+                                                 sessionInfo,
+                                                 iSSLResult))) {
 
-  if (iSessionType == CFS_SESSIONTYPE_SERVER) {
-    *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                         GSK_SESSION_TYPE,
-                                         GSK_SERVER_SESSION);
-  }
-  else {
-    *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                         GSK_SESSION_TYPE,
-                                         GSK_CLIENT_SESSION);
-  }
+            CFS_SecureClose(cfsi);
+            cfsi = NULL;
+         }
 
-  if (*iSSLResult != GSK_OK) {
-    return NULL;
-  }
+         break;
+   }
 
-  *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
-
-  if (*iSSLResult != GSK_OK) {
-   return NULL;
-  }
-
-  *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv, &(cfsi->ssl_hsession));
-
-  if (*iSSLResult != GSK_OK) {
-    return NULL;
-  }
-
-  *iSSLResult = gsk_attribute_set_numeric_value(cfsi->ssl_hsession,
-                                            GSK_FD,
-                                            cfsi->connfd);
-
-  if (*iSSLResult != GSK_OK) {
-    return NULL;
-  }
-
-  *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
-
-  if (*iSSLResult != GSK_OK) {
-    return NULL;
-  }
-
-  return cfsi;
+   return cfsi;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1350,72 +1205,6 @@ CFS_INSTANCE* CFS_SecureOpen(int   connfd,
 // CFS_SecureRead
 //
 // This function reads a secure socket.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_SecureOpen() function to initialise this instance.
-//
-// buffer: The address of a buffer that will receive the data
-//         from the socket.
-//
-// maxSize: The maximum number of bytes the buffer can receive.
-//
-// timeout: The maximum number of seconds to wait for data.
-//
-//            <  0 : wait forever until data is read.
-//
-//            == 0 : perform a single read and return immediately.
-//
-//            >  0 : wait up to the specified timeout for data.
-//
-// iSSLResult: The address of a variable that will receive on return the
-//             GSK return code from the last call to the
-//             gsk_secure_soc_read API function.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    The intent of this function is to read as much data as possible
-//    without error up to a maximum number of bytes.
-//
-//    This function succeeds if data was read without error. Also,
-//    unlike a write operation, a connection close is not considered
-//    to be a failure. It could mean the peer has sent all its data
-//    and then decided to close its connexion. It is up to the caller to
-//    determine if data is missing after a connection close.
-//
-//    CS_SUCCESS | CFS_OPER_READ   | CFS_DIAG_ALLDATA
-//
-//       Data hase been read up to the maximum buffer size.
-//
-//    CS_SUCCESS | CFS_OPER_READ   | CFS_DIAG_CONNCLOSE
-//
-//       The connection was closed before the maximum buffer size
-//       was reached; some data may have been read.
-//
-//    CS_SUCCESS | CFS_OPER_READ   | CFS_DIAG_WOULDBLOCK
-//
-//       Reading blocked; zero or more bytes might have
-//       been read but the read blocked before the
-//       maximum buffer size was reached.
-//
-//    CS_SUCCESS | CFS_OPER_WAIT   | CFS_DIAG_TIMEOUT
-//
-//       We timed-out while waiting to read data.
-//
-//    CS_FAILURE | CFS_OPER_READ   | CFS_DIAG_SYSTEM
-//
-//       Some error occured while reading; caller can examine
-//       the value of errno for additional info.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
-//
-//       Some error occured while waiting to read; caller can examine
-//       the value of errno for additional info.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1700,66 +1489,6 @@ CSRESULT CFS_SecureRead(CFS_INSTANCE* This,
 //
 // This function reads a specific number of bytes on a secure socket.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_SecureOpen() function to initialise this instance.
-//
-// buffer: The address of a buffer that will receive the data
-//         from the socket.
-//
-// size: The maximum number of bytes the buffer can receive.
-//
-// timeout: The maximum number of seconds to wait for data.
-//          Timeout values can be:
-//
-//            <  0 : wait forever until data arrives.
-//
-//            == 0 : perform a single read and return immediately.
-//
-//            >  0 : wait up to the specified timeout for data to arrive.
-//
-// iSSLResult: The address of a variable that will receive on return the
-//             GSK return code from the last call to the
-//             gsk_secure_soc_read API function.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    This function only succeeds when the entire buffer has been filled.
-//    If we timed-out or blocked, this could mean the peer sending data too
-//    slowly and this could be managed by the caller by trying to
-//    read again the remaining data.
-//
-//    CS_SUCCESS
-//
-//        All the requested bytes have been read.
-//
-//    CS_FAILURE | CFS_OPER_READ   | CFS_DIAG_CONNCLOSE
-//
-//        The connection was closed while reading the socket.
-//
-//    CS_FAILURE | CFS_OPER_READ   | CFS_DIAG_SYSTEM
-//
-//        An error occured on the read operation. Caller
-//        can check iSSLResult and errno for more info.
-//
-//    CS_FAILURE | CFS_OPER_READ   | CFS_DIAG_WOULDBLOCK
-//
-//        The specified timeout is zero and the read would have blocked.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
-//
-//        An error occured on while waiting for data. Caller
-//        can check iSSLResult and errno for more info.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
-//
-//        The timeout expired while waiting for data.
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CFS_SecureReadRecord(CFS_INSTANCE* This,
@@ -1961,80 +1690,6 @@ CSRESULT CFS_SecureReadRecord(CFS_INSTANCE* This,
 // CFS_SecureWrite
 //
 // This function writes to a secure socket.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_SecureOpen() function to initialise this instance.
-//
-// buffer: The address of a buffer that holds the data
-//         to send on the socket.
-//
-// size: The maximum number of bytes to send from the buffer.
-//       Buffer size must be > 0.
-//
-// timeout: The maximum number of seconds to wait for data
-//          to be sent (does not mean the peer has received it).
-//
-//            <  0 : wait forever until data can be sent.
-//
-//            == 0 : perform a single write and return immediately.
-//
-//            >  0 : wait up to the specified timeout until data can be sent.
-//
-// iSSLResult: The address of a variable that will receive on return the
-//             GSK return code from the last call to the
-//             gsk_secure_soc_write API function.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    The intent of this function is to send as much data as possible
-//    without error.
-//
-//    When writing an arbitrary number of bytes, a successful operation
-//    consists of being able to send as much as possible without error
-//    and before a connection close. If the connection closes before
-//    sending out all the data, then this is considered a failure
-//    since the peer will never get all that is intended for it.
-//
-//    Sending less than intended without error could mean we are sending
-//    data too quickly and this can be managed by the caller. So if we
-//    block or timeout before writing everything, then this is considered
-//    success; it is up to the caller to examine if enough data was sent
-//    and why only some of it was actualy sent and how to manage this.
-//
-//    CS_SUCCESS | CFS_OPER_WAIT    | CFS_DIAG_TIMEOUT
-//
-//       We timed-out trying to write data. Some data may have been sent.
-//
-//    CS_SUCCESS | CFS_OPER_WRITE   | CFS_DIAG_ALLDATA
-//
-//       Data has been written up to the maximum buffer size.
-//
-//    CS_SUCCESS | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
-//
-//       Writing blocked; zero or more bytes might have
-//       been written but the write blocked before the
-//       maximum buffer size was reached.
-//
-//    CS_FAILURE | CFS_OPER_WAIT    | CFS_DIAG_SYSTEM
-//
-//       Some error occured while waiting to write.
-//       Caller can examine the value of errno for additional info.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_CONNCLOSE
-//
-//       The connection was closed before the maximum buffer size
-//       was reached; some data may have been written.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_SYSTEM
-//
-//       Some error occured while writing; caller can examine
-//       the value of errno for additional info.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -2321,67 +1976,6 @@ CSRESULT CFS_SecureWrite(CFS_INSTANCE* This,
 //
 // This function writes a specific number of bytes to a secure socket.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_SecureOpen() function to initialise this instance.
-//
-// buffer: The address of a buffer that holds the data
-//         to send on the socket.
-//
-// size: The number of bytes to send from the buffer.
-//       Buffer size must be > 0.
-//
-// timeout: The maximum number of seconds to wait for data
-//          to be sent (does not mean the peer has received it).
-//
-//            <  0 : wait forever until data can be sent.
-//
-//            == 0 : perform a single write and return immediately.
-//
-//            >  0 : wait up to the specified timeout until data can be sent.
-//
-// iSSLResult: The address of a variable that will receive on return the
-//             GSK return code from the last call to the
-//             gsk_secure_soc_write API function.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    This function only succeeds when the entire buffer has been written.
-//    If we timed-out or blocked, this could mean we are sending too
-//    quickly and this could be managed by the caller by trying to
-//    write again the remaining data.
-//
-//    CS_SUCCESS
-//
-//        All the requested bytes have been written.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
-//
-//        An error occured on while waiting to write data.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
-//
-//        The timeout expired while waiting to write data.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_CONNCLOSE
-//
-//        The connection was closed while writing to the socket.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_SYSTEM
-//
-//        An error occured on the write operation. Caller
-//        can check iSSLResult and errno for more info.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
-//
-//        A zero timeout was specified and the write
-//        operation would block. Some data may have been written.
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CFS_SecureWriteRecord(CFS_INSTANCE* This,
@@ -2585,33 +2179,6 @@ CSRESULT CFS_SecureWriteRecord(CFS_INSTANCE* This,
 // The caller has already established a connection to the other process
 // via a local domain (UNIX) socket.
 //
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// fd: The local socket descriptor used to send the descriptor.
-//
-// descriptor: The descriptor to send over to the other process.
-//
-// size: The number of bytes to send from the buffer.
-//       Buffer size must be > 0.
-//
-// timeout: The maximum number of seconds to wait for the descriptor:
-//
-//            <  0 : wait forever.
-//
-//            == 0 : try to send immediately and return.
-//
-//            >  0 : wait up to the specified timeout.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//    CS_FAILURE | CFS_OPER_WAIT  | CFS_DIAG_TIMEDOUT
-//    CS_FAILURE | CFS_OPER_WAIT  | CFS_DIAG_SYSTEM
-//    CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_SYSTEM
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CFS_SendDescriptor(int fd,
@@ -2774,74 +2341,6 @@ CSRESULT CFS_SendDescriptor(int fd,
 // CFS_Write
 //
 // This function writes to a non-secure socket.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_Open() function to initialise this instance.
-//
-// buffer: The address of a buffer that holds the data
-//         to send on the socket.
-//
-// size: The number of bytes to send from the buffer.
-//       Buffer size must be > 0.
-//
-// timeout: The maximum number of seconds to wait for data
-//          to be sent (does not mean the peer has received it):
-//
-//            <  0 : wait forever until data can be sent.
-//
-//            == 0 : perform a single write and return immediately.
-//
-//            >  0 : wait up to the specified timeout until data can be sent.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    The intent of this function is to send as much data as possible
-//    without error.
-//
-//    When writing an arbitrary number of bytes, a successful operation
-//    consists of being able to send as much as possible without error
-//    and before a connection close. If the connection closes before
-//    sending out all the data, then this is considered a failure
-//    since the peer will never get all that is intended for it.
-//
-//    Sending less than intended without error could mean we are sending
-//    data too quickly and this can be managed by the caller. So if we
-//    block or timeout before writing everything, then this is considered
-//    success; it is up to the caller to examine if enough data was sent
-//    and why only some of it was actualy sent and how to manage this.
-//
-//    CS_SUCCESS | CFS_OPER_WAIT    | CFS_DIAG_TIMEOUT
-//
-//       We timed-out before writing data.
-//
-//    CS_SUCCESS | CFS_OPER_WRITE   | CFS_DIAG_ALLDATA
-//
-//       Data hase been written up to the maximum buffer size.
-//
-//    CS_SUCCESS | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
-//
-//       Writing blocked before the
-//       maximum buffer size was reached.
-//
-//    CS_FAILURE | CFS_OPER_WAIT    | CFS_DIAG_SYSTEM
-//
-//       Some error occured while waiting to write; caller can examine
-//       the value of errno for additional info.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_CONNCLOSE
-//
-//       The connection was closed before the maximum buffer size
-//       was reached; some data may have been written.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_SYSTEM
-//
-//       Some error occured while writing; caller can examine
-//       the value of errno for additional info.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -3119,62 +2618,6 @@ CSRESULT CFS_Write(CFS_INSTANCE* This,
 //
 // This function writes a specific number of bytes to a non secure socket.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CFS_INSTANCE. Use
-//       the CFS_Open() function to initialise this instance.
-//
-// buffer: The address of a buffer that holds the data.
-//         to send on the socket.
-//
-// size: The number of bytes to send from the buffer.
-//       Buffer size must be > 0.
-//
-// timeout: The maximum number of seconds to wait for data
-//          to be sent (does not mean the peer has received it).
-//
-//            <  0 : wait forever until data can be sent.
-//
-//            == 0 : perform a single write and return immediately.
-//
-//            >  0 : wait up to the specified timeout until data can be sent.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    This function only succeeds when the entire buffer has been written.
-//    If we timed-out or blocked, this could mean we are sending too
-//    quickly and this could be managed by the caller by trying to
-//    write again the remaining data.
-//
-//    CS_SUCCESS
-//
-//        All the requested bytes have been written.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
-//
-//        An error occured on while waiting to write data.
-//
-//    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
-//
-//        The timeout expired while waiting to write data.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_CONNCLOSE
-//
-//        The connection was closed while writing to the socket.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_SYSTEM
-//
-//        An error occured on the write operation. Caller
-//        can check errno for more info.
-//
-//    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
-//
-//        A zero timeout was specified and the write
-//        operation would block. Some data may have been written.
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CFS_WriteRecord(CFS_INSTANCE* This,
@@ -3360,12 +2803,810 @@ CSRESULT CFS_WriteRecord(CFS_INSTANCE* This,
 }
 
 /* ===========================================================================
-
-
    PRIVATE FUNCTIONS
-
-
 =========================================================================== */
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_PRV_DoSecureConnect_100
+//
+// Sets up a secure session with a server
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT CFS_PRV_DoSecureConnect_100(CFS_INSTANCE* cfsi,
+                                     void* sessionInfo,
+                                     int*  iSSLResult) {
+   int i;
+
+   *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   for (i=0; i<CFS_OFFSET_BUFFERS_MAXITEMS; i++) {
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->pszBuffers[i] != 0) {
+
+         *iSSLResult =
+           gsk_attribute_set_buffer(cfsi->ssl_henv,
+                                gskEnumIndices[i],
+                                ((CFS_CLIENTSESSION_100*)sessionInfo)
+                                 ->pszBuffers[i],
+                                strlen(((CFS_CLIENTSESSION_100*)sessionInfo)
+                                       ->pszBuffers[i]));
+
+         if (*iSSLResult != GSK_OK) {
+            return CS_FAILURE;
+         }
+      }
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskOverrideNumericDefaults != 0) {
+
+      for (i=0; i<CFS_OFFSET_NUMERIC_MAXITEMS; i++) {
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+             ->iNumericValues[i] != -1) {
+
+            *iSSLResult =
+              gsk_attribute_set_numeric_value(cfsi->ssl_henv,
+                                   gskNumericIndices[i],
+                                   ((CFS_CLIENTSESSION_100*)sessionInfo)
+                                    ->iNumericValues[i]);
+
+            if (*iSSLResult != GSK_OK) {
+               return CS_FAILURE;
+            }
+         }
+      }
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskProtocolOverrideDefaults != 0) {
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV12 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV12,
+                                             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV12,
+                                             GSK_FALSE );
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV11 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV11,
+                                             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV11,
+                                             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV10 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV10,
+                                             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV10,
+                                             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV1 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV1,
+                                             GSK_PROTOCOL_TLSV1_ON);
+
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV1,
+                                             GSK_PROTOCOL_TLSV1_OFF );
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_SSLV3 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV3,
+                                             GSK_PROTOCOL_SSLV3_ON);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV3,
+                                             GSK_PROTOCOL_SSLV3_OFF);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_SSLV2 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV2,
+                                             GSK_PROTOCOL_SSLV2_ON);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV2,
+                                             GSK_PROTOCOL_SSLV2_OFF);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskAuthTypeOverrideDefaults != 0) {
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskAuthType_GSK_SERVER_AUTH_PASSTHRU == 1) {
+
+         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                GSK_SERVER_AUTH_TYPE,
+                                GSK_CLIENT_AUTH_PASSTHRU);
+      }
+      else {
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+             ->gskAuthType_GSK_SERVER_AUTH_FULL == 1) {
+
+            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                   GSK_SERVER_AUTH_TYPE,
+                                   GSK_SERVER_AUTH_FULL);
+         }
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT,
+                               GSK_FALSE);
+   }
+
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_GENERATION_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_GENERATION_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_CHECK_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_CHECK_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_RETRIEVE_VIA_GET,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_RETRIEVE_VIA_GET,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_CERTREQ_DNLIST_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_CERTREQ_DNLIST_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_CERTREQ_DNLIST_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_CLIENTSESSION_100*)sessionInfo)
+       ->gskSessionCloseOverrideDefaults == 1) {
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE == 1) {
+
+         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+                               GSK_DELAYED_ENVIRONMENT_CLOSE);
+      }
+      else {
+
+         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+                               GSK_NORMAL_ENVIRONMENT_CLOSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+   }
+
+   *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                     GSK_SESSION_TYPE,
+                                     GSK_CLIENT_SESSION);
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
+                      &(cfsi->ssl_hsession));
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   *iSSLResult = gsk_attribute_set_numeric_value(cfsi->ssl_hsession,
+                                                 GSK_FD,
+                                                 cfsi->connfd);
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   return CS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_PRV_DoSecureOpenChannel_100
+//
+// Sets up a secure session with a connecting client.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT CFS_PRV_DoSecureOpenChannel_100(CFS_INSTANCE* cfsi,
+                                         void* sessionInfo,
+                                         int*  iSSLResult) {
+
+
+   int i;
+
+   *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   for (i=0; i<CFS_OFFSET_BUFFERS_MAXITEMS; i++) {
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->pszBuffers[i] != 0) {
+
+         *iSSLResult =
+           gsk_attribute_set_buffer(cfsi->ssl_henv,
+                                gskEnumIndices[i],
+                                ((CFS_SERVERSESSION_100*)sessionInfo)
+                                 ->pszBuffers[i],
+                                strlen(((CFS_SERVERSESSION_100*)sessionInfo)
+                                       ->pszBuffers[i]));
+
+         if (*iSSLResult != GSK_OK) {
+            return CS_FAILURE;
+         }
+      }
+   }
+
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskOverrideNumericDefaults != 0) {
+
+      for (i=0; i<CFS_OFFSET_NUMERIC_MAXITEMS; i++) {
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+             ->iNumericValues[i] != -1) {
+
+            *iSSLResult =
+              gsk_attribute_set_numeric_value(cfsi->ssl_henv,
+                                   gskNumericIndices[i],
+                                   ((CFS_SERVERSESSION_100*)sessionInfo)
+                                    ->iNumericValues[i]);
+
+            if (*iSSLResult != GSK_OK) {
+               return CS_FAILURE;
+            }
+         }
+      }
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskProtocolOverrideDefaults != 0) {
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV12 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV12,
+                                             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV12,
+                                             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV11 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV11,
+                                             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV11,
+                                             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV10 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV10,
+                                             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV10,
+                                             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_TLSV1 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV1,
+                                             GSK_PROTOCOL_TLSV1_ON);
+
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_TLSV1,
+                                             GSK_PROTOCOL_TLSV1_OFF);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_SSLV3 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV3,
+                                             GSK_PROTOCOL_SSLV3_ON);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV3,
+                                             GSK_PROTOCOL_SSLV3_OFF);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskProtocol_GSK_PROTOCOL_SSLV2 == 1) {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV2,
+                                             GSK_PROTOCOL_SSLV2_ON);
+      }
+      else {
+
+        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                             GSK_PROTOCOL_SSLV2,
+                                             GSK_PROTOCOL_SSLV2_OFF);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskSessionTypeOverrideDefaults != 0) {
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL == 1) {
+
+         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                GSK_SESSION_TYPE,
+                                GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL);
+      }
+      else {
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+             ->gskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH == 1) {
+
+            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                   GSK_SESSION_TYPE,
+                                   GSK_SERVER_SESSION_WITH_CL_AUTH);
+         }
+         else {
+
+            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                   GSK_SESSION_TYPE,
+                                   GSK_SERVER_SESSION);
+         }
+      }
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                             GSK_SESSION_TYPE,
+                             GSK_SERVER_SESSION);
+   }
+
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskAuthTypeOverrideDefaults != 0) {
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskAuthType_GSK_CLIENT_AUTH_FULL == 1) {
+
+         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                GSK_CLIENT_AUTH_TYPE,
+                                GSK_CLIENT_AUTH_FULL);
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+             ->gskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME == 1) {
+
+            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                   GSK_ALLOW_UNAUTHENTICATED_RESUME,
+                                   GSK_ALLOW_UNAUTHENTICATED_RESUME_ON);
+         }
+         else {
+
+            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                   GSK_ALLOW_UNAUTHENTICATED_RESUME,
+                                   GSK_ALLOW_UNAUTHENTICATED_RESUME_OFF);
+         }
+      }
+      else {
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+             ->gskAuthType_GSK_CLIENT_AUTH_PASSTHRU == 1) {
+
+            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                   GSK_CLIENT_AUTH_TYPE,
+                                   GSK_CLIENT_AUTH_PASSTHRU);
+
+            if (((CFS_SERVERSESSION_100*)sessionInfo)
+                ->gskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME == 1) {
+
+               *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                      GSK_ALLOW_UNAUTHENTICATED_RESUME,
+                                      GSK_ALLOW_UNAUTHENTICATED_RESUME_ON);
+            }
+            else {
+
+               *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                      GSK_ALLOW_UNAUTHENTICATED_RESUME,
+                                      GSK_ALLOW_UNAUTHENTICATED_RESUME_OFF);
+            }
+         }
+         else {
+
+            if (((CFS_SERVERSESSION_100*)sessionInfo)
+                ->gskAuthType_GSK_OS400_CLIENT_AUTH_REQUIRED == 1) {
+
+               *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                                      GSK_CLIENT_AUTH_TYPE,
+                                      GSK_OS400_CLIENT_AUTH_REQUIRED);
+
+            }
+         }
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_GENERATION_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_GENERATION_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_CHECK_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_NONCE_CHECK_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_RETRIEVE_VIA_GET,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_OCSP_RETRIEVE_VIA_GET,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskAttribute_GSK_CERTREQ_DNLIST_ENABLE == 1) {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_CERTREQ_DNLIST_ENABLE,
+                               GSK_TRUE);
+   }
+   else {
+
+      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_CERTREQ_DNLIST_ENABLE,
+                               GSK_FALSE);
+   }
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   if (((CFS_SERVERSESSION_100*)sessionInfo)
+       ->gskSessionCloseOverrideDefaults == 1) {
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+          ->gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE == 1) {
+
+         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+                               GSK_DELAYED_ENVIRONMENT_CLOSE);
+      }
+      else {
+
+         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
+                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+                               GSK_NORMAL_ENVIRONMENT_CLOSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         return CS_FAILURE;
+      }
+   }
+
+   *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
+                                     &(cfsi->ssl_hsession));
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   *iSSLResult = gsk_attribute_set_numeric_value(cfsi->ssl_hsession,
+                                                 GSK_FD,
+                                                 cfsi->connfd);
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
+
+   if (*iSSLResult != GSK_OK) {
+      return CS_FAILURE;
+   }
+
+   return CS_SUCCESS;
+}
+
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -3373,19 +3614,6 @@ CSRESULT CFS_WriteRecord(CFS_INSTANCE* This,
 //
 // This function sets a socket descriptor to either blocking
 // or non-blocking mode.
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-//  connfd: the socket descriptor to set.
-//
-//  blocking: 0: set to non-blocking, 1: set to blocking.
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//    CS_FAILURE
 //
 //////////////////////////////////////////////////////////////////////////////
 

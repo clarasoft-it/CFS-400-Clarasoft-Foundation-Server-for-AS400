@@ -5,6 +5,8 @@
   Web Socket Protocol Implementation definitions
   Version 1.0.0
 
+
+
   Distributed under the MIT license
 
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
@@ -63,8 +65,8 @@ CSWSCK
   CSWSCK_OpenClient
     (int   connfd,
      char* szAppID,
-     void* data,
-     long  dataSize,
+     char* szURL,
+     long  port,
      void* sessionInfo,
      int   sessionInfoFmt);
 
@@ -72,8 +74,6 @@ CSWSCK
   CSWSCK_OpenServer
     (int   connfd,
      char* szAppID,
-     char* szURL,
-     long  port,
      void* sessionInfo,
      int   sessionInfoFmt);
 

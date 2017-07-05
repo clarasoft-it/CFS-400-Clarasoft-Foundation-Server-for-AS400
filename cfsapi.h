@@ -1,12 +1,8 @@
 /* ===========================================================================
-
   Clarasoft Foundation Server 400
-
   cfsapi.h
   Networking Primitives definitions
   Version 1.0.0
-
-
 
   Distributed under the MIT license
 
@@ -19,10 +15,8 @@
   merge, publish, distribute, sublicense, and/or sell
   copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
-
   The above copyright notice and this permission notice shall be
   included in all copies or substantial portions of the Software.
-
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -30,7 +24,6 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 =========================================================================== */
 
 #ifndef __CFS_CFSAPI_H__
@@ -38,9 +31,9 @@
 
 #include <gskssl.h>
 #include <inttypes.h>
+#include <netdb.h>
 #include "qcsrc/cscore.h"
 #include <sys/un.h>
-#include <netdb.h>
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -59,6 +52,9 @@
 
 #define CFS_SESSIONTYPE_CLIENT        (0x00000001)
 #define CFS_SESSIONTYPE_SERVER        (0x00000002)
+
+#define CFS_CLIENTSESSION_FMT_100     (0x00001064)
+#define CFS_SERVERSESSION_FMT_100     (0x00002064)
 
 // Operation codes
 
@@ -87,6 +83,43 @@
 #define CFS_DIAG_SYSTEM               (0x0000FFFE)
 #define CFS_DIAG_UNKNOWN              (0x0000FFFF)
 
+#define CFS_OFFSET_BUFFERS_MAXITEMS                           (20)
+#define CFS_OFFSET_NUMERIC_MAXITEMS                           (12)
+
+#define CFS_OFFSET_GSK_KEYRING_FILE                           (0)
+#define CFS_OFFSET_GSK_KEYRING_PW                             (1)
+#define CFS_OFFSET_GSK_KEYRING_LABEL                          (2)
+#define CFS_OFFSET_GSK_OS400_APPLICATION_ID                   (3)
+#define CFS_OFFSET_GSK_V2_CIPHER_SPECS                        (4)
+#define CFS_OFFSET_GSK_V3_CIPHER_SPECS                        (5)
+#define CFS_OFFSET_GSK_V3_CIPHER_SPECS_EX                     (6)
+#define CFS_OFFSET_GSK_TLSV12_CIPHER_SPECS                    (7)
+#define CFS_OFFSET_GSK_TLSV12_CIPHER_SPECS_EX                 (8)
+#define CFS_OFFSET_GSK_TLSV11_CIPHER_SPECS                    (9)
+#define CFS_OFFSET_GSK_TLSV11_CIPHER_SPECS_EX                 (10)
+#define CFS_OFFSET_GSK_TLSV10_CIPHER_SPECS                    (11)
+#define CFS_OFFSET_GSK_TLSV10_CIPHER_SPECS_EX                 (12)
+#define CFS_OFFSET_GSK_SSL_EXTN_SIGALG                        (13)
+#define CFS_OFFSET_GSK_OCSP_URL                               (14)
+#define CFS_OFFSET_GSK_OCSP_PROXY_SERVER_NAME                 (15)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_REQUEST            (16)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_CRITICAL_REQUEST   (17)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_LIST               (18)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_CRITICAL_LIST      (19)
+
+#define CFS_OFFSET_GSK_GSK_FD                                 (0)
+#define CFS_OFFSET_GSK_V2_SESSION_TIMEOUT                     (1)
+#define CFS_OFFSET_GSK_V3_SESSION_TIMEOUT                     (2)
+#define CFS_OFFSET_GSK_OS400_READ_TIMEOUT                     (3)
+#define CFS_OFFSET_GSK_HANDSHAKE_TIMEOUT                      (4)
+#define CFS_OFFSET_GSK_OCSP_MAX_RESPONSE_SIZE                 (5)
+#define CFS_OFFSET_GSK_OCSP_TIMEOUT                           (6)
+#define CFS_OFFSET_GSK_OCSP_NONCE_SIZE                        (7)
+#define CFS_OFFSET_GSK_OCSP_CLIENT_CACHE_SIZE                 (8)
+#define CFS_OFFSET_GSK_OCSP_PROXY_SERVER_PORT                 (9)
+#define CFS_OFFSET_GSK_SSL_EXTN_MAXFRAGMENT_SIZE              (10)
+#define CFS_OFFSET_GSK_TLS_CBCPROTECTION_METHOD               (11)
+
 // --------------------------------------------------------------
 // Session instance
 // --------------------------------------------------------------
@@ -101,9 +134,114 @@ typedef struct tagCFS_INSTANCE {
 
 } CFS_INSTANCE;
 
-// --------------------------------------------------------------
+
+typedef struct tagCFS_CLIENTSESSION_100 {
+
+  char* szHostName;
+  char* szApplicationID;
+  int port;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Set the following flags to non-zero to specify non default
+  // settings. For instance, if the gskProtocolOverrideDefaults field
+  // is set to 1, then the implementation will check the values of
+  // the gskProtocol_* fields and set or clear the corresponding
+  // GSK settings. If the gskProtocolOverrideDefaults field is set to zero,
+  // then those fields are ignored and the default GSK settings are
+  // assumed.
+  ///////////////////////////////////////////////////////////////////////////
+
+  int gskProtocolOverrideDefaults;
+  int gskSessionTypeOverrideDefaults;
+  int gskAuthTypeOverrideDefaults;
+  int gskSessionCloseOverrideDefaults;
+  int gskOverrideNumericDefaults;
+
+  int gskProtocol_GSK_PROTOCOL_TLSV12;
+  int gskProtocol_GSK_PROTOCOL_TLSV11;
+  int gskProtocol_GSK_PROTOCOL_TLSV10;
+  int gskProtocol_GSK_PROTOCOL_TLSV1;
+  int gskProtocol_GSK_PROTOCOL_SSLV3;
+  int gskProtocol_GSK_PROTOCOL_SSLV2;
+
+  int gskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME;
+
+  int gskAttribute_GSK_OCSP_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE;
+  int gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET;
+  int gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT;
+  int gskAttribute_GSK_CERTREQ_DNLIST_ENABLE;
+
+  int gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE;
+  int gskSessionClose_GSK_NORMAL_ENVIRONMENT_CLOSE;
+
+  int gskAuthType_GSK_SERVER_AUTH_FULL;
+  int gskAuthType_GSK_SERVER_AUTH_PASSTHRU;
+
+  int iNumericValues[CFS_OFFSET_NUMERIC_MAXITEMS];
+
+  char* pszBuffers[CFS_OFFSET_BUFFERS_MAXITEMS];
+
+} CFS_CLIENTSESSION_100;
+
+
+typedef struct tagCFS_SERVERSESSION_100 {
+
+  char* szApplicationID;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Set the following flags to non-zero to specify non default
+  // settings. For instance, if the gskProtocolOverrideDefaults field
+  // is set to 1, then the implementation will check the values of
+  // the gskProtocol_* fields and set or clear the corresponding
+  // GSK settings. If the gskProtocolOverrideDefaults field is set to zero,
+  // then those fields are ignored and the default GSK settings are
+  // assumed.
+  ///////////////////////////////////////////////////////////////////////////
+
+  int gskProtocolOverrideDefaults;
+  int gskSessionTypeOverrideDefaults;
+  int gskAuthTypeOverrideDefaults;
+  int gskSessionCloseOverrideDefaults;
+  int gskOverrideNumericDefaults;
+
+  int gskProtocol_GSK_PROTOCOL_TLSV12;
+  int gskProtocol_GSK_PROTOCOL_TLSV11;
+  int gskProtocol_GSK_PROTOCOL_TLSV10;
+  int gskProtocol_GSK_PROTOCOL_TLSV1;
+  int gskProtocol_GSK_PROTOCOL_SSLV3;
+  int gskProtocol_GSK_PROTOCOL_SSLV2;
+
+  int gskSessionType_GSK_SERVER_SESSION;
+  int gskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH;
+  int gskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL;
+
+  int gskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME;
+
+  int gskAttribute_GSK_OCSP_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE;
+  int gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET;
+  int gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER;
+  int gskAttribute_GSK_CERTREQ_DNLIST_ENABLE;
+
+  int gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE;
+  int gskSessionClose_GSK_NORMAL_ENVIRONMENT_CLOSE;
+
+  int gskAuthType_GSK_CLIENT_AUTH_FULL;
+  int gskAuthType_GSK_CLIENT_AUTH_PASSTHRU;
+  int gskAuthType_GSK_OS400_CLIENT_AUTH_REQUIRED;
+
+  int iNumericValues[CFS_OFFSET_NUMERIC_MAXITEMS];
+
+  char* pszBuffers[CFS_OFFSET_BUFFERS_MAXITEMS];
+
+} CFS_SERVERSESSION_100;
+
+// ---------------------------------------------------------------------------
 // Handler function prototype
-// --------------------------------------------------------------
+// ---------------------------------------------------------------------------
 //
 // Parameters are:
 //
@@ -112,13 +250,13 @@ typedef struct tagCFS_INSTANCE {
 //   client port (as a null-terminated string)
 //   additional data (if required; ths is implementation specific)
 //
-// --------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 typedef CSRESULT (*CFS_PROTOCOLHANDLERPROC)(int, char*, char*, void*);
 
-// --------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Prototypes
-// --------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -147,42 +285,43 @@ CSRESULT CFS_Close(CFS_INSTANCE* This);
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_GetAddressInfo
+// CFS_Connect
 //
-// This function returns a network address from a hostname (URL) and
-// optionnally a network service (protocol).
+// This function establishes a client session with a remote host.
 //
 //
 // Parameters
 // ---------------------------------------------------------------------------
 //
-//  host: a null-terminated buffer that holds the URL
+// sessionInfo: A pointer to a data structure containing additional
+//              information: for this version, a structure of type
+//              CFS_CLIENTSESSION_100 must be filled. The following
+//              mandatory fields must be provided:
 //
-//  serv: a null-terminated buffer that holds the name of the service
-//        or protocol.
+//              szHostName: a null-terminated string identifying the
+//                          target host to connect to.
 //
-//  family:  address family such as AF_INET or AF_INET6.
+//              port: the port number; dont convert this number in
+//                    network byte order; the function will make the
+//                    necessary conversion.
 //
-//  sockType: socket type (either SOCK_STREAM or SOCK_DGRAM).
+//              All other fields are ignored.
 //
-//  result: The address of a pointer to a struct addrinfo; upon
-//          success, this pointer must be released with a call
-//          to freeaddrinfo().
+// sessionInfoFmt: An integer identifying the format of the sessionInfo
+//                 parameter: for this version, the parameter is ignored.
+//                 (set this parameter to zero).
 //
-// Possible return values:
+// Return values:
 // ---------------------------------------------------------------------------
 //
-//    CS_SUCCESS
-//    CS_FAILURE
+//    A pointer to an CFS_INSTANCE instance; if the pointer is NULL,
+//    this indicates failure.
 //
 //////////////////////////////////////////////////////////////////////////////
 
 
-CSRESULT CFS_GetAddressInfo(const char*       host,
-                            const char*       serv,
-                            int               family,
-                            int               sockType,
-                            struct addrinfo** result);
+CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
+                          int    sessionInfoFmt);
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -270,9 +409,9 @@ CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_Open
+// CFS_OpenChannel
 //
-// This function initialises a non secure session. It also
+// This function initialises a non secure session with a client. It also
 // initialises an CFS_INSTANCE structure that must be used for
 // communication with a peer.
 //
@@ -280,25 +419,15 @@ CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
 // Parameters
 // ---------------------------------------------------------------------------
 //
-// This: A pointer to an instance of type CFS_INSTANCE.
-//
-// szApplicationID: The name of the application ID: for this version,
-//                  the parameter is ignored.
-//
-// iSessionType: This flag indicates if the session is either a client
-//               session or a server session. Possible values are:
-//
-//                  CFS_SESSIONTYPE_CLIENT
-//                  CFS_SESSIONTYPE_SERVER
-//
-//               If the value passed is other than one of the above,
-//               then the session type is set to CFS_SESSIONTYPE_CLIENT.
+// connfd: socket descriptor obtained via the accept() call
 //
 // sessionInfo: A pointer to a data structure containing additional
-//              information: for this version, the parameter is ignored.
+//              information: for this version, this parameter is
+//              ignored and should be set to NULL.
 //
 // sessionInfoFmt: An integer identifying the format of the sessionInfo
-//                 parameter: for this version, the parameter is ignored.
+//                 parameter: for this version, the parameter is ignored
+//                 and should be set to zero.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -309,11 +438,9 @@ CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
 //////////////////////////////////////////////////////////////////////////////
 
 
-CFS_INSTANCE* CFS_Open(int    connfd,
-                       char*  szApplicationID,
-                       int    iSessionType,
-                       void*  sessionInfo,
-                       int    sessionInfoFmt);
+CFS_INSTANCE* CFS_OpenChannel(int    connfd,
+                              void*  sessionInfo,
+                              int    sessionInfoFmt);
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -542,35 +669,82 @@ CSRESULT CFS_SecureClose(CFS_INSTANCE* This);
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_SecureOpen
+// CFS_SecureConnect
 //
-// This function initialises a secure environement and session. It also
-// initialises an CFS_INSTANCE structure that must be used for secure
+// This function establishes a secure client session with a remote host.
+//
 // communication with a peer.
 //
 //
 // Parameters
 // ---------------------------------------------------------------------------
 //
-// This: A pointer to an instance of type CFS_INSTANCE.
-//
-// szApplicationID: The name of the application ID associated with the
-//                  SSL certificate.
-//
-// iSessionType: This flag indicates if the session is either a client
-//               session or a server session. Possible values are:
-//
-//                  CFS_SESSIONTYPE_CLIENT
-//                  CFS_SESSIONTYPE_SERVER
-//
-//               If the value passed is other than one of the above,
-//               then the session type is set to CFS_SESSIONTYPE_CLIENT.
-//
 // sessionInfo: A pointer to a data structure containing additional
-//              information: for this version, the parameter is ignored.
+//              information: for this version, a structure of type
+//              CFS_CLIENTSESSION_100 must be filled. The following
+//              mandatory fields must be provided:
+//
+//              szHostName: a null-terminated string identifying the
+//                          target host to connect to.
+//
+//              port: the port number; dont convert this number in
+//                    network byte order; the function will make the
+//                    necessary conversion.
+//
+//              All other fields are ignored.
 //
 // sessionInfoFmt: An integer identifying the format of the sessionInfo
 //                 parameter: for this version, the parameter is ignored.
+//                 (set this parameter to zero).
+//
+// iSSLResult: The address of a variable that will receive on return the
+//             GSK return code from the last call to one of the
+//             GSK Toolkit API functions used by this function.
+//
+//
+// Return values:
+// ---------------------------------------------------------------------------
+//
+//    A pointer to an CFS_INSTANCE instance; if the pointer is NULL,
+//    this indicates failure.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+
+CFS_INSTANCE* CFS_SecureConnect(void*  sessionInfo,
+                                int    sessionInfoFmt,
+                                int*   iSSLResult);
+
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_SecureOpenChannel
+//
+// This function initialises a secure communication environement
+// with a client. It also creates and
+// initialises an CFS_INSTANCE structure that must be used for secure
+// communication with a peer in all subsequent calls to the CFS_Secure*
+// functions.
+//
+//
+// Parameters
+// ---------------------------------------------------------------------------
+//
+//
+// connfd: socket descriptor obtained via the accept() call
+//
+// sessionInfo: A pointer to a data structure containing additional
+//              information: The minimal information
+//              to provide is defined in the CFS_CLIENTSESSION_100
+//              structure. The following fields are required:
+//                                                                  .
+//              szApplicationID: Pointer to null-terminated string
+//                               identifying the SSL certificate.
+//
+// sessionInfoFmt: An integer identifying the format of the sessionInfo
+//                 parameter: For this version, only the value
+//                 CFS_SERVERSESSION_FMT_100 is supported.
+//
 //
 // iSSLResult: The address of a variable that will receive on return the
 //             GSK return code from the last call to one of the
@@ -587,12 +761,10 @@ CSRESULT CFS_SecureClose(CFS_INSTANCE* This);
 //////////////////////////////////////////////////////////////////////////////
 
 
-CFS_INSTANCE* CFS_SecureOpen(int    connfd,
-                             char*  szApplicationID,
-                             int    iSessionType,
-                             void*  sessionInfo,
-                             int    sessionInfoFmt,
-                             int*   iSSLResult);
+CFS_INSTANCE* CFS_SecureOpenChannel(int    connfd,
+                                    void*  sessionInfo,
+                                    int    sessionInfoFmt,
+                                    int*   iSSLResult);
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1118,4 +1290,3 @@ CSRESULT CFS_WriteRecord(CFS_INSTANCE* This,
 
 
 #endif
-
