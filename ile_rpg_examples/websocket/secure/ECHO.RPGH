@@ -1,0 +1,273 @@
+
+      /////////////////////////////////////////////////////////////////////////////////
+      //
+      //    Clarasoft Foundation Server for AS400
+      //
+      //    ECHO.RPGH
+      //    Definitions for demonstration websocket echo service in ILE RPG
+      //    Version 1.0.0
+      //
+      //    Note: additional definitions should be taken
+      //          from the CFSAPI.H C language file
+      //
+      //
+      //    Distributed under the MIT license
+      //
+      //    Copyright (c) 2017 Clarasoft I.T. Solutions Inc.
+      //
+      //    Permission is hereby granted, free of charge, to any person obtaining
+      //    a copy of this software and associated documentation files
+      //    (the "Software"), to deal in the Software without restriction,
+      //    including without limitation the rights to use, copy, modify,
+      //    merge, publish, distribute, sublicense, and/or sell
+      //    copies of the Software, and to permit persons to whom the Software is
+      //    furnished to do so, subject to the following conditions:
+      //    The above copyright notice and this permission notice shall be
+      //    included in all copies or substantial portions of the Software.
+      //    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      //    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      //    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+      //    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+      //    ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+      //    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+      //    THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      //
+      /////////////////////////////////////////////////////////////////////////////////
+
+
+      /IF NOT DEFINED(ECHORPGH)
+      /DEFINE ECHORPGH
+
+
+      *----------------------------------------------------------------------
+      *  CFS-400 : SSL SERVER SESSION INFORMATIOn STRUCTURE FORMAT ID
+      *----------------------------------------------------------------------
+
+     DCFS_SERVERSESSION_FMT_100...
+     D                 C                     Const(x'00002064')
+
+      *----------------------------------------------------------------------
+      *  CFS-400 : SSL SERVER SESSION INFORMATION STRUCTURE
+      *----------------------------------------------------------------------
+
+     DSERVERSESSIONINFO_100...
+     D                 DS                    Align
+     D                                       Qualified
+     DszApplicationID                  *
+     DgskSessionTypeOverrideDefaults...
+     D                               10I 0
+     DgskAuthTypeOverrideDefaults...
+     D                               10I 0
+     DgskSessionCloseOverrideDefaults...
+     D                               10I 0
+     DgskOverrideNumericDefaults...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV12...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV11...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV10...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_TLSV1...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_SSLV3...
+     D                               10I 0
+     DgskProtocol_GSK_PROTOCOL_SSLV2...
+     D                               10I 0
+     DgskSessionType_GSK_SERVER_SESSION...
+     D                               10I 0
+     DgskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH...
+     D                               10I 0
+     DgskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL...
+     D                               10I 0
+     DgskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_ENABLE...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE...
+     D                               10I 0
+     DgskAttribute_GSK_OCSP_RETRIEVE_VIA_GET...
+     D                               10I 0
+     DgskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER...
+     D                               10I 0
+     DgskAttribute_GSK_CERTREQ_DNLIST_ENABLE...
+     D                               10I 0
+     DgskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE...
+     D                               10I 0
+     DgskSessionClose_GSK_NORMAL_ENVIRONMENT_CLOSE...
+     D                               10I 0
+     DgskAuthType_GSK_CLIENT_AUTH_FULL...
+     D                               10I 0
+     DgskAuthType_GSK_CLIENT_AUTH_PASSTHRU...
+     D                               10I 0
+     DgskAuthType_GSK_OS400_CLIENT_AUTH_REQUIRED...
+     D                               10I 0
+     DiNumericValues...
+     D                               10I 0  Dim(12)
+     DpszBuffers...
+     D                                 *    Dim(20)
+
+      *----------------------------------------------------------------------
+      *  CFS-400 : Websocket API Constants
+      *----------------------------------------------------------------------
+
+     DCSWSCK_OPER_CONTINUATION...
+     D                 C                     Const(x'00000000')
+
+     DCSWSCK_OPER_TEXT...
+     D                 C                     Const(x'00010000')
+
+     DCSWSCK_OPER_BINARY...
+     D                 C                     Const(x'00020000')
+
+     DCSWSCK_OPER_CLOSE...
+     D                 C                     Const(x'00080000')
+
+     DCSWSCK_OPER_PING...
+     D                 C                     Const(x'00090000')
+
+     DCSWSCK_OPER_PONG...
+     D                 C                     Const(x'000A0000')
+
+     DCSWSCK_FIN_OFF...
+     D                 C                     Const(x'00')
+
+     DCSWSCK_FIN_ON...
+     D                 C                     Const(x'01')
+
+     DCSWSCK_E_NODATA...
+     D                 C                     Const(x'00000001')
+
+     DCSWSCK_E_PARTIALDATA...
+     D                 C                     Const(x'00000002')
+
+     DCSWSCK_E_ALLDATA...
+     D                 C                     Const(x'00000003')
+
+     DCSWSCK_MOREDATA...
+     D                 C                     Const(x'00000002')
+
+     DCSWSCK_ALLDATA...
+     D                 C                     Const(x'00000003')
+
+     DCSWSCK_RCV_ALL...
+     D                 C                     Const(x'00000001')
+
+     DCSWSCK_RCV_PARTIAL...
+     D                 C                     Const(x'00000002')
+
+     DCSWSCK_MASK_ERROR...
+     D                 C                     Const(x'80000000')
+
+     DCSWSCK_MASK_OPERATION...
+     D                 C                     Const(x'0FFF0000')
+
+     DCSWSCK_MASK_DIAG...
+     D                 C                     Const(x'0000FFFF')
+
+     DCSWSCK_SUCCESS...
+     D                 C                     Const(x'00000000')
+
+     DCSWSCK_FAILURE...
+     D                 C                     Const(x'80000000')
+
+      *----------------------------------------------------------------------
+      *  CFS-400 : Websocket Functions
+      *----------------------------------------------------------------------
+
+     DCSWSCK_OpenConnect...
+     D                 Pr            10U 0   ExtProc('CSWSCK_Connect')
+     D@sessionInfo                     *     Value
+     D@sessionInfoFmt                10I 0   Value
+
+     DCSWSCK_OpenChannel...
+     D                 Pr              *     ExtProc('CSWSCK_OpenChannel')
+     D@ConnFd                        10I 0   Value
+     D@sessionInfo                     *     Value
+     D@sessionInfoFmt                10I 0   Value
+
+     DCSWSCK_SecureConnect...
+     D                 Pr              *     ExtProc('CSWSCK_SecureConnect')
+     D@sessionInfo                     *     Value
+     D@sessionInfoFmt                10I 0   Value
+
+     DCSWSCK_SecureOpenChannel...
+     D                 Pr              *     ExtProc('CSWSCK_SecureOpenChannel')
+     D@ConnFd                        10I 0   Value
+     D@sessionInfo                     *     Value
+     D@sessionInfoFmt                10I 0   Value
+
+     DCSWSCK_Close...
+     D                 Pr            10U 0   ExtProc('CSWSCK_Close')
+     D@This                            *     Value
+     D@Data                            *     Value
+     D@dataSize                      20U 0   Value
+     D@timeout                       10I 0   Value
+
+     DCSWSCK_SecureClose...
+     D                 Pr            10U 0   ExtProc('CSWSCK_SecureClose')
+     D@This                            *     Value
+     D@Data                            *     Value
+     D@dataSize                      20U 0   Value
+     D@timeout                       10I 0   Value
+
+     DCSWSCK_Ping...
+     D                 Pr            10U 0   ExtProc('CSWSCK_Ping')
+     D@This                            *     Value
+     D@Data                            *     Value
+     D@dataSize                      20U 0   Value
+     D@timeout                       10I 0   Value
+
+     DCSWSCK_SecurePing...
+     D                 Pr            10U 0   ExtProc('CSWSCK_SecurePing')
+     D@This                            *     Value
+     D@Data                            *     Value
+     D@dataSize                      20U 0   Value
+     D@timeout                       10I 0   Value
+
+     DCSWSCK_Receive...
+     D                 Pr            10U 0   ExtProc('CSWSCK_Receive')
+     D@This                            *     Value
+     D@DataSize                        *     Value
+     D@TimeOut                       10I 0   Value
+
+     DCSWSCK_SecureReceive...
+     D                 Pr            10U 0   ExtProc('CSWSCK_SecureReceive')
+     D@This                            *     Value
+     D@DataSize                        *     Value
+     D@TimeOut                       10I 0   Value
+
+     DCSWSCK_GetData...
+     D                 Pr            10U 0   ExtProc('CSWSCK_GetData')
+     D@This                            *     Value
+     D@Data                            *     Value
+     D@Offset                        10I 0   Value
+     D@Size                          10I 0   Value
+
+     DCSWSCK_Send...
+     D                 Pr            10U 0   ExtProc('CSWSCK_Send')
+     D@This                            *     Value
+     D@Oeration                      10I 0   Value
+     D@Data                            *     Value
+     D@DataSize                      10I 0   Value
+     D@FinState                      10I 0   Value
+     D@TimeOut                       10I 0   Value
+
+     DCSWSCK_SecureSend...
+     D                 Pr            10U 0   ExtProc('CSWSCK_SecureSend')
+     D@This                            *     Value
+     D@Oeration                      10I 0   Value
+     D@Data                            *     Value
+     D@DataSize                      10I 0   Value
+     D@FinState                      10I 0   Value
+     D@TimeOut                       10I 0   Value
+
+
+      /ENDIF
+
+
+
+
+

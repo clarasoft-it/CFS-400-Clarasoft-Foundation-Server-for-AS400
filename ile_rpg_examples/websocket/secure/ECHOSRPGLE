@@ -95,6 +95,8 @@
 
           appID = 'WSD' + x'00';
 
+          // A minimal SSL server session requires the application
+          // ID that identifies the SSL certificate in DCM.
           // See the CFSAPI.H header file for the index and add 1
           // because RPG arrays are one-based.
 
