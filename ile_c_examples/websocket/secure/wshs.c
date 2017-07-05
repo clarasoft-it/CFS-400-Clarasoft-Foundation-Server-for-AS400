@@ -48,12 +48,7 @@
 
   Build program with:
 
-    CRTPGM PGM(WSHS) MODULE(WSHS CFSAPI CSLIST CSSTR CSWSCK)
-
-               OR if you bound the CSWSCK module into a
-                  service program object..
-
-    CRTPGM PGM(WSHS) MODULE(WSHS) BNDSRVPGM((CSWSCK))
+    CRTPGM PGM(WSHS) MODULE(WSHS) BNDSRVPGM((CFSAPI))
 
   Distributed under the MIT license
 
@@ -152,6 +147,8 @@ int main (int argc, char **argv)
 
   CSSTRCV cvtString;
 
+  CFS_SERVERSESSION_100 sinfo;
+
   /* ------------------------------------------------------------------------
 
    This code is to register a cleanup handler
@@ -212,11 +209,21 @@ int main (int argc, char **argv)
         if (CS_SUCCEED(hResult)) {
 
            //////////////////////////////////////////////////////////////////
-           // ECHO handler using CSWSCK secure functions: application
-           // ID passed as parameter must be valid on your system.
+           // ECHO handler using CSWSCK secure functions:
+           // Basic SSL requires an application ID which is set in the
+           // session information structure. SSL defaults can be
+           // overriden in the session info structure. In this example,
+           // the application ID is WSD. We must specify the format of
+           // our session info structure so that future releases may
+           // add to this structure.
            //////////////////////////////////////////////////////////////////
 
-           pCONN = CSWSCK_SecureOpenServer(conn_fd, "WSD", 0, 0);
+           memset(&sinfo, 0, sizeof(sinfo));
+           sinfo.pszBuffers[CFS_OFFSET_GSK_OS400_APPLICATION_ID] = "WSD";
+
+           pCONN = CSWSCK_SecureOpenChannel(conn_fd,
+                                            (void*)&sinfo,
+                                            CFS_SERVERSESSION_FMT_100);
 
            if (pCONN != 0) {
 

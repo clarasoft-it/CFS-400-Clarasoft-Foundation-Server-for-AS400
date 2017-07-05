@@ -48,12 +48,7 @@
 
   Build program with:
 
-    CRTPGM PGM(WSH) MODULE(WSH CFSAPI CSLIST CSSTR CSWSCK)
-
-               OR if you bound the CSWSCK module into a
-                  service program object..
-
-    CRTPGM PGM(WSH) MODULE(WSH) BNDSRVPGM((CSWSCK))
+    CRTPGM PGM(WSH) MODULE(WSH) BNDSRVPGM((CFSAPI))
 
   Distributed under the MIT license
 
@@ -215,7 +210,7 @@ int main (int argc, char **argv)
            // ECHO handler using CSWSCK non-secure functions
            //////////////////////////////////////////////////////////////////
 
-           pCONN = CSWSCK_OpenServer(conn_fd, "WSD", 0, 0);
+           pCONN = CSWSCK_OpenChannel(conn_fd, 0, 0);
 
            if (pCONN != 0) {
 
