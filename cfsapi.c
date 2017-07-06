@@ -38,8 +38,8 @@
 #include <limits.h>
 #include <netdb.h>
 #include "qcsrc/cfsapi.h"
-#include <QSYSINC/MIH/GENUUID>
 #include <QSYSINC/MIH/CVTHC>
+#include <QSYSINC/MIH/GENUUID>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/poll.h>
@@ -205,7 +205,7 @@ CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
          break;
    }
 
-   if (cfsi->connfd = -1) {
+   if (cfsi->connfd == -1) {
       free(cfsi);
       cfsi = 0;
    }
@@ -1137,7 +1137,7 @@ CFS_INSTANCE* CFS_SecureConnect(void* sessionInfo,
 
    if (CS_FAIL(hResult)) {
 
-      if (cfsi->connfd = -1) {
+      if (cfsi->connfd == -1) {
 
          free(cfsi);
       }
