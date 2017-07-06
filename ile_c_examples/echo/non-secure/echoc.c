@@ -2,30 +2,30 @@
 
   Clarasoft Foundation Server 400
 
-  echoclient.c
-  Echo client using SSL
+  echoc.c
+  Echo client
   Version 1.0.0
 
   Compile module with:
 
-     CRTCMOD MODULE(ECHOSC) SRCFILE(QCSRC)
-              SRCMBR(ECHOSC) DBGVIEW(*SOURCE)
+     CRTCMOD MODULE(ECHOC) SRCFILE(QCSRC)
+              SRCMBR(ECHOC) DBGVIEW(*SOURCE)
 
   Build with:
 
-     CRTPGM PGM(ECHOSC) MODULE(ECHOSC)
+     CRTPGM PGM(ECHOC) MODULE(ECHOC)
             BNDSRVPGM(CFSAPI)
 
   Before executing, you need a server: you can use the CFS
-  SSL ECHO server (see ECHOS.C source file) by calling it with:
+  ECHO server (see ECHO.C source file) by calling it with:
 
 
     call clarad parm('41101' '1' '1'
-                     '/QSYS.LIB/LIBANME.LIB/CLARAH.PGM' 'ECHOS')
+                     '/QSYS.LIB/LIBANME.LIB/CLARAH.PGM' 'ECHO')
 
   Then execute this program with:
 
-     CALL ECHOSC PARM('YOUR_ECHO_SERVER_HOSTNAME' '41101')
+     CALL ECHOC PARM('YOUR_ECHO_SERVER_HOSTNAME' '41101')
 
 
   Distributed under the MIT license
@@ -80,25 +80,23 @@ int main(int argc, char** argv)
    uint64_t iSize;
    int SSLResult;
    CSRESULT hResult;
-   CFS_CLIENTSESSION_100 sinfo;
 
    CSSTRCV cvtString;
+
+   CFS_CLIENTSESSION_100 sinfo;
 
    // String Conversion object
    cvtString = CSSTRCV_Constructor();
 
    do
    {
-
        memset(&sinfo, 0, sizeof(sinfo));
 
        sinfo.szHostName = argv[1];
        sinfo.port = (long)atoi(argv[2]);
-       sinfo.pszBuffers[CFS_OFFSET_GSK_OS400_APPLICATION_ID] = "WSD";
 
-       cfsi = CFS_SecureConnect((void*)&sinfo,
-                                CFS_CLIENTSESSION_FMT_100,
-                                &SSLResult);
+       cfsi = CFS_Connect((void*)&sinfo,
+                          CFS_CLIENTSESSION_FMT_100);
 
        if (cfsi != 0) {
 
@@ -123,20 +121,22 @@ int main(int argc, char** argv)
           // null terminate
           outBuffer[iSize] = 0;
 
-          CFS_SecureWriteRecord(cfsi, outBuffer, &iSize, -1, &SSLResult);
+          CFS_WriteRecord(cfsi, outBuffer, &iSize, -1);
 
           iSize = 64; // Maximum nimber of bytes to read
 
-          hResult = CFS_SecureRead(cfsi,
-                                   inBuffer,
-                                   &iSize,
-                                   -1,
-                                   &SSLResult);
+          hResult = CFS_Read(cfsi,
+                             inBuffer,
+                             &iSize,
+                             -1);
 
           if (CS_SUCCEED(hResult)) {
 
              //////////////////////////////////////////////////////////////
-             // The echo server echoes back in UT8
+             // The echo server echoes back in UT8: note that the
+             // echo service only echoes a single character since
+             // it was meant to be tested via telnet and to quit
+             // the service, one had to send the letter q.
              //////////////////////////////////////////////////////////////
 
              // Start a conversion from UTF8 to the job CCSID
@@ -162,7 +162,7 @@ int main(int argc, char** argv)
              printf("Failed ...\n");
           }
 
-          CFS_SecureClose(cfsi);
+          CFS_Close(cfsi);
        }
 
    } while(0);
