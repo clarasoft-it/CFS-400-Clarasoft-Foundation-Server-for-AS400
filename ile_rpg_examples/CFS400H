@@ -329,14 +329,14 @@
      D                 Pr            10U 0   ExtProc('CFS_Read')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
 
      DCFS_ReadRecord...
      D                 Pr            10U 0   ExtProc('CFS_ReadRecord')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
 
      DCFS_ReceiveDescriptor...
@@ -366,7 +366,7 @@
      D                 Pr            10U 0   ExtProc('CFS_SecureRead')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
      D@SSLResult                       *     Value
 
@@ -374,7 +374,7 @@
      D                 Pr            10U 0   ExtProc('CFS_SecureReadRecord')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
      D@SSLResult                       *     Value
 
@@ -382,7 +382,7 @@
      D                 Pr            10U 0   ExtProc('CFS_SecureWrite')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
      D@SSLResult                       *     Value
 
@@ -390,7 +390,7 @@
      D                 Pr            10U 0   ExtProc('CFS_SecureReadWrite')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
      D@SSLResult                       *     Value
 
@@ -404,14 +404,14 @@
      D                 Pr            10U 0   ExtProc('CFS_Write')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
 
      DCFS_WriteRecord...
      D                 Pr            10U 0   ExtProc('CFS_WriteRecord')
      D@This                            *     Value
      D@Data                            *     Value
-     D@DataSize                      20U 0   Value
+     D@DataSize                        *     Value
      D@TimeOut                       10I 0   Value
 
       *----------------------------------------------------------------------
