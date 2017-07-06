@@ -178,6 +178,8 @@ CSRESULT echoProc(int fd, char* szIP, char* szPORT, void* data) {
 
    CFS_Close(pInstance);
 
+   CSSTRCV_Destructor(&cvtString);
+
    return CS_SUCCESS;
 }
 

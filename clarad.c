@@ -837,8 +837,6 @@ void Cleanup(_CNL_Hndlr_Parms_T* data) {
              ;
 
   free(szDaemonName);
-
-  CSLIST_Destructor(&handlers);
 }
 
 /* --------------------------------------------------------------------------
