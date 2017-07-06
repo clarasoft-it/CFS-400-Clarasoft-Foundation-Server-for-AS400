@@ -3,14 +3,14 @@
       //
       //    Clarasoft Foundation Server for AS400
       //
-      //    ECHO.RPGLE
+      //    ECHO
       //    Demonstration echo service that uses the websocket protocol
       //    Version 1.0.0
       //
       //    Compile module with:
       //
       //       CRTRPGMOD MODULE(ECHOMOD) SRCFILE(QRPGLESRC)
-      //                 SRCMBR(ECHO.RPGLE) DBGVIEW(*ALL)
+      //                 SRCMBR(ECHO) DBGVIEW(*ALL)
       //
       //    Build program with:
       //
@@ -59,7 +59,7 @@
 
      H NOMAIN
 
-      /Copy echo.rpgh
+      /Copy cfs400h
 
       *----------------------------------------------------------------------
       *  Connection object: this will be initialised by the CSAP broker

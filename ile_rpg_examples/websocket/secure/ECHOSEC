@@ -3,19 +3,19 @@
       //
       //    Clarasoft Foundation Server for AS400
       //
-      //    ECHOSRPGLE
+      //    ECHOSEC
       //    Demonstration echo service that uses the websocket protocol
-      //    using SSL
+      //    with SSL
       //    Version 1.0.0
       //
       //    Compile module with:
       //
-      //       CRTRPGMOD MODULE(ECHOMODS) SRCFILE(QRPGLESRC)
-      //                 SRCMBR(ECHOSRPGLE) DBGVIEW(*ALL)
+      //       CRTRPGMOD MODULE(ECHOSEC) SRCFILE(QRPGLESRC)
+      //                 SRCMBR(ECHOSEC) DBGVIEW(*ALL)
       //
       //    Build program with:
       //
-      //       CRTSRVPGM SRVPGM(ECHOSRVS) MODULE(ECHOMODS)
+      //       CRTSRVPGM SRVPGM(ECHOSRVS) MODULE(ECHOSEC)
       //       BNDSRVPGM(CFSAPI) EXPORT(*ALL)
       //
       //    To use with the CLARAH handler, do the following:
@@ -60,7 +60,7 @@
 
      H NOMAIN
 
-      /Copy echo.rpgh
+      /Copy cfs400h
 
       *----------------------------------------------------------------------
       *  Connection object: this will be initialised by the CSAP broker
@@ -95,8 +95,6 @@
 
           appID = 'WSD' + x'00';
 
-          // A minimal SSL server session requires the application
-          // ID that identifies the SSL certificate in DCM.
           // See the CFSAPI.H header file for the index and add 1
           // because RPG arrays are one-based.
 
