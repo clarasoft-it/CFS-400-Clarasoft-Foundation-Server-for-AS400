@@ -294,8 +294,8 @@ CSRESULT CSSTRCV_SetConversion(CSSTRCV* This,
 
   char szFromCodeStruct[32];
   char szToCodeStruct[32];
-  char szFromCCSID[5];
-  char szToCCSID[5];
+  char szFromCCSID[6];
+  char szToCCSID[6];
 
 
   This->iFromCCSID = iFromCCSID;
