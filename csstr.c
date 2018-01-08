@@ -1403,11 +1403,13 @@ long CSSTR_ToBase64(char* inBuffer,
       tempByte = (inBuffer[i] & B64_MASK_12) << 4;
       j++; i++;
 
-      outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4) | tempByte];
+      outBuffer[j] = 
+        B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4) | tempByte];
       tempByte = (inBuffer[i] & B64_MASK_22) << 2;
       j++; i++;
 
-      outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_31) >> 6) | tempByte];
+      outBuffer[j] = 
+        B64EncodeTable[((inBuffer[i] & B64_MASK_31) >> 6) | tempByte];
       j++;
       outBuffer[j] = B64EncodeTable[inBuffer[i] & B64_MASK_32];
    }
@@ -1436,7 +1438,8 @@ long CSSTR_ToBase64(char* inBuffer,
         tempByte = (inBuffer[i] & B64_MASK_12) << 4;
         j++; i++;
 
-        outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4) | tempByte];
+        outBuffer[j] = 
+          B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4) | tempByte];
         tempByte = (inBuffer[i] & B64_MASK_22) << 2;
         j++; i++;
 
