@@ -337,7 +337,12 @@ CSRESULT CSLIST_Remove(CSLIST* This, long index) {
       if (This->current == This->first)
       {
         This->first = This->current->next;
-        This->first->previous = 0;
+        
+        // Make sure there is a node after our current one
+        if (This->first != 0) {
+          This->first->previous = 0;
+        }
+        
         This->current = This->first;
       }
       else
