@@ -319,7 +319,7 @@ CSRESULT CSLIST_Remove(CSLIST* This, long index) {
 
   if (This->numItems > 0)
   {
-    if (This->numItems == 0)
+    if (This->numItems == 1)
     {
       Temp = This->first;
 
