@@ -350,6 +350,17 @@ CSRESULT CSLIST_Remove(CSLIST* This, long index) {
         if (This->current == This->last)
         {
           This->last = This->last->previous;
+          
+          // In this case, we know there is a node
+          // prior to the last one because if there
+          // had not been a previous node, then
+          // the current node would also point to 
+          // the first, whcih is the case that was 
+          // first checked above. So here, there
+          // is no need to check for the existence
+          // of a previous node, unlike in the case
+          // for the current node being the first node.
+          
           This->last->next = 0;
           This->current = This->last;
           This->curIndex--;
