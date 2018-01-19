@@ -1143,7 +1143,7 @@ CFS_INSTANCE* CFS_SecureConnect(void* sessionInfo,
       }
       else {
 
-         CFS_Close(cfsi);
+         CFS_SecureClose(cfsi);
       }
 
       cfsi = 0;
