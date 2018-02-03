@@ -302,7 +302,7 @@ CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
       if (inet_ntop(AF_INET, &sin->sin_addr, addrstr,
                     (socklen_t)CFS_NTOP_ADDR_MAX) != 0)
       {
-         snprintf(portstr, sizeof(portstr), "%d", ntohs(sin->sin_port));
+         snprintf(portstr, CFS_NTOP_PORT_MAX, "%d", ntohs(sin->sin_port));
           rc = CS_SUCCESS;
       }
 
@@ -317,7 +317,7 @@ CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
                     addrstr + 1,
                     (socklen_t)(CFS_NTOP_ADDR_MAX - 1)) != (const char*)NULL)
       {
-        snprintf(portstr, sizeof(portstr), "%d", ntohs(sin6->sin6_port));
+        snprintf(portstr, CFS_NTOP_PORT_MAX, "%d", ntohs(sin6->sin6_port));
         strcat(addrstr, "]");
         rc = CS_SUCCESS;
       }
