@@ -75,6 +75,7 @@ int main (int argc, char **argv)
   int i;
   int rc;
   int type;
+  int quit;
 
   char buffer = 0; // dummy byte character
                    // to send to main daemon
@@ -204,7 +205,10 @@ int main (int argc, char **argv)
                  // the loop.
                  ////////////////////////////////////////////////////////////
 
+                 quit = 0;
+
                  if (szResponse[0] == 'q') {
+                   quit = 1;
                    strcpy(szMessage, "ECHO HANDLER: GOODBYE :-)");
                  }
                  else {
@@ -231,7 +235,7 @@ int main (int argc, char **argv)
                                      &size,
                                      -1);
 
-                 if (szResponse[0] == 'q') {
+                 if (quit) {
                       break;
                  }
 
