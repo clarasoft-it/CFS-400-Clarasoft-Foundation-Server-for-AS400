@@ -183,7 +183,7 @@ int main (int argc, char **argv)
 
                  szMessage[size] = 0;
 
-                 // Start a conversion from UTF8 to the job CCSID
+                 // Start a conversion from ASCII to the job CCSID
                  CSSTRCV_SetConversion(cvtString, "00819", "00000");
 
                  CSSTRCV_StrCpy(cvtString, szMessage, strlen(szMessage));
