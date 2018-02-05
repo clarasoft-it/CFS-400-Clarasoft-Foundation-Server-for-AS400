@@ -1,15 +1,15 @@
-
 /* ==========================================================================
   Clarasoft Core Tools
-  
-  cslist.h
+
+  CSLIST.h
+
   Linked list definitions
   Version 1.0.0
-  
-  
+
   Distributed under the MIT license
-  
+
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -28,8 +28,8 @@
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ========================================================================== */
 
-#ifndef __CSLIST_H__
-#define __CSLIST_H__
+#ifndef __CLARASOFT_CT_CSLIST_H__
+#define __CLARASOFT_CT_CSLIST_H__
 
 #include "qcsrc/cscore.h"
 
