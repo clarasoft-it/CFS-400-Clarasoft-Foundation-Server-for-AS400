@@ -1,24 +1,14 @@
-
 /* ==========================================================================
-
   Clarasoft Core Tools
 
   csstr.c
   string implementation
+
   Version 1.0.0
-
-
-
-  Compile module with:
-
-     CRTCMOD MODULE(CSSTR) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
-
 
   Distributed under the MIT license
 
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -26,10 +16,8 @@
   merge, publish, distribute, sublicense, and/or sell
   copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
-
   The above copyright notice and this permission notice shall be
   included in all copies or substantial portions of the Software.
-
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -37,9 +25,7 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
   CRTCMOD MODULE(CSSTR) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
 ========================================================================== */
 
 #include <ctype.h>
@@ -53,47 +39,40 @@
 #include "qcsrc/cscore.h"
 #include "qcsrc/cslist.h"
 
-#define B64_MASK_11   0xFC
-#define B64_MASK_12   0x03
-#define B64_MASK_21   0xF0
-#define B64_MASK_22   0x0F
-#define B64_MASK_31   0xC0
-#define B64_MASK_32   0x3F
+#define B64_MASK_11                    (0xFC)
+#define B64_MASK_12                    (0x03)
+#define B64_MASK_21                    (0xF0)
+#define B64_MASK_22                    (0x0F)
+#define B64_MASK_31                    (0xC0)
+#define B64_MASK_32                    (0x3F)
 
+#define CCSID_JOBDEFAULT               (0)
+#define CCSID_UTF8                     (1208)
+#define CCSID_ASCII                    (819)
+#define CCSID_WINDOWS_1251             (1251)
+#define CCSID_ISO_8859_1               (819)
 
-/////////////////////////////////////////////////////////////////////////////
-// These are the ASCII codes for Base 64 encoding
-/////////////////////////////////////////////////////////////////////////////
+#define CSSTR_B64_LINEBREAK_OFFSET     (0x0000004D)
+#define CSSTR_B64_MASK_LINEBREAK       (0x0000000F)
+#define CSSTR_B64_LINEBREAK_NONE       (0x00000000)
+#define CSSTR_B64_LINEBREAK_LF         (0x00000001)
+#define CSSTR_B64_LINEBREAK_CRLF       (0x00000002)
+#define CSSTR_B64_IGNOREINVALIDCHAR    (0x00000100)
 
-char B64EncodeTable[64] = {
+#define CSSTR_URLENCODE_SPACETOPLUS    (0x00000100)
+#define CSSTR_URLENCODE_XLATERESERVED  (0x00000200)
 
-   65,  66,  67,  68,  69,  70,  71,  72,
-   73,  74,  75,  76,  77,  78,  79,  80,
-   81,  82,  83,  84,  85,  86,  87,  88,
-   89,  90,  97,  98,  99, 100, 101, 102,
-  103, 104, 105, 106, 107, 108, 109, 110,
-  111, 112, 113, 114, 115, 116, 117, 118,
-  119, 120, 121, 122,  48,  49,  50,  51,
-   52,  53,  54,  55,  56,  57,  43,  47
+#define CS_OPER_ICONV                  (0x0F010000)
+#define CS_OPER_CSSTRCV                (0x00020000)
 
-};
+#define CSUTF8_BYTE1                   (0x00)
+#define CSUTF8_BYTE2                   (0xC0)
+#define CSUTF8_BYTE3                   (0xE0)
+#define CSUTF8_BYTE4                   (0xF0)
 
-
-#define CCSID_JOBDEFAULT   0
-#define CCSID_UTF8         1208
-#define CCSID_ASCII        819
-
-#define CS_OPER_ICONV      0x0F010000
-#define CS_OPER_CSSTRCV    0x00020000
-
-#define CSUTF8_BYTE1       (0x00)
-#define CSUTF8_BYTE2       (0xC0)
-#define CSUTF8_BYTE3       (0xE0)
-#define CSUTF8_BYTE4       (0xF0)
-
-#define CSUTF8_ANDMASK_2   (0xE0)
-#define CSUTF8_ANDMASK_3   (0xF0)
-#define CSUTF8_ANDMASK_4   (0xF8)
+#define CSUTF8_ANDMASK_2               (0xE0)
+#define CSUTF8_ANDMASK_3               (0xF0)
+#define CSUTF8_ANDMASK_4               (0xF8)
 
 #define CSUTF8_ISCODE_2(x) (((x) & CSUTF8_ANDMASK_2) == CSUTF8_BYTE2)
 #define CSUTF8_ISCODE_3(x) (((x) & CSUTF8_ANDMASK_3) == CSUTF8_BYTE3)
@@ -106,8 +85,8 @@ char B64EncodeTable[64] = {
 typedef struct tagCSSTRCV {
 
    CSLIST Tokens;
-   long iFromCCSID;
-   long iToCCSID;
+   char szFromCCSID[6];
+   char szToCCSID[6];
    long bufferSize;
    long numOfChars;
    char leftOver[4];
@@ -128,8 +107,8 @@ CSRESULT
 CSRESULT
   CSSTRCV_SetConversion
     (CSSTRCV* This,
-     long iFromCCSID,
-     long iToCCSID);
+     char* szFromCCSID,
+     char* szToCCSID);
 
 CSRESULT
   CSSTRCV_StrCpy
@@ -182,19 +161,72 @@ int
     (char* buffer,
      int size);
 
-int
+uint64_t
   CSSTR_FromBase64
-    (char* inBuffer,
-     int   inSize,
-     char* outBuffer,
-     int   outSize);
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize);
 
-long
+uint64_t
   CSSTR_ToBase64
-    (char* inBuffer,
-     int   inSize,
-     char* outBuffer,
-     int   outSize);
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize);
+
+uint64_t
+  CSSTR_FromBase64Ex
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize,
+     int flags);
+
+uint64_t
+  CSSTR_ToBase64Ex
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize,
+     int flags);
+
+uint64_t
+  CSSTR_ToBase64
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize);
+
+uint64_t
+  CSSTR_FromBase64Ex
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize,
+     int flags);
+
+uint64_t
+  CSSTR_ToBase64Ex
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize,
+     int flags);
+
+uint64_t
+  CSSTR_UrlEncode
+    (unsigned char* in,
+     uint64_t inSize,
+     unsigned char* out,
+     uint64_t size,
+     int flags);
+
+uint64_t
+  CSSTR_UrlDecode
+    (unsigned char* in,
+     unsigned char* out,
+     uint64_t size);
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -287,15 +319,15 @@ CSRESULT CSSTRCV_Destructor(CSSTRCV** This) {
 //    CS_FAILURE
 //
 //////////////////////////////////////////////////////////////////////////////
-
+/*
 CSRESULT CSSTRCV_SetConversion(CSSTRCV* This,
                                    long     iFromCCSID,
                                    long     iToCCSID) {
 
   char szFromCodeStruct[32];
   char szToCodeStruct[32];
-  char szFromCCSID[6];
-  char szToCCSID[6];
+  char szFromCCSID[36];
+  char szToCCSID[36];
 
 
   This->iFromCCSID = iFromCCSID;
@@ -319,6 +351,10 @@ CSRESULT CSSTRCV_SetConversion(CSSTRCV* This,
      case CCSID_ASCII:
         strcpy(szFromCCSID, "00819");
         break;
+
+     case CCSID_WINDOWS_1251:
+        strcpy(szFromCCSID, "01251");
+        break;
   }
 
   memcpy(&szFromCodeStruct[8], szFromCCSID, 5);
@@ -338,6 +374,10 @@ CSRESULT CSSTRCV_SetConversion(CSSTRCV* This,
      case CCSID_ASCII:
         strcpy(szToCCSID, "00819");
         break;
+
+     case CCSID_WINDOWS_1251:
+        strcpy(szToCCSID, "01251");
+        break;
   }
 
   memcpy(&szToCodeStruct[8], szToCCSID, 5);
@@ -351,6 +391,54 @@ CSRESULT CSSTRCV_SetConversion(CSSTRCV* This,
 
      This->iFromCCSID = -1;
      This->iToCCSID = -1;
+     return CS_FAILURE;
+  }
+
+  // Release the previous string buffer
+
+  CSLIST_Clear(This->Tokens);
+
+  This->bufferSize   = 0;
+  This->numOfChars   = 0;
+  This->missingSize  = 0;
+  This->leftOver[0]  = 0;
+  This->leftOverSize = 0;
+
+  return CS_SUCCESS;
+}
+*/
+
+CSRESULT CSSTRCV_SetConversion
+  (CSSTRCV* This,
+   char* szFromCCSID,
+   char* szToCCSID) {
+
+  char szFromCodeStruct[32];
+  char szToCodeStruct[32];
+
+  strcpy(This->szFromCCSID, szFromCCSID);
+  strcpy(This->szToCCSID, szToCCSID);
+
+  memset(szFromCodeStruct, '0', 32);
+  memset(szToCodeStruct,   '0', 32);
+
+  memcpy(&szFromCodeStruct[0], "IBMCCSID", 8);
+
+  memcpy(&szFromCodeStruct[8], szFromCCSID, 5);
+
+  memcpy(&szToCodeStruct[0], "IBMCCSID", 8);
+
+  memcpy(&szToCodeStruct[8], szToCCSID, 5);
+
+  // Close former conversion descriptor
+  iconv_close(This->cd);
+
+  This->cd = iconv_open(szToCodeStruct, szFromCodeStruct);
+
+  if (This->cd.return_value == -1) {
+
+     This->szFromCCSID[0] = 0;
+     This->szToCCSID[0] = 0;
      return CS_FAILURE;
   }
 
@@ -506,71 +594,46 @@ CSRESULT CSSTRCV_StrCpy (CSSTRCV* This,
 
       if (CS_DIAG(hResult) == CS_DIAG_EINVAL) {
 
-         /////////////////////////////////////////////////////////////////////
-         // This means the conversion stopped when it encountered
-         // a partial character; we will store the partial character
-         // and assume the remaining bytes will be provided
-         // in the next call to CSUTF8_StrCat.
-         /////////////////////////////////////////////////////////////////////
+        /////////////////////////////////////////////////////////////////////
+        // This means the conversion stopped when it encountered
+        // a partial character; we will store the partial character
+        // and assume the remaining bytes will be provided
+        // in the next call to CSUTF8_StrCat.
+        /////////////////////////////////////////////////////////////////////
 
-         This->leftOver[0] = inBuffer[InConvSize];
+        This->leftOver[0] = inBuffer[InConvSize];
 
-         // Add converted string to tokens, if any
+        // Add converted string to tokens, if any
 
-         if (OutConvSize > 0) {
+        if (OutConvSize > 0) {
 
-            This->bufferSize = OutConvSize;
+           This->bufferSize = OutConvSize;
 
-            CSLIST_Insert(This->Tokens,
-                          outBuffer, OutConvSize, CSLIST_BOTTOM);
-         }
+           CSLIST_Insert(This->Tokens,
+                         outBuffer, OutConvSize, CSLIST_BOTTOM);
+        }
 
-         switch(This->iFromCCSID) {
+        This->leftOverSize = inSize - InConvSize;
 
-            case CCSID_JOBDEFAULT:
+        w = CSUTF8_CHARWIDTH(This->leftOver[0]);
 
-               break;
+        This->missingSize =
+        w - This->leftOverSize;
 
-            case CCSID_UTF8:
+        if (This->leftOverSize > 1) {
 
-               //////////////////////////////////////////////////////////////
-               // Note that we should never get a character width of 1.
-               // Also, we don't care if the character width is 2 since it
-               // is partially present, we only have the first byte which
-               // we have copied already. What happens next depends on the
-               // target character set. At present, this class supports
-               // ASCII, UTF8 and EBCDIC. We must perform specific
-               // processing according to the current target CCSID.
-               //////////////////////////////////////////////////////////////
+          // Copy partial byte following first character byte
 
-               This->leftOverSize = inSize - InConvSize;
+          This->leftOver[1] = inBuffer[InConvSize+1];
 
-               w = CSUTF8_CHARWIDTH(This->leftOver[0]);
+          if (CSUTF8_CHARWIDTH(inBuffer[InConvSize]) == 4) {
 
-               This->missingSize =
-                  w - This->leftOverSize;
+            if (This->leftOverSize > 2) {
 
-               if (This->leftOverSize > 1) {
-
-                  // Copy partial byte following first character byte
-
-                  This->leftOver[1] = inBuffer[InConvSize+1];
-
-                  if (CSUTF8_CHARWIDTH(inBuffer[InConvSize]) == 4) {
-
-                     if (This->leftOverSize > 2) {
-
-                        This->leftOver[2] = inBuffer[InConvSize+2];
-                     }
-                  }
-               }
-
-               break;
-
-            case CCSID_ASCII:
-
-               break;
-         }
+              This->leftOver[2] = inBuffer[InConvSize+2];
+            }
+          }
+        }
       }
       else {
 
@@ -723,102 +786,87 @@ CSRESULT CSSTRCV_StrCat (CSSTRCV* This,
    // output buffer starting position
    offsetOut = 0;
 
-   switch(This->iFromCCSID) {
+   // translate partial character if any
 
-      case CCSID_JOBDEFAULT:
+   if (This->leftOverSize > 0) {
 
-         break;
+      if (This->missingSize > inSize) {
 
-      case CCSID_UTF8:
+         // We do not have all the remaining character bytes:
+         // we will store what we got...
 
-         // translate partial character if any
-
-         if (This->leftOverSize > 0) {
-
-            if (This->missingSize > inSize) {
-
-               // We do not have all the remaining character bytes:
-               // we will store what we got...
-
-               for (i=0; i<inSize; i++) {
-                  This->leftOver[This->leftOverSize+i] = inBuffer[i];
-               }
-
-               This->leftOverSize += i;
-               This->missingSize -= i;
-
-               return CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG_EINVAL;
-            }
-            else {
-
-               switch(This->missingSize) {
-                  case 1:
-                    This->leftOver[This->leftOverSize] = inBuffer[0];
-                    offsetIn = 1;
-                    break;
-                  case 2:
-                    This->leftOver[This->leftOverSize] = inBuffer[0];
-                    This->leftOver[This->leftOverSize+1] = inBuffer[1];
-                    offsetIn = 2;
-                    break;
-                  case 3:
-                    This->leftOver[This->leftOverSize] = inBuffer[0];
-                    This->leftOver[This->leftOverSize+1] = inBuffer[1];
-                    This->leftOver[This->leftOverSize+2] = inBuffer[2];
-                    offsetIn = 3;
-                    break;
-               }
-
-               hResult = CSSTRCV_PRV_Convert(This,
-                                             This->leftOver,
-                                             This->leftOverSize +
-                                                 This->missingSize,
-                                             &InConvSize,
-                                             outBuffer,
-                                             outSize,
-                                             &OutConvSize);
-
-               if (CS_FAIL(hResult)) {
-
-                  // This means the supplied buffer does not hold the
-                  // rest of the partially supplied character from the
-                  // previous copy or concatenation and the leftover
-                  // character is invalid
-
-                  return CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG_EILSEQ;
-               }
-               else {
-
-                  // Reset partial character buffer
-
-                  This->missingSize  = 0;
-                  This->leftOver[0]  = 0;
-                  This->leftOverSize = 0;
-
-                   // Add the completed character
-
-                   CSLIST_Insert(This->Tokens,
-                                 outBuffer, OutConvSize, CSLIST_BOTTOM);
-
-                  // Adjust the output buffer size
-                  This->bufferSize += OutConvSize;
-               }
-
-               if ((inSize - offsetIn) <= 0) {
-
-                  // We only got the remaining partial character as the input;
-                  // no more conversion is required.
-
-                  return CS_SUCCESS;
-               }
-            }
+         for (i=0; i<inSize; i++) {
+            This->leftOver[This->leftOverSize+i] = inBuffer[i];
          }
 
-         break;
+         This->leftOverSize += i;
+         This->missingSize -= i;
 
-      case CCSID_ASCII:
+         return CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG_EINVAL;
+      }
+      else {
 
-         break;
+         switch(This->missingSize) {
+            case 1:
+              This->leftOver[This->leftOverSize] = inBuffer[0];
+              offsetIn = 1;
+              break;
+            case 2:
+              This->leftOver[This->leftOverSize] = inBuffer[0];
+              This->leftOver[This->leftOverSize+1] = inBuffer[1];
+              offsetIn = 2;
+              break;
+            case 3:
+              This->leftOver[This->leftOverSize] = inBuffer[0];
+              This->leftOver[This->leftOverSize+1] = inBuffer[1];
+              This->leftOver[This->leftOverSize+2] = inBuffer[2];
+              offsetIn = 3;
+              break;
+         }
+
+         hResult = CSSTRCV_PRV_Convert(This,
+                                       This->leftOver,
+                                       This->leftOverSize +
+                                           This->missingSize,
+                                       &InConvSize,
+                                       outBuffer,
+                                       outSize,
+                                       &OutConvSize);
+
+         if (CS_FAIL(hResult)) {
+
+            // This means the supplied buffer does not hold the
+            // rest of the partially supplied character from the
+            // previous copy or concatenation and the leftover
+            // character is invalid
+
+            return CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG_EILSEQ;
+         }
+         else {
+
+            // Reset partial character buffer
+
+            This->missingSize  = 0;
+            This->leftOver[0]  = 0;
+            This->leftOverSize = 0;
+
+             // Add the completed character
+
+             CSLIST_Insert(This->Tokens,
+                           outBuffer, OutConvSize, CSLIST_BOTTOM);
+
+            // Adjust the output buffer size
+            This->bufferSize += OutConvSize;
+         }
+
+         if ((inSize - offsetIn) <= 0) {
+
+            // We only got the remaining partial character as the input;
+            // no more conversion is required.
+
+            return CS_SUCCESS;
+         }
+      }
    }
 
    hResult = CSSTRCV_PRV_Convert(This,
@@ -852,51 +900,36 @@ CSRESULT CSSTRCV_StrCat (CSSTRCV* This,
                           outBuffer, OutConvSize, CSLIST_BOTTOM);
          }
 
-         switch(This->iFromCCSID) {
+         //////////////////////////////////////////////////////////////
+         // Note that we should never get a character width of 1.
+         // Also, we don't care if the character width is 2 since it
+         // is partially present, we only have the first byte which
+         // we have copied already. What happens next depends on the
+         // target character set. At present, this class supports
+         // ASCII, UTF8 and EBCDIC. We must perform specific
+         // processing according to the current target CCSID.
+         //////////////////////////////////////////////////////////////
 
-            case CCSID_JOBDEFAULT:
+         This->leftOverSize = inSize - InConvSize;
 
-               break;
+         w = CSUTF8_CHARWIDTH(This->leftOver[0]);
 
-            case CCSID_UTF8:
+         This->missingSize =
+            w - This->leftOverSize;
 
-               //////////////////////////////////////////////////////////////
-               // Note that we should never get a character width of 1.
-               // Also, we don't care if the character width is 2 since it
-               // is partially present, we only have the first byte which
-               // we have copied already. What happens next depends on the
-               // target character set. At present, this class supports
-               // ASCII, UTF8 and EBCDIC. We must perform specific
-               // processing according to the current target CCSID.
-               //////////////////////////////////////////////////////////////
+         if (This->leftOverSize > 1) {
 
-               This->leftOverSize = inSize - InConvSize;
+            // Copy partial byte following first character byte
 
-               w = CSUTF8_CHARWIDTH(This->leftOver[0]);
+            This->leftOver[1] = inBuffer[InConvSize+1];
 
-               This->missingSize =
-                  w - This->leftOverSize;
+            if (CSUTF8_CHARWIDTH(inBuffer[InConvSize]) == 4) {
 
-               if (This->leftOverSize > 1) {
+               if (This->leftOverSize > 2) {
 
-                  // Copy partial byte following first character byte
-
-                  This->leftOver[1] = inBuffer[InConvSize+1];
-
-                  if (CSUTF8_CHARWIDTH(inBuffer[InConvSize]) == 4) {
-
-                     if (This->leftOverSize > 2) {
-
-                        This->leftOver[2] = inBuffer[InConvSize+2];
-                     }
-                  }
+                  This->leftOver[2] = inBuffer[InConvSize+2];
                }
-
-               break;
-
-            case CCSID_ASCII:
-
-               break;
+            }
          }
       }
       else {
@@ -1154,46 +1187,29 @@ CSRESULT CSSTRCV_PRV_Convert(CSSTRCV* This,
 }
 
 /* ----------------------------------------------------------------
-
  This function is like the strtok function but can handle
  delimiters more than one charater in length.
-
  Like the strtok function, the input buffer will be
  modified by the function.
-
  Examples:
-
    "", with delimter equal to :
-
      function returns zero tokens;
      return value is null.
-
    "abc", with delimter equal to :
-
      fucntion returns zero tokens;
      return value is null;
-
    ":", with delimter equal to :
-
      fucntion returns one token;
      return value is pointer to an empty string;
-
    "abc:", with delimter equal to :
-
      function returns 1 token, namely "abc";
      return value is pointer to first token.
-
    "abc::"
-
      function return 2 tokens:
-
        "abc" and ""
-
    "abc::def"
-
      function will return 3 tokens, the middle one will
      point to an empty string
-
 ------------------------------------------------------------------ */
 
 char* CSSTR_StrTok(char* szBuffer,
@@ -1367,29 +1383,32 @@ int CSSTR_ToLowerCase(char* buffer, int size) {
 }
 
 
-long CSSTR_ToBase64(char* inBuffer,
-                    int   inSize,
-                    char* outBuffer,
-                    int   outSize) {
+uint64_t CSSTR_ToBase64(unsigned char* inBuffer,
+                        uint64_t inSize,
+                        unsigned char* outBuffer,
+                        uint64_t outSize) {
 
-   long i;
-   long j;
-   long trailing;
-   long len;
+    uint64_t i;
+    uint64_t j;
+    uint64_t trailing;
 
    char tempByte;
 
-   CSSTRCV* cvt;
+   /////////////////////////////////////////////////////////////////////////
+   // These are the ASCII codes for Base 64 encoding
+   /////////////////////////////////////////////////////////////////////////
 
-   cvt = CSSTRCV_Constructor();
+   char B64EncodeTable[64] = {
 
-   CSSTRCV_SetConversion(cvt, CCSID_JOBDEFAULT, CCSID_ASCII);
-   CSSTRCV_StrCpy(cvt, inBuffer, inSize);
+      65,  66,  67,  68,  69,  70,  71,  72,  73,  74,
+      75,  76,  77,  78,  79,  80,  81,  82,  83,  84,
+      85,  86,  87,  88,  89,  90,  97,  98,  99, 100,
+     101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
+     111, 112, 113, 114, 115, 116, 117, 118, 119, 120,
+     121, 122,  48,  49,  50,  51,  52,  53,  54,  55,
+     56,  57,  43,  47
 
-   // note that the converted string should be the same size
-   // as the input string.
-
-   CSSTRCV_Get(cvt, inBuffer);
+   };
 
    // Determine how many trailing bytes
 
@@ -1403,13 +1422,13 @@ long CSSTR_ToBase64(char* inBuffer,
       tempByte = (inBuffer[i] & B64_MASK_12) << 4;
       j++; i++;
 
-      outBuffer[j] = 
-        B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4) | tempByte];
+      outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4)
+       | tempByte];
       tempByte = (inBuffer[i] & B64_MASK_22) << 2;
       j++; i++;
 
-      outBuffer[j] = 
-        B64EncodeTable[((inBuffer[i] & B64_MASK_31) >> 6) | tempByte];
+      outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_31) >> 6)
+       | tempByte];
       j++;
       outBuffer[j] = B64EncodeTable[inBuffer[i] & B64_MASK_32];
    }
@@ -1438,8 +1457,8 @@ long CSSTR_ToBase64(char* inBuffer,
         tempByte = (inBuffer[i] & B64_MASK_12) << 4;
         j++; i++;
 
-        outBuffer[j] = 
-          B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4) | tempByte];
+        outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4)
+         | tempByte];
         tempByte = (inBuffer[i] & B64_MASK_22) << 2;
         j++; i++;
 
@@ -1454,15 +1473,834 @@ long CSSTR_ToBase64(char* inBuffer,
 
    outBuffer[j] = 0;
 
-   CSSTRCV_SetConversion(cvt, CCSID_ASCII, CCSID_JOBDEFAULT);
-   CSSTRCV_StrCpy(cvt, outBuffer, j);
+   return j;
+}
 
-   // note that the converted string should be the same size
-   // as the input string.
 
-   CSSTRCV_Get(cvt, outBuffer);
-   CSSTRCV_Destructor(&cvt);
+uint64_t CSSTR_FromBase64(unsigned char* inBuffer,
+                          uint64_t   inSize,
+                          unsigned char* outBuffer,
+                          uint64_t   outSize) {
+
+    uint64_t i;
+    uint64_t j;
+    uint64_t trailing;
+
+    ///////////////////////////////////////////////////////////
+    //
+    // The following table holds the indices of the
+    // B64EncodeTable values that are valid B64 characters.
+    // All other indices are set to -1, which is an
+    // invalid array index. If a character in the B64
+    // string resolves to an index value of -1, this means
+    // that the B64 string is actually not a B64 string
+    // because it has a character that falls outside the
+    // values in the B64EncodeTable table.
+    //
+    ///////////////////////////////////////////////////////////
+
+    char B64DecodeTable[256] = {
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  62,  -1,  -1,  -1,  63,
+        52,  53,  54,  55,  56,  57,  58,  59,
+        60,  61,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,   0,   1,   2,   3,   4,   5,   6,
+         7,   8,   9,  10,  11,  12,  13,  14,
+        15,  16,  17,  18,  19,  20,  21,  22,
+        23,  24,  25,  -1,  -1,  -1,  -1,  -1,
+        -1,  26,  27,  28,  29,  30,  31,  32,
+        33,  34,  35,  36,  37,  38,  39,  40,
+        41,  42,  43,  44,  45,  46,  47,  48,
+        49,  50,  51,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1   -1
+    };
+
+   // Determine actual size by ignoring padding characters
+
+   //////////////////////////////////////////////////////////////////
+   // We could have an overflow... the loop
+   // increments the input buffer index within
+   // the loop, which holds the potential to
+   // overflow the actual input buffer size.
+   // We know for a fact that we at most process
+   // 3 byte blocks; so to insure that we don<t
+   // overflow beyond, we will set the loop
+   // condition on a 4 byte boundary. We can then
+   // have leftover bytes that need to be processed
+   // so we will compute how many extra bytes (no
+   // more than 2) after the main loop.
+   //////////////////////////////////////////////////////////////////
+
+   if (inBuffer[inSize-1] == '=') {
+       inSize--;
+   }
+
+   if (inBuffer[inSize-1] == '=') {
+       inSize--;
+   }
+
+   trailing = inSize % 4;
+   inSize = inSize - trailing;
+
+   for (i=0, j=0; i<inSize; i++, j++) {
+
+       //byte 0
+       outBuffer[j] = B64DecodeTable[inBuffer[i]] << 2;
+       i++;
+       outBuffer[j] |= (B64DecodeTable[inBuffer[i]]  >> 4);
+
+       //byte 1
+       j++;
+       outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 4);
+       i++;
+       outBuffer[j] |= (B64DecodeTable[inBuffer[i]]) >> 2;
+
+       // byte 2
+       j++;
+       outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 6);
+       i++;
+       outBuffer[j] |= (B64DecodeTable[inBuffer[i]]);
+   }
+
+   switch(trailing) {
+
+   case 1:
+
+       outBuffer[j] = B64DecodeTable[inBuffer[i]] << 2;
+
+       break;
+
+   case 2:
+
+       outBuffer[j] = B64DecodeTable[inBuffer[i]] << 2;
+       i++;
+       outBuffer[j] |= (B64DecodeTable[inBuffer[i]]  >> 4);
+       j++;
+       outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 4);
+
+       break;
+
+   case 3:
+
+       outBuffer[j] = B64DecodeTable[inBuffer[i]] << 2;
+       i++;
+       outBuffer[j] |= (B64DecodeTable[inBuffer[i]]  >> 4);
+       j++;
+       outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 4);
+       i++;
+       outBuffer[j] |= (B64DecodeTable[inBuffer[i]]) >> 2;
+       j++;
+       outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 6);
+
+       break;
+   }
+
+   outBuffer[j] = 0;
+   return j;
+}
+
+
+uint64_t CSSTR_ToBase64Ex(unsigned char* inBuffer,
+                          uint64_t inSize,
+                          unsigned char* outBuffer,
+                          uint64_t outSize,
+                          int flags) {
+
+    uint64_t i;
+    uint64_t j;
+    uint64_t trailing;
+
+   char tempByte;
+
+   //////////////////////////////////////////////////////////////////////////
+   // These are the ASCII codes for Base 64 encoding
+   //////////////////////////////////////////////////////////////////////////
+
+   char B64EncodeTable[64] = {
+
+      65,  66,  67,  68,  69,  70,  71,  72,  73,  74,
+      75,  76,  77,  78,  79,  80,  81,  82,  83,  84,
+      85,  86,  87,  88,  89,  90,  97,  98,  99, 100,
+     101, 102, 103, 104, 105, 106, 107, 108, 109, 110,
+     111, 112, 113, 114, 115, 116, 117, 118, 119, 120,
+     121, 122,  48,  49,  50,  51,  52,  53,  54,  55,
+     56,  57,  43,  47
+
+   };
+
+   // Determine how many trailing bytes
+
+   trailing = inSize % 3;
+
+   inSize = inSize - trailing;
+
+   for (i=0, j=0; i<inSize; i++, j++) {
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET)
+         == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+      outBuffer[j] = B64EncodeTable[(inBuffer[i] & B64_MASK_11) >> 2];
+      tempByte = (inBuffer[i] & B64_MASK_12) << 4;
+      j++; i++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET)
+         == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+      outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4)
+                     | tempByte];
+      tempByte = (inBuffer[i] & B64_MASK_22) << 2;
+      j++; i++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+      outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_31) >> 6)
+                     | tempByte];
+      j++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+      outBuffer[j] = B64EncodeTable[inBuffer[i] & B64_MASK_32];
+   }
+
+   switch(trailing) {
+
+      case 1:
+
+        outBuffer[j] = B64EncodeTable[(inBuffer[i] & B64_MASK_11) >> 2];
+        tempByte = (inBuffer[i] & B64_MASK_12) << 4;
+        j++; i++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+        outBuffer[j] = B64EncodeTable[tempByte | 0];
+        j++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+        outBuffer[j] = 61; //'=';
+        j++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+        outBuffer[j] = 61; //'=';
+        j++;
+
+        break;
+
+      case 2:
+
+        outBuffer[j] = B64EncodeTable[(inBuffer[i] & B64_MASK_11) >> 2];
+        tempByte = (inBuffer[i] & B64_MASK_12) << 4;
+        j++; i++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+        outBuffer[j] = B64EncodeTable[((inBuffer[i] & B64_MASK_21) >> 4)
+                       | tempByte];
+
+        tempByte = (inBuffer[i] & B64_MASK_22) << 2;
+        j++; i++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+        outBuffer[j] = B64EncodeTable[tempByte | 0];
+        j++;
+
+      if ((j%CSSTR_B64_LINEBREAK_OFFSET) == (CSSTR_B64_LINEBREAK_OFFSET-1)) {
+
+          switch(flags & CSSTR_B64_MASK_LINEBREAK) {
+
+              case CSSTR_B64_LINEBREAK_LF:
+
+                outBuffer[j] = '\n';
+                j++;
+                break;
+
+              case CSSTR_B64_LINEBREAK_CRLF:
+
+                outBuffer[j] = '\r';
+                j++;
+                outBuffer[j] = '\n';
+                j++;
+                break;
+          }
+      }
+
+        outBuffer[j] = 61; //'=';
+        j++;
+
+        break;
+   }
+
+   outBuffer[j] = 0;
 
    return j;
 }
 
+
+uint64_t CSSTR_FromBase64Ex(unsigned char* inBuffer,
+                            uint64_t   inSize,
+                            unsigned char* outBuffer,
+                            uint64_t   outSize,
+                            int flags) {
+
+    uint64_t i;
+    uint64_t j;
+
+    ///////////////////////////////////////////////////////////
+    //
+    // The following table holds the indices of the
+    // B64EncodeTable values that are valid B64 characters.
+    // All other indices are set to -1, which is an
+    // invalid array index. If a character in the B64
+    // string resolves to an index value of -1, this means
+    // that the B64 string is actually not a B64 string
+    // because it has a character that falls outside the
+    // values in the B64EncodeTable table.
+    //
+    ///////////////////////////////////////////////////////////
+
+    char B64DecodeTable[256] = {
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  62,  -1,  -1,  -1,  63,
+        52,  53,  54,  55,  56,  57,  58,  59,
+        60,  61,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,   0,   1,   2,   3,   4,   5,   6,
+         7,   8,   9,  10,  11,  12,  13,  14,
+        15,  16,  17,  18,  19,  20,  21,  22,
+        23,  24,  25,  -1,  -1,  -1,  -1,  -1,
+        -1,  26,  27,  28,  29,  30,  31,  32,
+        33,  34,  35,  36,  37,  38,  39,  40,
+        41,  42,  43,  44,  45,  46,  47,  48,
+        49,  50,  51,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1,  -1,
+        -1,  -1,  -1,  -1,  -1,  -1,  -1   -1
+    };
+
+    if (inBuffer[inSize-1] == '=') {
+       inSize--;
+    }
+
+    if (inBuffer[inSize-1] == '=') {
+       inSize--;
+    }
+
+    if (CSSTR_B64_IGNOREINVALIDCHAR & flags) {
+
+        for (i=0, j=0; i<inSize; i++, j++) {
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+                   i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+            while (B64DecodeTable[inBuffer[i]] == -1) {
+                   i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            //byte 0
+            outBuffer[j] = B64DecodeTable[inBuffer[i]] << 2;
+            i++;
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+                   i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+            while (B64DecodeTable[inBuffer[i]] == -1) {
+               i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            outBuffer[j] |= (B64DecodeTable[inBuffer[i]]  >> 4);
+
+            //byte 1
+            j++;
+            outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 4);
+            i++;
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+                   i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+            while (B64DecodeTable[inBuffer[i]] == -1) {
+               i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            outBuffer[j] |= (B64DecodeTable[inBuffer[i]]) >> 2;
+
+            // byte 2
+            j++;
+            outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 6);
+            i++;
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+                   i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+            while (B64DecodeTable[inBuffer[i]] == -1) {
+               i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            outBuffer[j] |= (B64DecodeTable[inBuffer[i]]);
+        }
+    }
+    else {
+
+        for (i=0, j=0; i<inSize; i++, j++) {
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+                   i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            if (B64DecodeTable[inBuffer[i]] == -1) {
+                outBuffer[0] = 0;
+                return -1;
+            }
+
+            //byte 0
+            outBuffer[j] = B64DecodeTable[inBuffer[i]] << 2;
+            i++;
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+               i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            if (B64DecodeTable[inBuffer[i]] == -1) {
+                outBuffer[0] = 0;
+                return -1;
+            }
+
+            outBuffer[j] |= (B64DecodeTable[inBuffer[i]]  >> 4);
+
+            //byte 1
+            j++;
+            outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 4);
+            i++;
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+               i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            if (B64DecodeTable[inBuffer[i]] == -1) {
+                outBuffer[0] = 0;
+                return -1;
+            }
+
+            outBuffer[j] |= (B64DecodeTable[inBuffer[i]]) >> 2;
+
+            // byte 2
+            j++;
+            outBuffer[j] = (B64DecodeTable[inBuffer[i]]  << 6);
+            i++;
+
+            while ((inBuffer[i] == '\r') || (inBuffer[i] == '\n')) {
+               i++;
+            }
+            if (i == inSize) {
+               break;
+            }
+
+            if (B64DecodeTable[inBuffer[i]] == -1) {
+                outBuffer[0] = 0;
+                return -1;
+            }
+
+            outBuffer[j] |= (B64DecodeTable[inBuffer[i]]);
+        }
+    }
+
+    outBuffer[j] = 0;
+    return j;
+}
+
+uint64_t
+  CSSTR_UrlEncode
+    (unsigned char* in,
+     uint64_t inSize,
+     unsigned char* out,
+     uint64_t size, int flags) {
+
+  uint64_t i;
+  uint64_t j;
+
+  char hex[16] = { 48, 49, 50, 51, 52, 53, 54, 55 , 56, 57,
+                   65, 66, 67, 68, 69, 70 };
+
+  i=0;
+  j=0;
+  while( i < inSize ) {
+
+    if ((97 <= in[i] && in[i] <= 122) ||   //ASCII  A to Z
+        (65 <= in[i] && in[i] <= 90)  ||   //ASCII  a to z
+        (48 <= in[i] && in[i] <= 57) ){    //ASCII  0 to 9
+
+      out[j] = in[i];
+    }
+    else {
+
+      if ((in[i] == 0x20) && (flags & CSSTR_URLENCODE_SPACETOPLUS)) {
+        out[j] = 43;  // ASCII plus sign
+      }
+      else {
+
+        switch(in[i]) {
+
+          case 0x21:
+          case 0x23:
+          case 0x24:
+          case 0x26:
+          case 0x27:
+          case 0x28:
+          case 0x29:
+          case 0x2A:
+          case 0x2B:
+          case 0x2C:
+          case 0x2F:
+          case 0x3A:
+          case 0x3B:
+          case 0x3D:
+          case 0x3F:
+          case 0x40:
+          case 0x5B:
+          case 0x5D:
+
+            // This is one of the reserved characters ....
+            // perhaps we need to keep them as is...
+
+            if (flags & CSSTR_URLENCODE_XLATERESERVED) {
+
+              out[j] = 37; // ASCII percent sign (%);
+              j++;
+              out[j] = hex[in[i] >> 4];
+              j++;
+              out[j] = hex[in[i] & 15];
+            }
+            else {
+
+              out[j] = in[i];
+            }
+
+            break;
+
+          default:
+
+            out[j] = 37; // ASCII percent sign (%);
+            j++;
+            out[j] = hex[in[i] >> 4];
+            j++;
+            out[j] = hex[in[i] & 15];
+
+            break;
+        }
+      }
+    }
+
+    i++;
+    j++;
+  }
+
+  out[j] = 0;
+
+  return j;
+}
+
+uint64_t
+  CSSTR_UrlDecode
+    (unsigned char* in,
+     unsigned char* out,
+     uint64_t size) {
+
+  uint64_t i;
+  uint64_t j;
+
+  char code[3];
+  unsigned int n;
+
+  i=0;
+  j=0;
+  code[2] = 0;
+  while( in[i] != 0 ){
+
+    if (in[i] == '+') {
+        out[j] = ' ';
+        i++;
+        j++;
+    }
+    else {
+      if (in[i] == '%')
+      {
+        // skip over the percent
+        i++;
+
+        // next two characters are hex value;
+        // could be digits or characters a-f or A-F
+
+        if ((in[i] >= '0' && in[i] <= '9') ||
+            (in[i] >= 'A' && in[i] <= 'Z') ||
+            (in[i] >= 'a' && in[i] <= 'z')) {
+
+            code[0] = in[i];
+        }
+        else {
+          // error
+          out[0] = 0;
+          return -1;
+        }
+
+        i++;
+
+        if ((in[i] >= '0' && in[i] <= '9') ||
+            (in[i] >= 'A' && in[i] <= 'Z') ||
+            (in[i] >= 'a' && in[i] <= 'z')) {
+
+            code[1] = in[i];
+        }
+        else {
+          // error
+          out[0] = 0;
+          return -1;
+        }
+
+        sscanf(code, "%x", (unsigned int*)&n);
+        out[j] = (unsigned char)n;
+        i++;
+        j++;
+      }
+      else {
+
+        out[j] = in[i];
+        i++;
+        j++;
+      }
+    }
+  }
+
+  out[j] = 0;
+  return j;
+}
