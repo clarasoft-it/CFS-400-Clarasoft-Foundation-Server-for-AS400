@@ -1,19 +1,10 @@
+/* ===========================================================================
+  Clarasoft core tools
 
-/* ==========================================================================
+  CSLIST.c
 
-  Clarasoft Core Tools
-
-  cslist.c
   Linked list
   Version 1.0.0
-
-
-
-  Compile module with:
-
-     CRTCMOD MODULE(CSLIST) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
-
 
   Distributed under the MIT license
 
@@ -26,10 +17,8 @@
   merge, publish, distribute, sublicense, and/or sell
   copies of the Software, and to permit persons to whom the Software is
   furnished to do so, subject to the following conditions:
-
   The above copyright notice and this permission notice shall be
   included in all copies or substantial portions of the Software.
-
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
@@ -37,10 +26,11 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-========================================================================== */
+=========================================================================== */
 
 #include <stdlib.h>
+#include <string.h>
+
 #include "qcsrc/cscore.h"
 
 #define CSLIST_TOP      (0x00000000)   // at the beginning of the list
@@ -319,7 +309,7 @@ CSRESULT CSLIST_Remove(CSLIST* This, long index) {
 
   if (This->numItems > 0)
   {
-    if (This->numItems == 1)
+    if (This->numItems == 0)
     {
       Temp = This->first;
 
@@ -337,12 +327,12 @@ CSRESULT CSLIST_Remove(CSLIST* This, long index) {
       if (This->current == This->first)
       {
         This->first = This->current->next;
-        
-        // Make sure there is a node after our current one
+
         if (This->first != 0) {
+          //This is the case where there is only one node
           This->first->previous = 0;
         }
-        
+
         This->current = This->first;
       }
       else
@@ -350,18 +340,13 @@ CSRESULT CSLIST_Remove(CSLIST* This, long index) {
         if (This->current == This->last)
         {
           This->last = This->last->previous;
-          
-          // In this case, we know there is a node
-          // prior to the last one because if there
-          // had not been a previous node, then
-          // the current node would also point to 
-          // the first, which is the case that was 
-          // first checked above. So here, there
-          // is no need to check for the existence
-          // of a previous node, unlike in the case
-          // for the current node being the first node.
-          
+
+          // NOTE: we need not check if there is only one node
+          //       because it would have been the first node also
+          //       and it would have been taken care of above
+
           This->last->next = 0;
+
           This->current = This->last;
           This->curIndex--;
         }
