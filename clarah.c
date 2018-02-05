@@ -1,34 +1,22 @@
-
 /* ==========================================================================
   Clarasoft Foundation Server 400
 
   clarah.c
   Clara daemon handler job
+
   Version 1.0.0
 
-
-  Command line arguments
-
-     - protocol implementation name
-
-     If argument is *NOLINK, then this handler implements
-     the protocol implementation. Any other value identifies
-     an implementation exported by a service program.
-
-
   Compile module with:
-
      CRTSQLCI OBJ(CLARAH) SRCFILE(QCSRC)
               SRCMBR(CLARAH) DBGVIEW(*SOURCE)
 
   Build program with:
-
      CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
-
 
   Distributed under the MIT license
 
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -54,8 +42,9 @@
 
 #include "qcsrc/cfsapi.h"
 #include "qcsrc/csstr.h"
+#include <QLEAWI.h>
 
-#define BUFF_MAX 256
+#define BUFF_MAX 1025
 
 #define CFS_DEF_SERVICENAME_MAX  (65)
 #define CFS_DEF_LIBNAME_MAX      (11)
@@ -90,10 +79,8 @@ int main (int argc, char **argv)
   char buffer = 0; // dummy byte character
                    // to send to main daemon
 
-  char szMessage[BUFF_MAX+1];
-  char szClientByte[BUFF_MAX+1];
-
-  char* outBuffer;
+  char szMessage[BUFF_MAX+256];
+  char szResponse[BUFF_MAX+1];
 
   uint64_t size;
 
@@ -148,6 +135,8 @@ int main (int argc, char **argv)
 
   if (!strcmp(argv[1], "*NOLINK")) {
 
+     send(stream_fd, &buffer, 1, 0);
+
      ////////////////////////////////////////////////////////////////////////
      // This means this handler implements the required service.
      ////////////////////////////////////////////////////////////////////////
@@ -174,126 +163,92 @@ int main (int argc, char **argv)
 
            do {
 
-              size = BUFF_MAX;
+              size = 255;
               hResult = CFS_Read(pInstance,
                                  szMessage,
                                  &size,
                                  -1);
 
-              if (CS_SUCCEED(hResult)) {
+              if (CS_SUCCEED(hResult) &&
+                  CS_DIAG(hResult) != CFS_DIAG_CONNCLOSE) {
 
                  ////////////////////////////////////////////////////////////
                  // echo back:
                  // this is just for demonstration purposes.
                  // In this example, we assume the client
-                 // sends UTF 8 ...
-                 // will receive an ASCII byte which we will
-                 // convert to EBCDIC. Then, we reconvert it back
-                 // to UTF8 ...
+                 // sends ASCII ... we will convert to EBCDIC
+                 // and then back to ASCII to send over to client.
                  ////////////////////////////////////////////////////////////
 
-                 szClientByte[0] = szMessage[0];
-                 szClientByte[1] = 0;
+                 szMessage[size] = 0;
 
                  // Start a conversion from UTF8 to the job CCSID
-                 CSSTRCV_SetConversion(cvtString, CCSID_UTF8, CCSID_JOBDEFAULT);
+                 CSSTRCV_SetConversion(cvtString, "00819", "00000");
 
-                 CSSTRCV_StrCpy(cvtString, szClientByte, strlen(szClientByte));
+                 CSSTRCV_StrCpy(cvtString, szMessage, strlen(szMessage));
 
                  size = CSSTRCV_Size(cvtString);
 
                  // We know that szClientByte is large enough ...
-                 CSSTRCV_Get(cvtString, szClientByte);
+                 CSSTRCV_Get(cvtString, szResponse);
 
-                 // null terminate
-                 szClientByte[size] = 0;
+                 // NOTICE: The conversion does not place
+                 // a NULL at the end of the string!!!
 
-
-
-
-
+                 szResponse[size] = 0;
 
                  ////////////////////////////////////////////////////////////
                  // Just to give a way for the client to
-                 // disconnect from this handler, if the
+                 // disconnect from this handler, if the first
                  // character is the letter q, then we leave
                  // the loop.
                  ////////////////////////////////////////////////////////////
 
-                 if (szClientByte[0] == 'q')
-                      break;
-
-
-
-
+                 if (szResponse[0] == 'q') {
+                   strcpy(szMessage, "ECHO HANDLER: GOODBYE :-)");
+                 }
+                 else {
+                   strcpy(szMessage, "ECHO HANDLER: ");
+                   strcat(szMessage, szResponse);
+                 }
 
                  ////////////////////////////////////////////////////////////
-                 // Convert the whole response to UTF8
+                 // Convert the whole response to ASCII
                  ////////////////////////////////////////////////////////////
 
-                 strcpy(szMessage, "ECHO HANDLER: ");
-                 strcat(szMessage, szClientByte);
-
-                 // Start a conversion from the job CCSID to UTF8
-                 CSSTRCV_SetConversion(cvtString, CCSID_JOBDEFAULT, CCSID_UTF8);
+                 CSSTRCV_SetConversion(cvtString, "00000", "00819");
 
                  CSSTRCV_StrCpy(cvtString, szMessage, strlen(szMessage));
 
                  // retrieve the converted string
                  size = CSSTRCV_Size(cvtString);
 
-                 outBuffer = (char*)malloc(size * sizeof(char));
-
-                 CSSTRCV_Get(cvtString, outBuffer);
+                 CSSTRCV_Get(cvtString, szResponse);
 
                  // Send respopnse to client
                  hResult = CFS_Write(pInstance,
-                                     outBuffer,
+                                     szResponse,
                                      &size,
                                      -1);
 
-                 free(outBuffer);
+                 if (szResponse[0] == 'q') {
+                      break;
+                 }
+
+              }
+              else {
+
+                // Either an error or a connection close;
+                // leave the reading loop and wait for
+                // next client connection.
+
+                break;
               }
            }
            while (CS_SUCCEED(hResult));
 
            CFS_Close(pInstance);
-
-           //////////////////////////////////////////////////////////////////
-           // ECHO handler using basic socket functions
-           // (with no conversion of incoming and outgoing data: see above
-           // example for converting data from UTF8 to EBCDIC and
-           // vice-versa).
-           //////////////////////////////////////////////////////////////////
-
-           /*
-           do
-           {
-              // Get client character
-              rc = recv(conn_fd,
-                        szMessage,
-                        BUFF_MAX,
-                        0);
-              if (rc > 0) {
-                 // Just to give a way for the client to
-                 // disconnect from this handler, if the
-                 // character is the letter q, then we leave
-                 // the loop... recall that AS400 is EBCDIC
-                 // so we will check against the ASCII code for
-                 // the letter q because for this example,
-                 // we will assume the client is ASCII based.
-                 if (szMessage[0] == 113) // ASCII code for letter q
-                    break;
-                 // echo it back
-                 rc = send(conn_fd,
-                           szMessage,
-                           BUFF_MAX,
-                           0);
-              }
-           }
-           while (rc > 0);
            close(conn_fd);
-           */
 
            //////////////////////////////////////////////////////////////////
            // Tell main daemon we can handle another connection
@@ -330,6 +285,7 @@ int main (int argc, char **argv)
            RGSRVNM = :szServiceName;
 
      if (SQLCODE != 0) {
+       fprintf(stderr, "SQL Error"); fflush(stderr);
        // protocol implementation not found
        exit(1);
      }
@@ -366,6 +322,8 @@ int main (int argc, char **argv)
                (void **)&CFS_Handler, &type, NULL);
 
      if (CFS_Handler) {
+
+        send(stream_fd, &buffer, 1, 0);
 
         for (;;) {
 
@@ -414,3 +372,4 @@ void Cleanup(_CNL_Hndlr_Parms_T* data) {
    close(stream_fd);
    close(conn_fd);
 }
+
