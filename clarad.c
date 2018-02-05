@@ -5,9 +5,8 @@
 
   clarad.c
   Main listenin daemon with pre-spawned handlers
+
   Version 1.0.0
-
-
 
   Command line arguments
      - port number
@@ -106,6 +105,8 @@ pid_t
   spawnHandler
     (char* szHandler,
      char* szServiceName,
+     struct pollfd* handlerFdSet,
+     int curNumDescriptors,
      CSLIST* handlers);
 
 /* --------------------------------------------------------------------------
@@ -164,6 +165,7 @@ int main(int argc, char** argv) {
   int numDescriptors;
   int on;
   int rc;
+  int waitTime;
 
   long size;
 
@@ -299,7 +301,7 @@ int main(int argc, char** argv) {
 
   for (i=0; i<initialNumHandlers; i++) {
 
-    spawnHandler(argv[4], argv[5], handlers);
+    spawnHandler(argv[4], argv[5], handlerFdSet, i, handlers);
   }
 
   ////////////////////////////////////////////////////////////////////////////
@@ -313,18 +315,8 @@ int main(int argc, char** argv) {
   curNumDescriptors = CSLIST_Count(handlers);
 
   if (curNumDescriptors < 1) {
-     // We could not spawn handlers; our server is useless
-     exit(2);
-  }
-
-  for (i=0; i<curNumDescriptors; i++) {
-
-    size = sizeof(phi);
-
-    CSLIST_GetDataRef(handlers, (void**)&phi, &size, i);
-
-    handlerFdSet[i].fd = phi->stream;
-    handlerFdSet[i].events = POLLIN;
+    // We could not spawn handlers; our server is useless
+    exit(2);
   }
 
   ///////////////////////////////////////////////////////////////////////////
@@ -334,217 +326,157 @@ int main(int argc, char** argv) {
 
   for (;;) {
 
-     ////////////////////////////////////////////////////////////////////////
-     // We wait to perhaps add some periodic processing after a timeout.
-     // This is up to the implemetor.
-     ////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////
+    // Find an available handler; we first wait on handler descriptors
+    // assuming they have all been used at least once. This
+    // is the optimal approach in terms of performance.
+    //////////////////////////////////////////////////////////////////
 
-     numDescriptors = poll(listenerFdSet, 1, 60000);
+    //////////////////////////////////////////////////////////////////
+    // BRANCHING LABEL
+    RESTART_WAIT:
+    //////////////////////////////////////////////////////////////////
 
-     if (numDescriptors < 0) {
+    if (curNumDescriptors < maxNumHandlers) {
+
+      // This will make poll return immediately; if
+      // a handler is available, we wait for a
+      // connection. If not, we will spawn another
+      // handler.
+
+      waitTime = 0;
+    }
+    else {
+
+      // In this case, we have spawned the maximum
+      // number of handlers, so we must wait
+      // until one is available and block if none are.
+
+      waitTime = -1;
+    }
+
+    numDescriptors = poll(handlerFdSet, curNumDescriptors, waitTime);
+
+    if (numDescriptors < 0) {
+
+      if (errno == EINTR) {
+
+        goto RESTART_WAIT;  // call poll() again
+      }
+      else {
+
+        ////////////////////////////////////////////////////////////
+        // Some error occured.
+        ////////////////////////////////////////////////////////////
+      }
+    }
+
+    if (numDescriptors > 0) {
+
+      ///////////////////////////////////////////////////////////////
+      // A handler is available; let's wait for a connection.
+      ///////////////////////////////////////////////////////////////
+
+      //////////////////////////////////////////////////////////////////
+      // BRANCHING LABEL
+      POLL_LISTENFD:
+      //////////////////////////////////////////////////////////////////
+
+      numDescriptors = poll(listenerFdSet, 1, -1);
+
+      if (numDescriptors < 0) {
 
         if (errno == EINTR) {
-           continue;  // start at the top of loop
+          // call poll again on listening socket
+          goto POLL_LISTENFD;  // call poll() again
         }
         else {
 
-           //////////////////////////////////////////////////////////////////
-           // Some error occured.
-           //////////////////////////////////////////////////////////////////
+          //////////////////////////////////////////////////////////////////
+          // Some error occured.
+          //////////////////////////////////////////////////////////////////
         }
-     }
-     else {
+      }
+      else {
 
         if (numDescriptors > 0) {
 
-           //////////////////////////////////////////////////////////////////
-           // A connection request has come in; we want to
-           // get an available handler. For this, we specify
-           // a zero timeout to immediately get the descriptors
-           // that are ready.
-           //////////////////////////////////////////////////////////////////
+          //////////////////////////////////////////////////////////////////
+          // A connection request has come in; we want to
+          // get an available handler. For this, we specify
+          // a zero timeout to immediately get the descriptors
+          // that are ready.
+          //////////////////////////////////////////////////////////////////
 
-           //////////////////////////////////////////////////////////////////
-           // BRANCHING LABEL
-           RESTART_ACCEPT:
-           //////////////////////////////////////////////////////////////////
+          //////////////////////////////////////////////////////////////////
+          // BRANCHING LABEL
+          RESTART_ACCEPT:
+          //////////////////////////////////////////////////////////////////
 
-           socklen = sizeof(struct sockaddr_in6);
-           memset(&client, 0, sizeof(struct sockaddr_in6));
+          socklen = sizeof(struct sockaddr_in6);
+          memset(&client, 0, sizeof(struct sockaddr_in6));
 
-           conn_fd = accept(listen_fd, (struct sockaddr*)&client, &socklen);
+          conn_fd = accept(listen_fd, (struct sockaddr*)&client, &socklen);
 
-           if (conn_fd < 0) {
+          if (conn_fd < 0) {
 
-              if (errno == EINTR) {
+            if (errno == EINTR) {
 
-                 // At this point, we know there is a connection pending
-                 // so we must restart accept() again
+              // At this point, we know there is a connection pending
+              // so we must restart accept() again
+              goto RESTART_ACCEPT; // accept was interrupted by a signal
 
-                 goto RESTART_ACCEPT; // accept was interrupted by a signal
-              }
-              else {
+            }
+            else {
 
-                 ////////////////////////////////////////////////////////////
-                 // Some error occured.
-                 ////////////////////////////////////////////////////////////
-              }
-           }
+              ////////////////////////////////////////////////////////////
+              // Some error occured.
+              ////////////////////////////////////////////////////////////
+            }
+          }
+          else {
 
-           //////////////////////////////////////////////////////////////////
-           // Find an available handler; we first wait on handler descriptors
-           // assuming they have all been used at least once. This
-           // is the optimal approach in terms of performance.
-           //////////////////////////////////////////////////////////////////
+            ////////////////////////////////////////////////////////////
+            // Find first available handler to service the connection.
+            ////////////////////////////////////////////////////////////
 
-           //////////////////////////////////////////////////////////////////
-           // BRANCHING LABEL
-           RESTART_WAIT:
-           //////////////////////////////////////////////////////////////////
+            for (i=0; i<curNumDescriptors; i++) {
 
-           numDescriptors = poll(handlerFdSet, curNumDescriptors, 0);
+              if (handlerFdSet[i].revents == POLLIN) {
 
-           if (numDescriptors < 0) {
+                /////////////////////////////////////////////////////////
+                // Receive dummy byte so to free up blocking handler
+                /////////////////////////////////////////////////////////
 
-              if (errno == EINTR) {
+                /////////////////////////////////////////////////////////
+                // BRANCHING LABEL
+                RESTART_RECV:
+                /////////////////////////////////////////////////////////
 
-                 goto RESTART_WAIT;  // call poll() again
-              }
-              else {
+                rc = recv(handlerFdSet[i].fd, &dummyData, 1, 0);
 
-                 ////////////////////////////////////////////////////////////
-                 // Some error occured.
-                 ////////////////////////////////////////////////////////////
-              }
-           }
+                if (rc < 0) {
 
-           if (numDescriptors > 0) {
+                  if (errno == EINTR) {
 
-              ///////////////////////////////////////////////////////////////
-              // A handler is available; let's pass it the client
-              // socket descriptor.
-              ///////////////////////////////////////////////////////////////
+                    goto RESTART_RECV;  // call recv() again
+                  }
+                  else {
 
-              for (i=0; i<curNumDescriptors; i++) {
+                    ///////////////////////////////////////////////////
+                    // Some error occured. Insert error handler here
+                    ///////////////////////////////////////////////////
+                  }
+                }
+                else {
 
-                 if(handlerFdSet[i].revents == POLLIN)
-                 {
-                    /////////////////////////////////////////////////////////
-                    // Receive dummy byte so to free up blocking handler
-                    /////////////////////////////////////////////////////////
+                  if (rc > 0) {
 
-                    /////////////////////////////////////////////////////////
-                    // BRANCHING LABEL
-                    RESTART_RECV:
-                    /////////////////////////////////////////////////////////
-
-                    rc = recv(handlerFdSet[i].fd, &dummyData, 1, 0);
-
-                    if (rc < 0) {
-
-                       if (errno == EINTR) {
-
-                          goto RESTART_RECV;  // call recv() again
-                       }
-                       else {
-
-                          ///////////////////////////////////////////////////
-                          // Some error occured.
-                          ///////////////////////////////////////////////////
-                       }
-                    }
-                    else {
-
-                       if (rc > 0) {
-
-                          ///////////////////////////////////////////////////
-                          // This handler is ready
-                          // send the connection socket to the
-                          // handler and close the descriptor
-                          ///////////////////////////////////////////////////
-
-                          hResult = CFS_SendDescriptor(handlerFdSet[i].fd,
-                                                       conn_fd,
-                                                       10);
-
-                          ///////////////////////////////////////////////////
-                          // Update handler process
-                          ///////////////////////////////////////////////////
-
-                          size = sizeof(phi);
-
-                          CSLIST_GetDataRef(handlers,
-                                            (void**)&phi,
-                                            &size,
-                                            i);
-
-                          if (CS_SUCCEED(hResult)) {
-
-                             phi->state  = 1;  // Set handler as busy
-
-                             ////////////////////////////////////////////////
-                             // IMPORTANT... we must break out of the loop
-                             // because another handler may be sending its
-                             // dummy byte and we would wind up sending
-                             // it the client socket but we have already
-                             // sone so; there would be more than one
-                             // handler for a single client!
-                             ////////////////////////////////////////////////
-
-                             break;
-                          }
-                          else {
-
-                             ////////////////////////////////////////////////
-                             // Some error occured;
-                             // try next available handler.
-                             ////////////////////////////////////////////////
-                             phi->state = 0;
-                          }
-                      }
-                      else {
-
-                         ////////////////////////////////////////////////////
-                         // Some error occured ... try next available handler
-                         ////////////////////////////////////////////////////
-                      }
-                    }
-                 }
-              } // for
-           }
-           else {
-
-              ///////////////////////////////////////////////////////////////
-              // No handler was available; this is possible if:
-              //
-              // No handler has been used yet.
-              //     or
-              // No handler is available, some of them are busy and all
-              // the others have not been used yet.
-              //     or
-              // No handler is available; we will spawn a new one if
-              // we are within the limit of the maximum allowed handlers.
-              //
-              ///////////////////////////////////////////////////////////////
-
-              handlerFound = 0;
-
-              for (i=0; i<curNumDescriptors; i++) {
-
-                 size = sizeof(phi);
-
-                 CSLIST_GetDataRef(handlers,
-                                   (void**)&phi,
-                                   &size,
-                                   i);
-
-                 if (phi->state == 0) {
-
-                    /////////////////////////////////////////////////////////
+                    ///////////////////////////////////////////////////
                     // This handler is ready
                     // send the connection socket to the
-                    // handler and close the descriptor
-                    /////////////////////////////////////////////////////////
+                    // handler.
+                    ///////////////////////////////////////////////////
 
                     hResult = CFS_SendDescriptor(handlerFdSet[i].fd,
                                                  conn_fd,
@@ -552,99 +484,54 @@ int main(int argc, char** argv) {
 
                     if (CS_SUCCEED(hResult)) {
 
-                       //////////////////////////////////////////////////////
-                       // Update handler process
-                       //////////////////////////////////////////////////////
+                      ////////////////////////////////////////////////
+                      // IMPORTANT... we must break out of the loop
+                      // because another handler may be sending its
+                      // dummy byte and we would wind up sending
+                      // it the client socket but we have already
+                      // done so; there would be more than one
+                      // handler for a single client!
+                      ////////////////////////////////////////////////
 
-                       handlerFound = 1;  // To prevent spawning
-                                          // additional handlers
-
-                       phi->state = 1;  // Set handler as busy
-
-                       //////////////////////////////////////////////////////
-                       // IMPORTANT... we must break out of the loop
-                       // because we might send the client socket to more
-                       // than one handler!
-                       //////////////////////////////////////////////////////
-
-                       break;
+                      break;
                     }
-                    else {
+                  }
+                  else {
 
-                       //////////////////////////////////////////////////////
-                       // Some error occured ... try next handler
-                       //////////////////////////////////////////////////////
-
-                       phi->state = 0;
-                    }
-                 }
+                    ////////////////////////////////////////////////////
+                    // Some error occured... Insert error handler here
+                    ////////////////////////////////////////////////////
+                  }
+                }
               }
+            } // for
 
-              if (!handlerFound) {
+            close(conn_fd);
 
-                 ////////////////////////////////////////////////////////////
-                 // No handlers are ready. At this point, if we are not
-                 // over the maximum number of handlers, we can spawns
-                 // another one.
-                 ////////////////////////////////////////////////////////////
-
-                 if (curNumDescriptors < maxNumHandlers) {
-
-                    spawnHandler(argv[4], argv[5], handlers);
-                    curNumDescriptors++;
-
-                    /////////////////////////////////////////////////////////
-                    // The new handler info is at the end of the list ...
-                    // we need to send it the new connection
-                    // and add the descriptor to the FD set.
-                    /////////////////////////////////////////////////////////
-
-                    size = sizeof(phi);
-
-                    CSLIST_GetDataRef(handlers,
-                                      (void**)&phi,
-                                      &size,
-                                      CSLIST_BOTTOM);
-
-                    phi->state = 1;  // Set handler as busy
-
-                    handlerFdSet[curNumDescriptors-1].fd = phi->stream;
-                    handlerFdSet[curNumDescriptors-1].events = POLLIN;
-
-                    hResult =
-                      CFS_SendDescriptor(handlerFdSet[curNumDescriptors-1].fd,
-                                         conn_fd,
-                                         10);
-
-                    if (CS_FAIL(hResult)) {
-
-                       //////////////////////////////////////////////////////
-                       // Some error occured
-                       //////////////////////////////////////////////////////
-
-                       phi->state = 0;  // Set handler as busy
-                    }
-                 }
-                 else {
-
-                    /////////////////////////////////////////////////////////
-                    // We have reached the maximum number of handlers
-                    /////////////////////////////////////////////////////////
-                 }
-              }
-           }
-
-           close(conn_fd);
+          }
         }
-        else {
+      }
+    }
+    else {
 
-           //////////////////////////////////////////////////////////////////
-           // We timed out on the listening socket; we can do
-           // some processing here (whatever it may be).
-           //////////////////////////////////////////////////////////////////
+      // No handler available
+
+      if (curNumDescriptors < maxNumHandlers) {
+
+        ///////////////////////////////////////////////////////////////
+        // Spawn a new handler up to maximum
+        ///////////////////////////////////////////////////////////////
+
+        if (spawnHandler(argv[4],
+                         argv[5],
+                         handlerFdSet,
+                         curNumDescriptors,
+                         handlers) >= 0) {
+
+          curNumDescriptors = CSLIST_Count(handlers);
         }
-     }
-
+      }
+    }
   }  // End Listening loop
 
   CSLIST_Destructor(&handlers);
@@ -664,9 +551,13 @@ int main(int argc, char** argv) {
    spawnHandler
 -------------------------------------------------------------------------- */
 
-pid_t spawnHandler(char* szHandler,
-                   char* szServiceName,
-                   CSLIST* handlers) {
+pid_t
+  spawnHandler
+    (char* szHandler,
+     char* szServiceName,
+     struct pollfd* handlerFdSet,
+     int descriptorIndex,
+     CSLIST* handlers) {
 
    char *spawn_argv[3];
    char *spawn_envp[1];
@@ -718,6 +609,12 @@ pid_t spawnHandler(char* szHandler,
       hi.stream = streamfd[0];
 
       CSLIST_Insert(handlers, &hi, sizeof(HANDLERINFO), CSLIST_BOTTOM);
+
+      // So we will now listen in on the new handler's
+      // ability to service a conenction
+
+      handlerFdSet[descriptorIndex].fd = streamfd[0];
+      handlerFdSet[descriptorIndex].events = POLLIN;
 
       // We don't need the handler side descriptor
 
@@ -886,4 +783,3 @@ unsigned long setJobServerType(void) {
 
    return 1;
 }
-
