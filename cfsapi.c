@@ -1,15 +1,12 @@
 /* ===========================================================================
-  Clarasoft Foundation Server 400
+  Clarasoft Foundation Server for AS400
+
   cfsapi.c
+
   Networking Primitives
   Version 1.0.0
 
-  Compile module with:
-
-     CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
 
   Permission is hereby granted, free of charge, to any person obtaining
@@ -35,21 +32,73 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <gskssl.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <netdb.h>
-#include "qcsrc/cfsapi.h"
+#include "qcsrc/cscore.h"
 #include <QSYSINC/MIH/CVTHC>
 #include <QSYSINC/MIH/GENUUID>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/poll.h>
+#include <sys/un.h>
+
+
+//////////////////////////////////////////////////////////////////////////////
+// Clarasoft Foundation Server Definitions
+//////////////////////////////////////////////////////////////////////////////
+
+#define CFS_NTOP_ADDR_MAX             (1025)
+#define CFS_NTOP_PORT_MAX             (9)
+
+#define CFS_SSL_MAXRECORDSIZE         (16383UL)
+
+#define CFS_UUID_BUFFERSIZE           (37)
+#define CFS_UUID_UPPERCASE            (0x00000000)
+#define CFS_UUID_LOWERCASE            (0x00000001)
+#define CFS_UUID_DASHES               (0x00000002)
+
+#define CFS_SESSIONTYPE_CLIENT        (0x00000001)
+#define CFS_SESSIONTYPE_SERVER        (0x00000002)
+
+#define CFS_CLIENTENV_FMT_100         (0x00001064)
+#define CFS_SERVERENV_FMT_100         (0x00002064)
+#define CFS_CLIENTSESSION_FMT_100     (0x00003064)
+#define CFS_SERVERSESSION_FMT_100     (0x00004064)
+
+// Operation codes
+
+#define CFS_OPER_WAIT                 (0x00010000)
+#define CFS_OPER_READ                 (0x01010000)
+#define CFS_OPER_WRITE                (0x01020000)
+
+// Diagnostic codes
+
+#define CFS_DIAG_CONNCLOSE            (0x0000F001)
+#define CFS_DIAG_WOULDBLOCK           (0x0000F002)
+#define CFS_DIAG_READNOBLOCK          (0x0000F003)
+#define CFS_DIAG_WRITENOBLOCK         (0x0000F004)
+#define CFS_DIAG_TIMEDOUT             (0x0000F005)
+#define CFS_DIAG_ALLDATA              (0x0000F006)
+#define CFS_DIAG_PARTIALDATA          (0x0000F007)
+#define CFS_DIAG_NODATA               (0x0000F008)
+#define CFS_DIAG_INVALIDSIZE          (0x0000F009)
+#define CFS_DIAG_ENVOPEN              (0x0000F00A)
+#define CFS_DIAG_APPID                (0x0000F00B)
+#define CFS_DIAG_SESSIONTYPE          (0x0000F00C)
+#define CFS_DIAG_ENVINIT              (0x0000F00D)
+#define CFS_DIAG_SOCOPEN              (0x0000F00E)
+#define CFS_DIAG_SETFD                (0x0000F00F)
+#define CFS_DIAG_SOCINIT              (0x0000F010)
+#define CFS_DIAG_SYSTEM               (0x0000FFFE)
+#define CFS_DIAG_UNKNOWN              (0x0000FFFF)
+
 
 GSK_ENUM_ID gskEnumIndices[] = {
 
   GSK_KEYRING_FILE,
   GSK_KEYRING_PW,
   GSK_KEYRING_LABEL,
-  GSK_OS400_APPLICATION_ID,
   GSK_V2_CIPHER_SPECS,
   GSK_V3_CIPHER_SPECS,
   GSK_V3_CIPHER_SPECS_EX,
@@ -70,7 +119,6 @@ GSK_ENUM_ID gskEnumIndices[] = {
 
 GSK_ENUM_ID gskNumericIndices[] = {
 
-  GSK_FD,
   GSK_V2_SESSION_TIMEOUT,
   GSK_V3_SESSION_TIMEOUT,
   GSK_OS400_READ_TIMEOUT,
@@ -84,19 +132,289 @@ GSK_ENUM_ID gskNumericIndices[] = {
   GSK_TLS_CBCPROTECTION_METHOD
 };
 
+#define CFS_OFFSET_BUFFERS_MAXITEMS                           (19)
+#define CFS_OFFSET_NUMERIC_MAXITEMS                           (11)
+
+#define CFS_OFFSET_GSK_KEYRING_FILE                           (0)
+#define CFS_OFFSET_GSK_KEYRING_PW                             (1)
+#define CFS_OFFSET_GSK_KEYRING_LABEL                          (2)
+#define CFS_OFFSET_GSK_V2_CIPHER_SPECS                        (3)
+#define CFS_OFFSET_GSK_V3_CIPHER_SPECS                        (4)
+#define CFS_OFFSET_GSK_V3_CIPHER_SPECS_EX                     (5)
+#define CFS_OFFSET_GSK_TLSV12_CIPHER_SPECS                    (6)
+#define CFS_OFFSET_GSK_TLSV12_CIPHER_SPECS_EX                 (7)
+#define CFS_OFFSET_GSK_TLSV11_CIPHER_SPECS                    (8)
+#define CFS_OFFSET_GSK_TLSV11_CIPHER_SPECS_EX                 (9)
+#define CFS_OFFSET_GSK_TLSV10_CIPHER_SPECS                    (10)
+#define CFS_OFFSET_GSK_TLSV10_CIPHER_SPECS_EX                 (11)
+#define CFS_OFFSET_GSK_SSL_EXTN_SIGALG                        (12)
+#define CFS_OFFSET_GSK_OCSP_URL                               (13)
+#define CFS_OFFSET_GSK_OCSP_PROXY_SERVER_NAME                 (14)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_REQUEST            (15)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_CRITICAL_REQUEST   (16)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_LIST               (17)
+#define CFS_OFFSET_GSK_SSL_EXTN_SERVERNAME_CRITICAL_LIST      (18)
+
+#define CFS_OFFSET_GSK_V2_SESSION_TIMEOUT                     (0)
+#define CFS_OFFSET_GSK_V3_SESSION_TIMEOUT                     (1)
+#define CFS_OFFSET_GSK_OS400_READ_TIMEOUT                     (2)
+#define CFS_OFFSET_GSK_HANDSHAKE_TIMEOUT                      (3)
+#define CFS_OFFSET_GSK_OCSP_MAX_RESPONSE_SIZE                 (4)
+#define CFS_OFFSET_GSK_OCSP_TIMEOUT                           (5)
+#define CFS_OFFSET_GSK_OCSP_NONCE_SIZE                        (6)
+#define CFS_OFFSET_GSK_OCSP_CLIENT_CACHE_SIZE                 (7)
+#define CFS_OFFSET_GSK_OCSP_PROXY_SERVER_PORT                 (8)
+#define CFS_OFFSET_GSK_SSL_EXTN_MAXFRAGMENT_SIZE              (9)
+#define CFS_OFFSET_GSK_TLS_CBCPROTECTION_METHOD               (10)
+
+enum cfs_security {
+
+   cfs_security_none,
+   cfs_security_default,
+   cfs_security_ssl
+};
+
+// --------------------------------------------------------------
+// Session instance
+// --------------------------------------------------------------
+
+typedef struct tagCFS_INSTANCE {
+
+  int32_t size;
+  int connfd;
+  gsk_handle ssl_henv;
+  gsk_handle ssl_hsession;
+
+} CFS_INSTANCE;
+
+typedef struct tagCFS_CLIENTSESSION_100 {
+
+  char* szApplicationID;
+  char* szHostName;
+
+  int port;
+  int connTimeout;
+  int timeout;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Set the following flags to non-zero to specify non default
+  // settings. For instance, if the gskProtocolOverrideDefaults field
+  // is set to 1, then the implementation will check the values of
+  // the gskProtocol_* fields and set or clear the corresponding
+  // GSK settings. If the gskProtocolOverrideDefaults field is set to zero,
+  // then those fields are ignored and the default GSK settings are
+  // assumed.
+  ///////////////////////////////////////////////////////////////////////////
+
+  int gskProtocolOverrideDefaults;
+  int gskAuthTypeOverrideDefaults;
+  int gskSessionCloseOverrideDefaults;
+  int gskOverrideNumericDefaults;
+
+  int gskProtocol_GSK_PROTOCOL_TLSV12;
+  int gskProtocol_GSK_PROTOCOL_TLSV11;
+  int gskProtocol_GSK_PROTOCOL_TLSV10;
+  int gskProtocol_GSK_PROTOCOL_TLSV1;
+  int gskProtocol_GSK_PROTOCOL_SSLV3;
+  int gskProtocol_GSK_PROTOCOL_SSLV2;
+
+  int gskAttribute_GSK_OCSP_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE;
+  int gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET;
+  int gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT;
+
+  int gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE;
+  int gskSessionClose_GSK_NORMAL_ENVIRONMENT_CLOSE;
+
+  int gskAuthType_GSK_SERVER_AUTH_FULL;
+  int gskAuthType_GSK_SERVER_AUTH_PASSTHRU;
+
+  char* pszBuffers[CFS_OFFSET_BUFFERS_MAXITEMS];
+
+  int iNumericValues[CFS_OFFSET_NUMERIC_MAXITEMS];
+
+} CFS_CLIENTSESSION_100;
+
+
+typedef struct tagCFS_SERVERSESSION_100 {
+
+  char* szApplicationID;
+
+  ///////////////////////////////////////////////////////////////////////////
+  // Set the following flags to non-zero to specify non default
+  // settings. For instance, if the gskProtocolOverrideDefaults field
+  // is set to 1, then the implementation will check the values of
+  // the gskProtocol_* fields and set or clear the corresponding
+  // GSK settings. If the gskProtocolOverrideDefaults field is set to zero,
+  // then those fields are ignored and the default GSK settings are
+  // assumed.
+  ///////////////////////////////////////////////////////////////////////////
+
+  int gskProtocolOverrideDefaults;
+  int gskAuthTypeOverrideDefaults;
+  int gskSessionCloseOverrideDefaults;
+  int gskOverrideNumericDefaults;
+
+  int gskProtocol_GSK_PROTOCOL_TLSV12;
+  int gskProtocol_GSK_PROTOCOL_TLSV11;
+  int gskProtocol_GSK_PROTOCOL_TLSV10;
+  int gskProtocol_GSK_PROTOCOL_TLSV1;
+  int gskProtocol_GSK_PROTOCOL_SSLV3;
+  int gskProtocol_GSK_PROTOCOL_SSLV2;
+
+  int gskAttribute_GSK_OCSP_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE;
+  int gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE;
+  int gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET;
+  int gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER;
+  int gskAttribute_GSK_CERTREQ_DNLIST_ENABLE;
+  int gskAttribute_GSK_ALLOW_UNAUTHETICATED_RESUME;
+
+  int gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE;
+  int gskSessionClose_GSK_NORMAL_ENVIRONMENT_CLOSE;
+
+  int gskAuthType_GSK_CLIENT_AUTH_FULL;
+  int gskAuthType_GSK_CLIENT_AUTH_PASSTHRU;
+  int gskAuthType_GSK_OS400_CLIENT_AUTH_REQUIRED;
+
+  char* pszBuffers[CFS_OFFSET_BUFFERS_MAXITEMS];
+
+  int iNumericValues[CFS_OFFSET_NUMERIC_MAXITEMS];
+
+} CFS_SERVERSESSION_100;
+
+
+typedef CSRESULT (*CFS_PROTOCOLHANDLERPROC)(int, char*, char*, void*);
+
+CSRESULT
+  CFS_Close
+    (CFS_INSTANCE* This);
+
+CFS_INSTANCE*
+  CFS_Connect
+    (void* sessionInfo,
+     int sessionInfoFmt);
+
+CSRESULT
+  CFS_MakeUUID
+    (char* szUUID,
+     int mode);
+
+CSRESULT
+  CFS_NetworkToPresentation
+    (const struct sockaddr* sa,
+     char* addrstr,
+     char* portstr);
+
+CFS_INSTANCE*
+  CFS_OpenChannel
+    (int connfd,
+     void* sessionInfo,
+     int sessionInfoFmt);
+
+CSRESULT
+  CFS_Read
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout);
+
+CSRESULT
+  CFS_ReadRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout);
+
+CSRESULT
+  CFS_ReceiveDescriptor
+    (int fd,
+     int* descriptor,
+     int timeout);
+
+CSRESULT
+  CFS_SecureClose
+    (CFS_INSTANCE* This);
+
+CFS_INSTANCE*
+  CFS_SecureConnect
+    (void* sessionInfo,
+     int   sessionInfoFmt,
+     int*  iSSLResult);
+
+CFS_INSTANCE*
+  CFS_SecureOpenChannel
+    (int connfd,
+     void* sessionInfo,
+     int sessionInfoFmt,
+     int* iSSLResult);
+
+CSRESULT
+  CFS_SecureRead
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int tiemout,
+     int* iSSLResult);
+
+CSRESULT
+  CFS_SecureReadRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout,
+     int* iSSLResult);
+
+CSRESULT
+  CFS_SecureWrite
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout,
+     int* iSSLResult);
+
+CSRESULT
+  CFS_SecureWriteRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout,
+     int* iSSLResult);
+
+CSRESULT
+  CFS_SendDescriptor
+    (int fd,
+     int descriptor,
+     int timeout);
+
+CSRESULT
+  CFS_WriteRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout);
+
+CSRESULT
+  CFS_WriteRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout);
+
+
 /* ---------------------------------------------------------------------------
    private functions
 --------------------------------------------------------------------------- */
 
-CSRESULT
+CFS_INSTANCE*
   CFS_PRV_DoSecureConnect_100
-    (CFS_INSTANCE* cfsi,
-     void* sessionInfo,
-     int*  iSSLResult);
+     (void* sessionInfo,
+      int*  iSSLResult);
 
-CSRESULT
+CFS_INSTANCE*
   CFS_PRV_DoSecureOpenChannel_100
-    (CFS_INSTANCE* cfsi,
+    (int connfd,
      void* sessionInfo,
      int*  iSSLResult);
 
@@ -105,6 +423,23 @@ CSRESULT
     (int connfd,
      int blocking);
 
+CSRESULT
+  CFS_PRV_SSL_CLIENTSESSION_100_Config
+    (CFS_INSTANCE* cfsi,
+     void* sessionInfo,
+     int*  iSSLResult);
+
+CFS_INSTANCE*
+  CFS_PRV_SecureInitClient
+    (void* sessionInfo,
+     int   sessionInfoFmt,
+     int*  iSSLResult);
+
+CFS_INSTANCE*
+  CFS_PRV_SecureInitServer
+    (void* sessionInfo,
+     int   sessionInfoFmt,
+     int*  iSSLResult);
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -114,8 +449,10 @@ CSRESULT
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_Close(CFS_INSTANCE* This) {
-
+CSRESULT
+  CFS_Close
+    (CFS_INSTANCE* This)
+{
    close(This->connfd);
 
    free(This);
@@ -133,22 +470,32 @@ CSRESULT CFS_Close(CFS_INSTANCE* This) {
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
-                          int    sessionInfoFmt) {
-
+CFS_INSTANCE*
+  CFS_Connect
+    (void* sessionInfo,
+     int sessionInfoFmt)
+{
    int rc;
    int e;
 
    char szPort[11];
+
+   CSRESULT hResult;
 
    CFS_INSTANCE* cfsi;
 
    struct addrinfo* addrInfo;
    struct addrinfo* addrInfo_first;
    struct addrinfo  hints;
+   struct timeval tv;
+
+   fd_set readSet, writeSet;
 
    cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
    cfsi->size = sizeof(CFS_INSTANCE);
+   cfsi->connfd = -1;
+
+   hResult = CS_FAILURE;
 
    switch(sessionInfoFmt) {
 
@@ -160,11 +507,13 @@ CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
 
          sprintf(szPort, "%d", ((CFS_CLIENTSESSION_100*)sessionInfo)->port);
 
-         if ((rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
+         rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
                                ->szHostName,
-                               szPort,
-                               &hints,
-                               &addrInfo)) == 0)
+                          szPort,
+                          &hints,
+                          &addrInfo);
+
+         if (rc == 0)
          {
 
             addrInfo_first = addrInfo;
@@ -178,22 +527,55 @@ CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
 
                if (cfsi->connfd >= 0) {
 
+                  // Set socket to non-blocking
+                  CFS_PRV_SetBlocking(cfsi->connfd, 0);
+
                   rc = connect(cfsi->connfd,
                                addrInfo->ai_addr,
                                addrInfo->ai_addrlen);
 
                   if (rc < 0) {
 
-                     e = errno;
-                     close(cfsi->connfd);
-                     cfsi->connfd = -1;
+                    if (errno != EINPROGRESS) {
+
+                      e = errno;
+                      close(cfsi->connfd);
+                      cfsi->connfd = -1;
+                    }
+                    else {
+
+                      FD_ZERO(&readSet);
+                      FD_SET(cfsi->connfd, &readSet);
+
+                      writeSet = readSet;
+                      tv.tv_sec = ((CFS_CLIENTSESSION_100*)sessionInfo)
+                                  ->connTimeout;
+                      tv.tv_usec = 0;
+
+                      rc = select(cfsi->connfd+1,
+                                  &readSet,
+                                  &writeSet,
+                                  NULL,
+                                  &tv);
+
+                      if (rc <= 0) {
+
+                          e = errno;
+                          close(cfsi->connfd);
+                          cfsi->connfd = -1;
+                      }
+                      else {
+
+                        hResult = CS_SUCCESS;
+                      }
+                    }
                   }
                   else {
 
-                     // Set socket to non-blocking mode and leave the loop
-                     CFS_PRV_SetBlocking(cfsi->connfd, 0);
-                     break;
+                    hResult = CS_SUCCESS;
                   }
+
+                  break;
                }
 
                addrInfo = addrInfo->ai_next;
@@ -205,7 +587,7 @@ CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
          break;
    }
 
-   if (cfsi->connfd == -1) {
+   if (CS_FAIL(hResult)) {
       free(cfsi);
       cfsi = 0;
    }
@@ -221,16 +603,17 @@ CFS_INSTANCE* CFS_Connect(void*  sessionInfo,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_MakeUUID(char* szUUID,
-                      int   mode) {
-
+CSRESULT
+  CFS_MakeUUID
+    (char* szUUID,
+     int   mode)
+{
   int size;
   int i;
 
   char szBuffer[CFS_UUID_BUFFERSIZE];
 
   _UUID_Template_T Template;
-
 
   memset(&Template, 0, sizeof(_UUID_Template_T));
   Template.bytesProv = sizeof(_UUID_Template_T);
@@ -278,9 +661,11 @@ CSRESULT CFS_MakeUUID(char* szUUID,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
-                                   char* addrstr,
-                                   char* portstr)
+CSRESULT
+  CFS_NetworkToPresentation
+    (const struct sockaddr* sa,
+     char* addrstr,
+     char* portstr)
 {
   CSRESULT rc;
 
@@ -368,10 +753,12 @@ CSRESULT CFS_NetworkToPresentation(const struct sockaddr* sa,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CFS_INSTANCE* CFS_OpenChannel(int    connfd,
-                              void*  sessionInfo,
-                              int    sessionInfoFmt) {
-
+CFS_INSTANCE*
+  CFS_OpenChannel
+    (int connfd,
+     void* sessionInfo,
+     int sessionInfoFmt)
+{
    int rc;
 
    CFS_INSTANCE* cfsi;
@@ -399,12 +786,13 @@ CFS_INSTANCE* CFS_OpenChannel(int    connfd,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_Read(CFS_INSTANCE* This,
-                  char*         buffer,
-                  uint64_t*     maxSize,
-                  int           timeout)
+CSRESULT
+  CFS_Read
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* maxSize,
+     int timeout)
 {
-
    int rc;
    int readSize;
 
@@ -677,11 +1065,13 @@ CSRESULT CFS_Read(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_ReadRecord(CFS_INSTANCE* This,
-                        char*         buffer,
-                        uint64_t*     size,
-                        int           timeout) {
-
+CSRESULT
+  CFS_ReadRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout)
+{
    int rc;
    int readSize;
 
@@ -875,10 +1265,12 @@ CSRESULT CFS_ReadRecord(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_ReceiveDescriptor(int  fd,
-                               int* descriptor,
-                               int  timeout) {
-
+CSRESULT
+  CFS_ReceiveDescriptor
+   (int  fd,
+    int* descriptor,
+    int timeout)
+{
    // The peer needs to send some data
    // even though we will ignore it; this is required
    // by the sendmsg function.
@@ -1030,7 +1422,10 @@ CSRESULT CFS_ReceiveDescriptor(int  fd,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_SecureClose(CFS_INSTANCE* This) {
+CSRESULT
+  CFS_SecureClose
+    (CFS_INSTANCE* This)
+{
 
    gsk_secure_soc_close(&(This->ssl_hsession));
    gsk_environment_close(&(This->ssl_henv));
@@ -1050,103 +1445,29 @@ CSRESULT CFS_SecureClose(CFS_INSTANCE* This) {
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CFS_INSTANCE* CFS_SecureConnect(void* sessionInfo,
-                                int   sessionInfoFmt,
-                                int*  iSSLResult) {
-
-   int rc;
-   int e;
-
+CFS_INSTANCE*
+  CFS_SecureConnect
+    (void* sessionInfo,
+     int   sessionInfoFmt,
+     int*  iSSLResult)
+{
    char szPort[11];
    char szAddr[40];
 
+   CSRESULT rc;
+
    CFS_INSTANCE* cfsi;
-   CSRESULT hResult;
 
-   struct addrinfo* addrInfo;
-   struct addrinfo* addrInfo_first;
-   struct addrinfo  hints;
-
-   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
-   cfsi->size = sizeof(CFS_INSTANCE);
-
-   hResult = CS_FAILURE;
+   cfsi = NULL;
 
    switch(sessionInfoFmt) {
 
-      case CFS_CLIENTSESSION_FMT_100:
+     case CFS_CLIENTSESSION_FMT_100:
 
-         memset(&hints, 0, sizeof(struct addrinfo));
-         hints.ai_family = AF_UNSPEC;
-         hints.ai_family = AF_INET;
-         hints.ai_socktype = SOCK_STREAM;
-
-         sprintf(szPort, "%d", ((CFS_CLIENTSESSION_100*)sessionInfo)->port);
-
-         if ((rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
-                               ->szHostName,
-                               szPort,
-                               &hints,
-                               &addrInfo)) == 0)
-         {
-
-            addrInfo_first = addrInfo;
-            cfsi->connfd = -1;
-
-            while (addrInfo != 0)
-            {
-               cfsi->connfd = socket(addrInfo->ai_family,
-                                     addrInfo->ai_socktype,
-                                     addrInfo->ai_protocol);
-
-               if (cfsi->connfd >= 0) {
-
-                  rc = connect(cfsi->connfd,
-                               addrInfo->ai_addr,
-                               addrInfo->ai_addrlen);
-
-                  if (rc < 0) {
-                     e = errno;
-                     close(cfsi->connfd);
-                     cfsi->connfd = -1;
-                  }
-                  else {
-
-                     // Set socket to non-blocking mode and leave the loop
-                     CFS_PRV_SetBlocking(cfsi->connfd, 0);
-
-                     if (CS_SUCCEED(CFS_PRV_DoSecureConnect_100(cfsi,
-                                                            sessionInfo,
-                                                            iSSLResult))) {
-
-                        hResult = CS_SUCCESS;
-                     }
-
-                     break;
-                  }
-               }
-
-               addrInfo = addrInfo->ai_next;
-            }
-
-            freeaddrinfo(addrInfo_first);
-         }
-
-         break;
-   }
-
-   if (CS_FAIL(hResult)) {
-
-      if (cfsi->connfd == -1) {
-
-         free(cfsi);
-      }
-      else {
-
-         CFS_SecureClose(cfsi);
-      }
-
-      cfsi = 0;
+       cfsi = CFS_PRV_DoSecureConnect_100
+                (sessionInfo,
+                 iSSLResult);
+       break;
    }
 
    return cfsi;
@@ -1162,39 +1483,29 @@ CFS_INSTANCE* CFS_SecureConnect(void* sessionInfo,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CFS_INSTANCE* CFS_SecureOpenChannel(int   connfd,
-                                    void* sessionInfo,
-                                    int   sessionInfoFmt,
-                                    int*  iSSLResult) {
+CFS_INSTANCE*
+  CFS_SecureOpenChannel
+    (int connfd,
+     void* sessionInfo,
+     int sessionInfoFmt,
+     int* iSSLResult) {
 
-   int rc;
-   int e;
-   int i;
+   CSRESULT rc;
 
    CFS_INSTANCE* cfsi;
 
-   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
-
-   cfsi->size = sizeof(CFS_INSTANCE);
-
-   cfsi->connfd = connfd;
-
-   // Set socket to non-blocking mode
-   CFS_PRV_SetBlocking(cfsi->connfd, 0);
+   cfsi = NULL;
 
    switch(sessionInfoFmt) {
 
       case CFS_SERVERSESSION_FMT_100:
 
-         if (CS_FAIL(CFS_PRV_DoSecureOpenChannel_100(cfsi,
-                                                 sessionInfo,
-                                                 iSSLResult))) {
+       cfsi = CFS_PRV_DoSecureOpenChannel_100
+                (connfd,
+                 sessionInfo,
+                 iSSLResult);
 
-            CFS_SecureClose(cfsi);
-            cfsi = NULL;
-         }
-
-         break;
+       break;
    }
 
    return cfsi;
@@ -1208,11 +1519,13 @@ CFS_INSTANCE* CFS_SecureOpenChannel(int   connfd,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_SecureRead(CFS_INSTANCE* This,
-                        char*         buffer,
-                        uint64_t*     maxSize,
-                        int           timeout,
-                        int*          iSSLResult) {
+CSRESULT
+  CFS_SecureRead
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* maxSize,
+     int timeout,
+     int* iSSLResult) {
 
    int rc;
    int readSize;
@@ -1491,11 +1804,13 @@ CSRESULT CFS_SecureRead(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_SecureReadRecord(CFS_INSTANCE* This,
-                              char*         buffer,
-                              uint64_t*     size,
-                              int           timeout,
-                              int*          iSSLResult) {
+CSRESULT
+  CFS_SecureReadRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout,
+     int* iSSLResult) {
 
    int rc;
    int readSize;
@@ -1693,11 +2008,13 @@ CSRESULT CFS_SecureReadRecord(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_SecureWrite(CFS_INSTANCE* This,
-                         char*         buffer,
-                         uint64_t*     maxSize,
-                         int           timeout,
-                         int*          iSSLResult) {
+CSRESULT
+  CFS_SecureWrite
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* maxSize,
+     int timeout,
+     int* iSSLResult) {
 
    int rc;
    int writeSize;
@@ -1978,11 +2295,13 @@ CSRESULT CFS_SecureWrite(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_SecureWriteRecord(CFS_INSTANCE* This,
-                               char*         buffer,
-                               uint64_t*     size,
-                               int           timeout,
-                               int*          iSSLResult) {
+CSRESULT
+  CFS_SecureWriteRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout,
+     int* iSSLResult) {
 
    int rc;
    int writeSize;
@@ -2181,9 +2500,11 @@ CSRESULT CFS_SecureWriteRecord(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_SendDescriptor(int fd,
-                            int descriptor,
-                            int timeout) {
+CSRESULT
+  CFS_SendDescriptor
+    (int fd,
+     int descriptor,
+     int timeout) {
 
    struct iovec iov[1];
 
@@ -2344,10 +2665,12 @@ CSRESULT CFS_SendDescriptor(int fd,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_Write(CFS_INSTANCE* This,
-                   char*         buffer,
-                   uint64_t*     maxSize,
-                   int           timeout) {
+CSRESULT
+  CFS_Write
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* maxSize,
+     int timeout) {
 
    int rc;
    int writeSize;
@@ -2620,10 +2943,12 @@ CSRESULT CFS_Write(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_WriteRecord(CFS_INSTANCE* This,
-                         char* buffer,
-                         uint64_t* size,
-                         int timeout) {
+CSRESULT
+  CFS_WriteRecord
+    (CFS_INSTANCE* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout) {
 
    int rc;
    int writeSize;
@@ -2814,358 +3139,157 @@ CSRESULT CFS_WriteRecord(CFS_INSTANCE* This,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_PRV_DoSecureConnect_100(CFS_INSTANCE* cfsi,
-                                     void* sessionInfo,
-                                     int*  iSSLResult) {
+CFS_INSTANCE*
+  CFS_PRV_DoSecureConnect_100
+    (void* sessionInfo,
+     int*  iSSLResult) {
+
    int i;
+   int e;
+   int connfd;
 
-   *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
+   struct addrinfo* addrInfo;
+   struct addrinfo* addrInfo_first;
+   struct addrinfo  hints;
+   struct timeval tv;
 
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
+   char szPort[CFS_NTOP_PORT_MAX];
 
-   for (i=0; i<CFS_OFFSET_BUFFERS_MAXITEMS; i++) {
+   CFS_INSTANCE* cfsi;
 
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->pszBuffers[i] != 0) {
+   CSRESULT rc;
 
-         *iSSLResult =
-           gsk_attribute_set_buffer(cfsi->ssl_henv,
-                                gskEnumIndices[i],
-                                ((CFS_CLIENTSESSION_100*)sessionInfo)
-                                 ->pszBuffers[i],
-                                strlen(((CFS_CLIENTSESSION_100*)sessionInfo)
-                                       ->pszBuffers[i]));
+   fd_set readSet, writeSet;
 
-         if (*iSSLResult != GSK_OK) {
-            return CS_FAILURE;
+   cfsi = NULL;
+
+   memset(&hints, 0, sizeof(struct addrinfo));
+   hints.ai_family = AF_UNSPEC;
+   hints.ai_socktype = SOCK_STREAM;
+   hints.ai_protocol = IPPROTO_TCP;
+
+   sprintf(szPort, "%d", ((CFS_CLIENTSESSION_100*)sessionInfo)->port);
+
+   rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
+                      ->szHostName,
+                     szPort,
+                     &hints,
+                     &addrInfo);
+
+   if (rc == 0)
+   {
+
+     addrInfo_first = addrInfo;
+
+     while (addrInfo != 0)
+     {
+       connfd = socket(addrInfo->ai_family,
+                       addrInfo->ai_socktype,
+                       addrInfo->ai_protocol);
+
+       if (connfd >= 0) {
+
+         cfsi = CFS_PRV_SecureInitClient
+                  (sessionInfo,
+                   CFS_CLIENTSESSION_FMT_100,
+                   iSSLResult);
+
+         if (cfsi != NULL) {
+
+           cfsi->connfd = connfd;
+
+           // Set socket to non-blocking mode and leave the loop
+           CFS_PRV_SetBlocking(cfsi->connfd, 0);
+
+           rc = connect(cfsi->connfd,
+                        addrInfo->ai_addr,
+                        addrInfo->ai_addrlen);
+
+           if (rc < 0) {
+
+             if (errno != EINPROGRESS) {
+
+               e = errno;
+               close(connfd);
+               free(cfsi);
+               cfsi = NULL;
+             }
+             else {
+
+               FD_ZERO(&readSet);
+               FD_SET(cfsi->connfd, &readSet);
+
+               writeSet = readSet;
+               tv.tv_sec = ((CFS_CLIENTSESSION_100*)sessionInfo)
+                                 ->connTimeout;
+               tv.tv_usec = 0;
+
+               rc = select(cfsi->connfd+1,
+                           &readSet,
+                           &writeSet,
+                           NULL,
+                           &tv);
+
+               if (rc <= 0) {
+
+                 e = errno;
+                 close(connfd);
+                 free(cfsi);
+                 cfsi = NULL;
+               }
+               else {
+
+                 // Connected
+                 rc = CFS_PRV_SSL_CLIENTSESSION_100_Config
+                        (cfsi,
+                         sessionInfo,
+                         iSSLResult);
+
+                 if (CS_SUCCEED(rc)) {
+                   break;  // leave loop
+                 }
+                 else {
+                   close(cfsi->connfd);
+                   free(cfsi);
+                   cfsi = NULL;
+                 }
+               }
+             }
+           }
+           else {
+
+             // Connected
+             rc = CFS_PRV_SSL_CLIENTSESSION_100_Config
+                    (cfsi,
+                     sessionInfo,
+                     iSSLResult);
+
+             if (CS_SUCCEED(rc)) {
+               break;  // leave loop
+             }
+             else {
+               free(cfsi);
+               cfsi = NULL;
+               close(cfsi->connfd);
+             }
+           }
          }
-      }
-   }
+         else {
 
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskOverrideNumericDefaults != 0) {
-
-      for (i=0; i<CFS_OFFSET_NUMERIC_MAXITEMS; i++) {
-
-         if (((CFS_CLIENTSESSION_100*)sessionInfo)
-             ->iNumericValues[i] != -1) {
-
-            *iSSLResult =
-              gsk_attribute_set_numeric_value(cfsi->ssl_henv,
-                                   gskNumericIndices[i],
-                                   ((CFS_CLIENTSESSION_100*)sessionInfo)
-                                    ->iNumericValues[i]);
-
-            if (*iSSLResult != GSK_OK) {
-               return CS_FAILURE;
-            }
+           close(connfd);
          }
-      }
+       }
+       else {
+         // failed to get socket
+       }
+
+       addrInfo = addrInfo->ai_next;
+     }
+
+     freeaddrinfo(addrInfo_first);
    }
 
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskProtocolOverrideDefaults != 0) {
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV12 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV12,
-                                             GSK_TRUE);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV12,
-                                             GSK_FALSE );
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV11 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV11,
-                                             GSK_TRUE);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV11,
-                                             GSK_FALSE);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV10 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV10,
-                                             GSK_TRUE);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV10,
-                                             GSK_FALSE);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV1 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV1,
-                                             GSK_PROTOCOL_TLSV1_ON);
-
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV1,
-                                             GSK_PROTOCOL_TLSV1_OFF );
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_SSLV3 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV3,
-                                             GSK_PROTOCOL_SSLV3_ON);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV3,
-                                             GSK_PROTOCOL_SSLV3_OFF);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_SSLV2 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV2,
-                                             GSK_PROTOCOL_SSLV2_ON);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV2,
-                                             GSK_PROTOCOL_SSLV2_OFF);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-   }
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskAuthTypeOverrideDefaults != 0) {
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskAuthType_GSK_SERVER_AUTH_PASSTHRU == 1) {
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                GSK_SERVER_AUTH_TYPE,
-                                GSK_CLIENT_AUTH_PASSTHRU);
-      }
-      else {
-
-         if (((CFS_CLIENTSESSION_100*)sessionInfo)
-             ->gskAuthType_GSK_SERVER_AUTH_FULL == 1) {
-
-            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_SERVER_AUTH_TYPE,
-                                   GSK_SERVER_AUTH_FULL);
-         }
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-   }
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT,
-                               GSK_FALSE);
-   }
-
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_GENERATION_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_GENERATION_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_CHECK_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_CHECK_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_RETRIEVE_VIA_GET,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_RETRIEVE_VIA_GET,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_CERTREQ_DNLIST_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_CERTREQ_DNLIST_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_CERTREQ_DNLIST_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_CLIENTSESSION_100*)sessionInfo)
-       ->gskSessionCloseOverrideDefaults == 1) {
-
-      if (((CFS_CLIENTSESSION_100*)sessionInfo)
-          ->gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE == 1) {
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
-                               GSK_DELAYED_ENVIRONMENT_CLOSE);
-      }
-      else {
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
-                               GSK_NORMAL_ENVIRONMENT_CLOSE);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-   }
-
-   *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                     GSK_SESSION_TYPE,
-                                     GSK_CLIENT_SESSION);
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
-                      &(cfsi->ssl_hsession));
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_attribute_set_numeric_value(cfsi->ssl_hsession,
-                                                 GSK_FD,
-                                                 cfsi->connfd);
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   return CS_SUCCESS;
+   return cfsi;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -3176,437 +3300,1098 @@ CSRESULT CFS_PRV_DoSecureConnect_100(CFS_INSTANCE* cfsi,
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT CFS_PRV_DoSecureOpenChannel_100(CFS_INSTANCE* cfsi,
-                                         void* sessionInfo,
-                                         int*  iSSLResult) {
-
+CFS_INSTANCE*
+  CFS_PRV_DoSecureOpenChannel_100
+    (int connfd,
+     void* sessionInfo,
+     int*  iSSLResult) {
 
    int i;
 
-   *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
+   CFS_INSTANCE* cfsi;
 
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
+   cfsi = CFS_PRV_SecureInitServer
+            (sessionInfo,
+             CFS_SERVERSESSION_FMT_100,
+             iSSLResult);
 
-   for (i=0; i<CFS_OFFSET_BUFFERS_MAXITEMS; i++) {
+   if (cfsi != NULL) {
 
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->pszBuffers[i] != 0) {
+     cfsi->connfd = connfd;
 
-         *iSSLResult =
-           gsk_attribute_set_buffer(cfsi->ssl_henv,
-                                gskEnumIndices[i],
-                                ((CFS_SERVERSESSION_100*)sessionInfo)
-                                 ->pszBuffers[i],
-                                strlen(((CFS_SERVERSESSION_100*)sessionInfo)
-                                       ->pszBuffers[i]));
+     // Set socket to non-blocking mode
+     CFS_PRV_SetBlocking(cfsi->connfd, 0);
 
-         if (*iSSLResult != GSK_OK) {
-            return CS_FAILURE;
-         }
+     *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
+                                       &(cfsi->ssl_hsession));
+
+     if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+     }
+
+     // Set numeric values
+
+     *iSSLResult =
+       gsk_attribute_set_numeric_value
+         (cfsi->ssl_hsession,
+          GSK_FD,
+          cfsi->connfd);
+
+     if (*iSSLResult != GSK_OK) {
+        gsk_secure_soc_close(&(cfsi->ssl_hsession));
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+     }
+
+     if (((CFS_SERVERSESSION_100*)sessionInfo)
+           ->gskOverrideNumericDefaults != 0) {
+
+       for (i=0; i<CFS_OFFSET_NUMERIC_MAXITEMS; i++) {
+
+          if (((CFS_SERVERSESSION_100*)sessionInfo)
+                ->iNumericValues[i] != -1) {
+
+            *iSSLResult =
+            gsk_attribute_set_numeric_value
+              (cfsi->ssl_hsession,
+               gskNumericIndices[i],
+               ((CFS_SERVERSESSION_100*)sessionInfo)
+                 ->iNumericValues[i]);
+
+            if (*iSSLResult != GSK_OK) {
+              gsk_secure_soc_close(&(cfsi->ssl_hsession));
+              gsk_environment_close(&(cfsi->ssl_henv));
+              free(cfsi);
+              return NULL;
+            }
+          }
+        }
       }
+
+     *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
+
+     if (*iSSLResult != GSK_OK) {
+        gsk_secure_soc_close(&(cfsi->ssl_hsession));
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+     }
    }
 
+   return cfsi;
+}
 
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskOverrideNumericDefaults != 0) {
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_PRV_SSL_CLIENTSESSION_100_Config
+//
+// This function sets up the SSL session.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT
+  CFS_PRV_SSL_CLIENTSESSION_100_Config
+    (CFS_INSTANCE* cfsi,
+     void* sessionInfo,
+     int*  iSSLResult) {
+
+    int i;
+
+    // Set numeric values
+
+    *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
+                                 &(cfsi->ssl_hsession));
+
+    if (*iSSLResult != GSK_OK) {
+      gsk_environment_close(&(cfsi->ssl_henv));
+      return CS_FAILURE;
+    }
+
+    *iSSLResult =
+      gsk_attribute_set_numeric_value
+        (cfsi->ssl_hsession,
+         GSK_FD,
+         cfsi->connfd);
+
+    if (*iSSLResult != GSK_OK) {
+      gsk_secure_soc_close(&(cfsi->ssl_hsession));
+      gsk_environment_close(&(cfsi->ssl_henv));
+      return CS_FAILURE;
+    }
+
+    if (((CFS_CLIENTSESSION_100*)sessionInfo)
+          ->gskOverrideNumericDefaults != 0) {
 
       for (i=0; i<CFS_OFFSET_NUMERIC_MAXITEMS; i++) {
 
-         if (((CFS_SERVERSESSION_100*)sessionInfo)
-             ->iNumericValues[i] != -1) {
+        if (((CFS_CLIENTSESSION_100*)sessionInfo)
+              ->iNumericValues[i] != -1) {
 
-            *iSSLResult =
-              gsk_attribute_set_numeric_value(cfsi->ssl_henv,
-                                   gskNumericIndices[i],
-                                   ((CFS_SERVERSESSION_100*)sessionInfo)
-                                    ->iNumericValues[i]);
+          *iSSLResult =
+          gsk_attribute_set_numeric_value
+            (cfsi->ssl_hsession,
+             gskNumericIndices[i],
+             ((CFS_CLIENTSESSION_100*)sessionInfo)
+               ->iNumericValues[i]);
 
-            if (*iSSLResult != GSK_OK) {
-               return CS_FAILURE;
-            }
-         }
+          if (*iSSLResult != GSK_OK) {
+            gsk_secure_soc_close(&(cfsi->ssl_hsession));
+            gsk_environment_close(&(cfsi->ssl_henv));
+            return CS_FAILURE;
+          }
+        }
       }
-   }
+    }
 
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskProtocolOverrideDefaults != 0) {
+    *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
 
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV12 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV12,
-                                             GSK_TRUE);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV12,
-                                             GSK_FALSE);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV11 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV11,
-                                             GSK_TRUE);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV11,
-                                             GSK_FALSE);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV10 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV10,
-                                             GSK_TRUE);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV10,
-                                             GSK_FALSE);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_TLSV1 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV1,
-                                             GSK_PROTOCOL_TLSV1_ON);
-
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_TLSV1,
-                                             GSK_PROTOCOL_TLSV1_OFF);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_SSLV3 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV3,
-                                             GSK_PROTOCOL_SSLV3_ON);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV3,
-                                             GSK_PROTOCOL_SSLV3_OFF);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskProtocol_GSK_PROTOCOL_SSLV2 == 1) {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV2,
-                                             GSK_PROTOCOL_SSLV2_ON);
-      }
-      else {
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                             GSK_PROTOCOL_SSLV2,
-                                             GSK_PROTOCOL_SSLV2_OFF);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskSessionTypeOverrideDefaults != 0) {
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL == 1) {
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                GSK_SESSION_TYPE,
-                                GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL);
-      }
-      else {
-
-         if (((CFS_SERVERSESSION_100*)sessionInfo)
-             ->gskSessionType_GSK_SERVER_SESSION_WITH_CL_AUTH == 1) {
-
-            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_SESSION_TYPE,
-                                   GSK_SERVER_SESSION_WITH_CL_AUTH);
-         }
-         else {
-
-            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_SESSION_TYPE,
-                                   GSK_SERVER_SESSION);
-         }
-      }
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                             GSK_SESSION_TYPE,
-                             GSK_SERVER_SESSION);
-   }
-
-
-   if (*iSSLResult != GSK_OK) {
+    if (*iSSLResult != GSK_OK) {
+      gsk_secure_soc_close(&(cfsi->ssl_hsession));
+      gsk_environment_close(&(cfsi->ssl_henv));
       return CS_FAILURE;
-   }
+    }
 
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskAuthTypeOverrideDefaults != 0) {
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskAuthType_GSK_CLIENT_AUTH_FULL == 1) {
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                GSK_CLIENT_AUTH_TYPE,
-                                GSK_CLIENT_AUTH_FULL);
-
-         if (((CFS_SERVERSESSION_100*)sessionInfo)
-             ->gskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME == 1) {
-
-            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_ALLOW_UNAUTHENTICATED_RESUME,
-                                   GSK_ALLOW_UNAUTHENTICATED_RESUME_ON);
-         }
-         else {
-
-            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_ALLOW_UNAUTHENTICATED_RESUME,
-                                   GSK_ALLOW_UNAUTHENTICATED_RESUME_OFF);
-         }
-      }
-      else {
-
-         if (((CFS_SERVERSESSION_100*)sessionInfo)
-             ->gskAuthType_GSK_CLIENT_AUTH_PASSTHRU == 1) {
-
-            *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_CLIENT_AUTH_TYPE,
-                                   GSK_CLIENT_AUTH_PASSTHRU);
-
-            if (((CFS_SERVERSESSION_100*)sessionInfo)
-                ->gskSession_GSK_ALLOW_UNAUTHENTICATED_RESUME == 1) {
-
-               *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                      GSK_ALLOW_UNAUTHENTICATED_RESUME,
-                                      GSK_ALLOW_UNAUTHENTICATED_RESUME_ON);
-            }
-            else {
-
-               *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                      GSK_ALLOW_UNAUTHENTICATED_RESUME,
-                                      GSK_ALLOW_UNAUTHENTICATED_RESUME_OFF);
-            }
-         }
-         else {
-
-            if (((CFS_SERVERSESSION_100*)sessionInfo)
-                ->gskAuthType_GSK_OS400_CLIENT_AUTH_REQUIRED == 1) {
-
-               *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                      GSK_CLIENT_AUTH_TYPE,
-                                      GSK_OS400_CLIENT_AUTH_REQUIRED);
-
-            }
-         }
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_GENERATION_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_GENERATION_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_CHECK_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_NONCE_CHECK_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_RETRIEVE_VIA_GET,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_OCSP_RETRIEVE_VIA_GET,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskAttribute_GSK_CERTREQ_DNLIST_ENABLE == 1) {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_CERTREQ_DNLIST_ENABLE,
-                               GSK_TRUE);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_CERTREQ_DNLIST_ENABLE,
-                               GSK_FALSE);
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (((CFS_SERVERSESSION_100*)sessionInfo)
-       ->gskSessionCloseOverrideDefaults == 1) {
-
-      if (((CFS_SERVERSESSION_100*)sessionInfo)
-          ->gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE == 1) {
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
-                               GSK_DELAYED_ENVIRONMENT_CLOSE);
-      }
-      else {
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                               GSK_ENVIRONMENT_CLOSE_OPTIONS,
-                               GSK_NORMAL_ENVIRONMENT_CLOSE);
-      }
-
-      if (*iSSLResult != GSK_OK) {
-         return CS_FAILURE;
-      }
-   }
-
-   *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
-                                     &(cfsi->ssl_hsession));
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_attribute_set_numeric_value(cfsi->ssl_hsession,
-                                                 GSK_FD,
-                                                 cfsi->connfd);
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   return CS_SUCCESS;
+    return CS_SUCCESS;
 }
 
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_PRV_SecureInitClient
+//
+// This function initialises a secure client environementIt also
+// creates an CFS_INSTANCE structure that must be used for secure
+// communication with a peer.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CFS_INSTANCE*
+  CFS_PRV_SecureInitClient
+    (void* sessionInfo,
+     int   sessionInfoFmt,
+     int*  iSSLResult)
+{
+   int i;
+
+   CFS_INSTANCE* cfsi;
+
+   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
+   cfsi->size = sizeof(CFS_INSTANCE);
+   cfsi->connfd = -1;
+
+   switch(sessionInfoFmt) {
+
+     case CFS_CLIENTSESSION_FMT_100:
+
+       *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
+
+       if (*iSSLResult != GSK_OK) {
+         gsk_environment_close(&(cfsi->ssl_henv));
+         free(cfsi);
+         return NULL;
+       }
+
+       *iSSLResult =
+          gsk_attribute_set_buffer(cfsi->ssl_henv,
+            GSK_OS400_APPLICATION_ID,
+            ((CFS_CLIENTSESSION_100*)sessionInfo)->szApplicationID,
+            strlen(((CFS_CLIENTSESSION_100*)sessionInfo)->szApplicationID));
+
+       if (*iSSLResult != GSK_OK) {
+         gsk_environment_close(&(cfsi->ssl_henv));
+         free(cfsi);
+         return NULL;
+       }
+
+       *iSSLResult =
+         gsk_attribute_set_enum
+           (cfsi->ssl_henv,
+            GSK_SESSION_TYPE,
+            GSK_CLIENT_SESSION);
+
+       if (*iSSLResult != GSK_OK) {
+         gsk_environment_close(&(cfsi->ssl_henv));
+         free(cfsi);
+         return NULL;
+       }
+
+       // Set buffers (other than application ID)
+
+       for (i=0; i<CFS_OFFSET_BUFFERS_MAXITEMS; i++) {
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+                ->pszBuffers[i] != 0) {
+
+           *iSSLResult =
+           gsk_attribute_set_buffer
+             (cfsi->ssl_henv,
+              gskEnumIndices[i],
+              ((CFS_CLIENTSESSION_100*)sessionInfo)
+                 ->pszBuffers[i],
+              strlen(((CFS_CLIENTSESSION_100*)sessionInfo)
+                 ->pszBuffers[i]));
+
+           if (*iSSLResult != GSK_OK) {
+             gsk_environment_close(&(cfsi->ssl_henv));
+             free(cfsi);
+             return NULL;
+           }
+         }
+       }
+
+       // Set enumerations
+
+       if (((CFS_CLIENTSESSION_100*)sessionInfo)
+             ->gskProtocolOverrideDefaults != 0) {
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV12 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV12,
+                GSK_TRUE);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV12,
+                GSK_FALSE);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV11 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV11,
+                GSK_TRUE);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV11,
+                GSK_FALSE);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV10 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV10,
+                GSK_TRUE);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV10,
+                GSK_FALSE);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV1 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV1,
+                GSK_PROTOCOL_TLSV1_ON);
+
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV1,
+                GSK_PROTOCOL_TLSV1_OFF );
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_SSLV3 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV3,
+                GSK_PROTOCOL_SSLV3_ON);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV3,
+                GSK_PROTOCOL_SSLV3_OFF);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_CLIENTSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_SSLV2 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV2,
+                GSK_PROTOCOL_SSLV2_ON);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV2,
+                GSK_PROTOCOL_SSLV2_OFF);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+            ->gskAuthType_GSK_SERVER_AUTH_PASSTHRU == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_SERVER_AUTH_TYPE,
+             GSK_SERVER_AUTH_PASSTHRU);
+      }
+      else {
+
+        if (((CFS_CLIENTSESSION_100*)sessionInfo)
+              ->gskAuthType_GSK_SERVER_AUTH_FULL == 1) {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_SERVER_AUTH_TYPE,
+               GSK_SERVER_AUTH_FULL);
+        }
+        else {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_SERVER_AUTH_TYPE,
+               GSK_SERVER_AUTH_PASSTHRU);
+        }
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT
+         == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_EXTENDED_RENEGOTIATION_CRITICAL_CLIENT,
+             GSK_FALSE);
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+            ->gskSessionCloseOverrideDefaults == 1) {
+
+        if (((CFS_CLIENTSESSION_100*)sessionInfo)
+              ->gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE == 1) {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+               GSK_DELAYED_ENVIRONMENT_CLOSE);
+        }
+        else {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+               GSK_NORMAL_ENVIRONMENT_CLOSE);
+        }
+
+        if (*iSSLResult != GSK_OK) {
+          gsk_environment_close(&(cfsi->ssl_henv));
+          free(cfsi);
+          return NULL;
+        }
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_ENABLE == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_ENABLE,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_ENABLE,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_GENERATION_ENABLE,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_GENERATION_ENABLE,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_CHECK_ENABLE,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_CHECK_ENABLE,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      if (((CFS_CLIENTSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_RETRIEVE_VIA_GET,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_RETRIEVE_VIA_GET,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+       break;
+   }
+
+   return cfsi;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_PRV_SecureInitServer
+//
+// This function initialises a secure server environementIt also
+// creates an CFS_INSTANCE structure that must be used for secure
+// communication with a peer.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CFS_INSTANCE*
+  CFS_PRV_SecureInitServer
+    (void* sessionInfo,
+     int   sessionInfoFmt,
+     int*  iSSLResult) {
+
+   int i;
+
+   CFS_INSTANCE* cfsi;
+
+   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
+   cfsi->size = sizeof(CFS_INSTANCE);
+   cfsi->connfd = -1;
+
+   switch(sessionInfoFmt) {
+
+     case CFS_SERVERSESSION_FMT_100:
+
+       *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
+
+       if (*iSSLResult != GSK_OK) {
+         gsk_environment_close(&(cfsi->ssl_henv));
+         free(cfsi);
+         return NULL;
+       }
+
+       *iSSLResult =
+          gsk_attribute_set_buffer(cfsi->ssl_henv,
+            GSK_OS400_APPLICATION_ID,
+            ((CFS_SERVERSESSION_100*)sessionInfo)->szApplicationID,
+            strlen(((CFS_SERVERSESSION_100*)sessionInfo)->szApplicationID));
+
+       if (*iSSLResult != GSK_OK) {
+         gsk_environment_close(&(cfsi->ssl_henv));
+         free(cfsi);
+         return NULL;
+       }
+
+       *iSSLResult =
+         gsk_attribute_set_enum
+           (cfsi->ssl_henv,
+            GSK_SESSION_TYPE,
+            GSK_SERVER_SESSION);
+
+       if (*iSSLResult != GSK_OK) {
+         gsk_environment_close(&(cfsi->ssl_henv));
+         free(cfsi);
+         return NULL;
+       }
+
+       // Set buffers (other than application ID)
+
+       for (i=0; i<CFS_OFFSET_BUFFERS_MAXITEMS; i++) {
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+                ->pszBuffers[i] != 0) {
+
+           *iSSLResult =
+           gsk_attribute_set_buffer
+             (cfsi->ssl_henv,
+              gskEnumIndices[i],
+              ((CFS_SERVERSESSION_100*)sessionInfo)
+                 ->pszBuffers[i],
+              strlen(((CFS_SERVERSESSION_100*)sessionInfo)
+                 ->pszBuffers[i]));
+
+           if (*iSSLResult != GSK_OK) {
+             gsk_environment_close(&(cfsi->ssl_henv));
+             free(cfsi);
+             return NULL;
+           }
+         }
+       }
+
+       // Set enumerations
+
+       if (((CFS_SERVERSESSION_100*)sessionInfo)
+             ->gskProtocolOverrideDefaults != 0) {
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV12 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV12,
+                GSK_TRUE);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV12,
+                GSK_FALSE);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV11 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV11,
+                GSK_TRUE);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV11,
+                GSK_FALSE);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV10 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV10,
+                GSK_TRUE);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV10,
+                GSK_FALSE);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_TLSV1 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV1,
+                GSK_PROTOCOL_TLSV1_ON);
+
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_TLSV1,
+                GSK_PROTOCOL_TLSV1_OFF );
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_SSLV3 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV3,
+                GSK_PROTOCOL_SSLV3_ON);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV3,
+                GSK_PROTOCOL_SSLV3_OFF);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+
+         if (((CFS_SERVERSESSION_100*)sessionInfo)
+               ->gskProtocol_GSK_PROTOCOL_SSLV2 == 1) {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV2,
+                GSK_PROTOCOL_SSLV2_ON);
+         }
+         else {
+
+           *iSSLResult =
+             gsk_attribute_set_enum
+               (cfsi->ssl_henv,
+                GSK_PROTOCOL_SSLV2,
+                GSK_PROTOCOL_SSLV2_OFF);
+         }
+
+         if (*iSSLResult != GSK_OK) {
+           gsk_environment_close(&(cfsi->ssl_henv));
+           free(cfsi);
+           return NULL;
+         }
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskAuthType_GSK_CLIENT_AUTH_PASSTHRU == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_SERVER_AUTH_TYPE,
+             GSK_SERVER_AUTH_PASSTHRU);
+      }
+      else {
+
+        if (((CFS_SERVERSESSION_100*)sessionInfo)
+              ->gskAuthType_GSK_CLIENT_AUTH_FULL == 1) {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_SERVER_AUTH_TYPE,
+               GSK_SERVER_AUTH_FULL);
+        }
+        else {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_SERVER_AUTH_TYPE,
+               GSK_SERVER_AUTH_PASSTHRU);
+        }
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskAuthType_GSK_CLIENT_AUTH_FULL == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_CLIENT_AUTH_TYPE,
+             GSK_CLIENT_AUTH_FULL);
+
+        if (((CFS_SERVERSESSION_100*)sessionInfo)
+              ->gskAttribute_GSK_ALLOW_UNAUTHETICATED_RESUME == 1) {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_ALLOW_UNAUTHENTICATED_RESUME,
+               GSK_ALLOW_UNAUTHENTICATED_RESUME_ON);
+        }
+        else {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_ALLOW_UNAUTHENTICATED_RESUME,
+               GSK_ALLOW_UNAUTHENTICATED_RESUME_OFF);
+        }
+      }
+      else {
+
+        if (((CFS_SERVERSESSION_100*)sessionInfo)
+              ->gskAuthType_GSK_CLIENT_AUTH_PASSTHRU == 1) {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_CLIENT_AUTH_TYPE,
+               GSK_CLIENT_AUTH_PASSTHRU);
+
+          if (((CFS_SERVERSESSION_100*)sessionInfo)
+                ->gskAttribute_GSK_ALLOW_UNAUTHETICATED_RESUME == 1) {
+
+            *iSSLResult =
+              gsk_attribute_set_enum
+                (cfsi->ssl_henv,
+                 GSK_ALLOW_UNAUTHENTICATED_RESUME,
+                 GSK_ALLOW_UNAUTHENTICATED_RESUME_ON);
+          }
+          else {
+
+            *iSSLResult =
+              gsk_attribute_set_enum
+                (cfsi->ssl_henv,
+                 GSK_ALLOW_UNAUTHENTICATED_RESUME,
+                 GSK_ALLOW_UNAUTHENTICATED_RESUME_OFF);
+          }
+        }
+        else {
+
+          if (((CFS_SERVERSESSION_100*)sessionInfo)
+                ->gskAuthType_GSK_OS400_CLIENT_AUTH_REQUIRED == 1) {
+
+            *iSSLResult =
+              gsk_attribute_set_enum
+                (cfsi->ssl_henv,
+                 GSK_CLIENT_AUTH_TYPE,
+                 GSK_OS400_CLIENT_AUTH_REQUIRED);
+
+          }
+          else {
+
+            *iSSLResult =
+              gsk_attribute_set_enum
+                (cfsi->ssl_henv,
+                 GSK_CLIENT_AUTH_TYPE,
+                 GSK_CLIENT_AUTH_PASSTHRU);
+          }
+        }
+      }
+
+      if (*iSSLResult != GSK_OK) {
+         gsk_environment_close(&(cfsi->ssl_henv));
+         free(cfsi);
+         return NULL;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER
+         == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_EXTENDED_RENEGOTIATION_CRITICAL_SERVER,
+             GSK_FALSE);
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskSessionCloseOverrideDefaults == 1) {
+
+        if (((CFS_SERVERSESSION_100*)sessionInfo)
+              ->gskSessionClose_GSK_DELAYED_ENVIRONMENT_CLOSE == 1) {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+               GSK_DELAYED_ENVIRONMENT_CLOSE);
+        }
+        else {
+
+          *iSSLResult =
+            gsk_attribute_set_enum
+              (cfsi->ssl_henv,
+               GSK_ENVIRONMENT_CLOSE_OPTIONS,
+               GSK_NORMAL_ENVIRONMENT_CLOSE);
+        }
+
+        if (*iSSLResult != GSK_OK) {
+          gsk_environment_close(&(cfsi->ssl_henv));
+          free(cfsi);
+          return NULL;
+        }
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_ENABLE == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_ENABLE,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_ENABLE,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_NONCE_GENERATION_ENABLE == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_GENERATION_ENABLE,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_GENERATION_ENABLE,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_NONCE_CHECK_ENABLE == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_CHECK_ENABLE,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_NONCE_CHECK_ENABLE,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      if (((CFS_SERVERSESSION_100*)sessionInfo)
+            ->gskAttribute_GSK_OCSP_RETRIEVE_VIA_GET == 1) {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_RETRIEVE_VIA_GET,
+             GSK_TRUE);
+      }
+      else {
+
+        *iSSLResult =
+          gsk_attribute_set_enum
+            (cfsi->ssl_henv,
+             GSK_OCSP_RETRIEVE_VIA_GET,
+             GSK_FALSE);
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
+
+      if (*iSSLResult != GSK_OK) {
+        gsk_environment_close(&(cfsi->ssl_henv));
+        free(cfsi);
+        return NULL;
+      }
+
+      break;
+   }
+
+   return cfsi;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //
