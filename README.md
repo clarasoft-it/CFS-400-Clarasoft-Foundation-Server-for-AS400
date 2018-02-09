@@ -12,6 +12,7 @@ Copy the files on your AS400 in a source file named QCSRC (the CFSREG source nee
 * CFSAPI
 * CLARAD
 * CLARAH
+* CLARAHS
 * CSLIST
 * CSSTR
 * CSWSCK
