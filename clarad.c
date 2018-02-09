@@ -5,8 +5,9 @@
 
   clarad.c
   Main listenin daemon with pre-spawned handlers
-
   Version 1.0.0
+
+
 
   Command line arguments
      - port number
@@ -355,8 +356,6 @@ int main(int argc, char** argv) {
       waitTime = -1;
     }
 
-    // Wait for available handler
-    
     numDescriptors = poll(handlerFdSet, curNumDescriptors, waitTime);
 
     if (numDescriptors < 0) {
@@ -404,8 +403,10 @@ int main(int argc, char** argv) {
         if (numDescriptors > 0) {
 
           //////////////////////////////////////////////////////////////////
-          // A connection request has come in; send connection socket
-          // over to an available handler.
+          // A connection request has come in; we want to
+          // get an available handler. For this, we specify
+          // a zero timeout to immediately get the descriptors
+          // that are ready.
           //////////////////////////////////////////////////////////////////
 
           //////////////////////////////////////////////////////////////////
@@ -783,3 +784,4 @@ unsigned long setJobServerType(void) {
 
    return 1;
 }
+
