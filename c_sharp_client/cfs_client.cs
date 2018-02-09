@@ -10,7 +10,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.IO;
 
-
+ 
 namespace cfs_client
 {
     public partial class cfs_client : Form
