@@ -5,7 +5,7 @@
   string utilities
 
   Version 1.0.0
-
+ 
   Distributed under the MIT license
 
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
