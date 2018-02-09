@@ -1,13 +1,12 @@
 /* ===========================================================================
   Clarasoft core tools
 
-  CSLIST.c
+  CSLIST.h
 
   Linked list
   Version 1.0.0
 
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
 
   Permission is hereby granted, free of charge, to any person obtaining
