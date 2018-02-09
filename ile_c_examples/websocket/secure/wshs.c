@@ -3,7 +3,7 @@
 
   Clarasoft Foundation Server 400
 
-  wsh.c
+  wshs.c
   Web socket secure echo server
   Version 1.0.0
 
@@ -129,6 +129,12 @@ int main (int argc, char **argv)
   char szMessage[BUFF_MAX+1];
   char szClientByte[BUFF_MAX+1];
 
+  // Application ID can be retrieved externally;
+  // this is for demonstartion purposes
+  // and we will use the FTP server certifiacte
+
+  char szAppID[] = "QIBM_QTMF_FTP_SERVER";
+
   char* outBuffer;
   char* szResponse;
   char* pFragment;
@@ -193,179 +199,190 @@ int main (int argc, char **argv)
 
   if (!strcmp(argv[1], "*NOLINK")) {
 
+     send(stream_fd, &buffer, 1, 0);
+
      ////////////////////////////////////////////////////////////////////////
      // This means this handler implements the required service.
      ////////////////////////////////////////////////////////////////////////
 
      for (;;) {
 
-        /////////////////////////////////////////////////////////////////////
-        // The main server will eventually hand over the connection socket
-        // needed to communicate with a client via the IPC descriptor
-        /////////////////////////////////////////////////////////////////////
+       /////////////////////////////////////////////////////////////////////
+       // The main server will eventually hand over the connection socket
+       // needed to communicate with a client via the IPC descriptor
+       /////////////////////////////////////////////////////////////////////
 
-        hResult = CFS_ReceiveDescriptor(stream_fd, &conn_fd, -1);
+       hResult = CFS_ReceiveDescriptor(stream_fd, &conn_fd, -1);
 
-        if (CS_SUCCEED(hResult)) {
+       if (CS_SUCCEED(hResult)) {
 
-           //////////////////////////////////////////////////////////////////
-           // ECHO handler using CSWSCK secure functions:
-           // Basic SSL requires an application ID which is set in the
-           // session information structure. SSL defaults can be
-           // overriden in the session info structure. In this example,
-           // the application ID is WSD. We must specify the format of
-           // our session info structure so that future releases may
-           // add to this structure.
-           //////////////////////////////////////////////////////////////////
+         //////////////////////////////////////////////////////////////////
+         // ECHO handler using CSWSCK secure functions:
+         // Basic SSL requires an application ID which is set in the
+         // session information structure. SSL defaults can be
+         // overriden in the session info structure. In this example,
+         // the application ID is WSD. We must specify the format of
+         // our session info structure so that future releases may
+         // add to this structure.
+         //////////////////////////////////////////////////////////////////
 
-           memset(&sinfo, 0, sizeof(sinfo));
-           sinfo.pszBuffers[CFS_OFFSET_GSK_OS400_APPLICATION_ID] = "WSD";
+         // Application ID can be retrieved externally;
+         // this is for demonstartion purposes
 
-           pCONN = CSWSCK_SecureOpenChannel(conn_fd,
-                                            (void*)&sinfo,
-                                            CFS_SERVERSESSION_FMT_100);
+         memset(&sinfo, 0, sizeof(sinfo));
+         sinfo.szApplicationID = szAppID;
 
-           if (pCONN != 0) {
+         pCONN = CSWSCK_SecureOpenChannel(conn_fd,
+                                          (void*)&sinfo,
+                                          CFS_SERVERSESSION_FMT_100);
 
-              Fragments = CSLIST_Constructor();
-              totalBytes = 0;
+         if (pCONN != 0) {
 
-              do {
+           Fragments = CSLIST_Constructor();
+           totalBytes = 0;
 
-                 hResult = CSWSCK_SecureReceive(pCONN, &size, -1);
+           do {
 
-                 if (CS_SUCCEED(hResult)) {
+             hResult = CSWSCK_SecureReceive(pCONN, &size, -1);
 
-                    switch(CSWSCK_OPERATION(hResult)) {
+             if (CS_SUCCEED(hResult)) {
 
-                       case CSWSCK_OPER_TEXT:
-                       case CSWSCK_OPER_CONTINUATION:
+               switch(CSWSCK_OPERATION(hResult)) {
 
-                          szResponse = (char*)malloc(size * sizeof(char));
-                          totalBytes += size;
+                 case CSWSCK_OPER_TEXT:
+                 case CSWSCK_OPER_CONTINUATION:
 
-                          CSWSCK_GetData(pCONN, szResponse, 0, size);
+                   szResponse = (char*)malloc(size * sizeof(char));
+                   totalBytes += size;
 
-                          if (CS_DIAG(hResult) == CSWSCK_MOREDATA) {
+                   CSWSCK_GetData(pCONN, szResponse, 0, size);
 
-                             sprintf(szMessage,
-                                     "<br/>TEXT: Got %lld bytes,"
-                                     " (waiting for more), DATA: <br/>",
-                                     size);
+                   if (CS_DIAG(hResult) == CSWSCK_MOREDATA) {
 
-                             CSLIST_Insert(Fragments, szMessage, strlen(szMessage), CSLIST_BOTTOM);
-                             bytes = size;
-                             CSLIST_Insert(Fragments, szResponse, bytes, CSLIST_BOTTOM);
+                     sprintf(szMessage,
+                             "<br/>TEXT: Got %lld bytes,"
+                             " (waiting for more), DATA: <br/>",
+                             size);
 
-                          }
-                          else {
+                     CSLIST_Insert(Fragments, szMessage,
+                                   strlen(szMessage), CSLIST_BOTTOM);
 
-                             sprintf(szMessage,
-                                     "<br/>TEXT-END: Got %lld bytes, DATA: <br/>",
-                                     size);
+                     bytes = size;
+                     CSLIST_Insert(Fragments, szResponse,
+                                   bytes, CSLIST_BOTTOM);
 
-                             CSLIST_Insert(Fragments, szMessage, strlen(szMessage), CSLIST_BOTTOM);
-                             bytes = size;
-                             CSLIST_Insert(Fragments, szResponse, bytes, CSLIST_BOTTOM);
+                   }
+                   else {
 
-                             // Send everything back
+                     sprintf(szMessage,
+                             "<br/>TEXT-END: Got %lld bytes, DATA: <br/>",
+                             size);
 
-                             Count = CSLIST_Count(Fragments);
+                     CSLIST_Insert(Fragments, szMessage,
+                                   strlen(szMessage), CSLIST_BOTTOM);
+                     bytes = size;
 
-                             if (Count > 1) {
+                     CSLIST_Insert(Fragments, szResponse,
+                                   bytes, CSLIST_BOTTOM);
 
-                                size = CSLIST_ItemSize(Fragments, 0);
-                                bytes = sizeof(pFragment);
-                                CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
+                     // Send everything back
 
-                                CSWSCK_SecureSend(pCONN,
-                                                  CSWSCK_OPER_TEXT,
-                                                  pFragment,
-                                                  size,
-                                                  CSWSCK_FIN_OFF,
-                                                  -1);
+                     Count = CSLIST_Count(Fragments);
 
-                                for (i=1; i<Count-1; i++) {
+                     if (Count > 1) {
 
-                                   size = CSLIST_ItemSize(Fragments, i);
-                                   bytes = sizeof(pFragment);
-                                   CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
+                       size = CSLIST_ItemSize(Fragments, 0);
+                       bytes = sizeof(pFragment);
+                       CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
 
-                                   CSWSCK_SecureSend(pCONN,
-                                                     CSWSCK_OPER_CONTINUATION,
-                                                     pFragment,
-                                                     size,
-                                                     CSWSCK_FIN_OFF,
-                                                    -1);
-                                }
+                       CSWSCK_SecureSend(pCONN,
+                                         CSWSCK_OPER_TEXT,
+                                         pFragment,
+                                         size,
+                                         CSWSCK_FIN_OFF,
+                                         -1);
 
-                                size = CSLIST_ItemSize(Fragments, i);
-                                bytes = sizeof(pFragment);
-                                CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
+                       for (i=1; i<Count-1; i++) {
 
-                                CSWSCK_SecureSend(pCONN,
-                                                  CSWSCK_OPER_CONTINUATION,
-                                                  pFragment,
-                                                  size,
-                                                  CSWSCK_FIN_OFF,
-                                                  -1);
-                             }
-                             else {
+                         size = CSLIST_ItemSize(Fragments, i);
+                         bytes = sizeof(pFragment);
+                         CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
 
-                                size = CSLIST_ItemSize(Fragments, 0);
-                                bytes = sizeof(pFragment);
-                                CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
+                         CSWSCK_SecureSend(pCONN,
+                                           CSWSCK_OPER_CONTINUATION,
+                                           pFragment,
+                                           size,
+                                           CSWSCK_FIN_OFF,
+                                           -1);
+                       }
 
-                                CSWSCK_SecureSend(pCONN,
-                                                  CSWSCK_OPER_TEXT,
-                                                  pFragment,
-                                                  size,
-                                                  CSWSCK_FIN_OFF,
-                                                  -1);
-                             }
+                       size = CSLIST_ItemSize(Fragments, i);
+                       bytes = sizeof(pFragment);
+                       CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
 
-                             sprintf(szMessage,
-                                     "<br/>Total bytes received: %lld: <br/>",
-                                     totalBytes);
+                       CSWSCK_SecureSend(pCONN,
+                                         CSWSCK_OPER_CONTINUATION,
+                                         pFragment,
+                                         size,
+                                         CSWSCK_FIN_OFF,
+                                         -1);
+                     }
+                     else {
 
-                             CSWSCK_SecureSend(pCONN,
-                                               CSWSCK_OPER_CONTINUATION,
-                                               szMessage,
-                                               strlen(szMessage),
-                                               CSWSCK_FIN_ON,
-                                               -1);
+                       size = CSLIST_ItemSize(Fragments, 0);
+                       bytes = sizeof(pFragment);
+                       CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
 
-                             CSLIST_Clear(Fragments);
-                          }
+                       CSWSCK_SecureSend(pCONN,
+                                         CSWSCK_OPER_TEXT,
+                                         pFragment,
+                                         size,
+                                         CSWSCK_FIN_OFF,
+                                         -1);
+                     }
 
-                          free(szResponse);
+                     sprintf(szMessage,
+                             "<br/>Total bytes received: %lld: <br/>",
+                             totalBytes);
 
-                          break;
+                     CSWSCK_SecureSend(pCONN,
+                                       CSWSCK_OPER_CONTINUATION,
+                                       szMessage,
+                                       strlen(szMessage),
+                                       CSWSCK_FIN_ON,
+                                       -1);
 
-                       case CSWSCK_OPER_CLOSE:
+                     CSLIST_Clear(Fragments);
+                   }
 
-                          CSWSCK_SecureClose(pCONN, 0, 0, -1);
-                          hResult = CS_FAILURE; // to leave the loop
-                          break;
-                    }
-                 }
-              }
-              while (CS_SUCCEED(hResult));
+                   free(szResponse);
 
-              CSLIST_Destructor(&Fragments);
+                   break;
+
+                 case CSWSCK_OPER_CLOSE:
+
+                   CSWSCK_SecureClose(pCONN, 0, 0, -1);
+                   hResult = CS_FAILURE; // to leave the loop
+                   break;
+               }
+             }
            }
+           while (CS_SUCCEED(hResult));
 
-           close(conn_fd);
+           CSLIST_Destructor(&Fragments);
+         }
 
-           //////////////////////////////////////////////////////////////////
-           // Tell main daemon we can handle another connection
-           //////////////////////////////////////////////////////////////////
+         close(conn_fd);
 
-           send(stream_fd, &buffer, 1, 0);
-        }
+         //////////////////////////////////////////////////////////////////
+         // Tell main daemon we can handle another connection
+         //////////////////////////////////////////////////////////////////
+
+         send(stream_fd, &buffer, 1, 0);
+       }
      }
-  }
-  else {
+   }
+   else {
 
      ////////////////////////////////////////////////////////////////////////
      // This means this handler must activate a service program and
@@ -417,7 +434,9 @@ int main (int argc, char **argv)
 
      szInProcHandler[i] = 0;
 
-     pSrvPgm = rslvsp(WLI_SRVPGM, szSrvPgmName, szLibraryName, _AUTH_NONE);
+     pSrvPgm = rslvsp(WLI_SRVPGM, szSrvPgmName,
+                      szLibraryName, _AUTH_NONE);
+
      QleActBndPgm(&pSrvPgm, NULL, NULL, NULL, NULL);
      type = 0;
      CFS_Handler = 0;
@@ -426,41 +445,41 @@ int main (int argc, char **argv)
 
      if (CFS_Handler) {
 
-        for (;;) {
+       for (;;) {
 
-           //////////////////////////////////////////////////////////////////
-           // The main server will eventually hand over the connection socket
-           // needed to communicate with a client via the IPC descriptor
-           //////////////////////////////////////////////////////////////////
+         //////////////////////////////////////////////////////////////////
+         // The main server will eventually hand over the connection socket
+         // needed to communicate with a client via the IPC descriptor
+         //////////////////////////////////////////////////////////////////
 
-           hResult = CFS_ReceiveDescriptor(stream_fd, &conn_fd, -1);
+         hResult = CFS_ReceiveDescriptor(stream_fd, &conn_fd, -1);
 
-           if (CS_SUCCEED(hResult)) {
+         if (CS_SUCCEED(hResult)) {
 
-              // Adjust parameter values as needed
-              CFS_Handler(conn_fd, 0, 0, 0);
-              close(conn_fd);
-           }
+           // Adjust parameter values as needed
+           CFS_Handler(conn_fd, 0, 0, 0);
+           close(conn_fd);
+         }
 
-           //////////////////////////////////////////////////////////////////
-           // Tell main daemon we can handle another connection
-           //////////////////////////////////////////////////////////////////
+         //////////////////////////////////////////////////////////////////
+         // Tell main daemon we can handle another connection
+         //////////////////////////////////////////////////////////////////
 
-           send(stream_fd, &buffer, 1, 0);
-        }
+         send(stream_fd, &buffer, 1, 0);
+       }
      }
-  }
+   }
 
-  close(stream_fd);
+   close(stream_fd);
 
-  /* ------------------------------------------------------------------------
-    If you have registered a cancel handler
-    (see above at the beginning of the main() function).
-  ------------------------------------------------------------------------ */
+   /* ------------------------------------------------------------------------
+     If you have registered a cancel handler
+     (see above at the beginning of the main() function).
+   ------------------------------------------------------------------------ */
 
-  #pragma disable_handler
+   #pragma disable_handler
 
-  return 0;
+   return 0;
 
 }
 
