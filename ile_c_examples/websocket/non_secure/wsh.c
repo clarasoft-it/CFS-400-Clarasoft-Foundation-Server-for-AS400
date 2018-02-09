@@ -143,10 +143,6 @@ int main (int argc, char **argv)
 
   CFS_PROTOCOLHANDLERPROC CFS_Handler;  // Pointer to handler function
 
-  CFS_INSTANCE* pInstance;
-
-  CSSTRCV cvtString;
-
   /* ------------------------------------------------------------------------
 
    This code is to register a cleanup handler
@@ -189,168 +185,178 @@ int main (int argc, char **argv)
     exit(1);
   }
 
+
   if (!strcmp(argv[1], "*NOLINK")) {
+
+     send(stream_fd, &buffer, 1, 0);
 
      ////////////////////////////////////////////////////////////////////////
      // This means this handler implements the required service.
      ////////////////////////////////////////////////////////////////////////
 
-     for (;;) {
+    for (;;) {
 
-        /////////////////////////////////////////////////////////////////////
-        // The main server will eventually hand over the connection socket
-        // needed to communicate with a client via the IPC descriptor
-        /////////////////////////////////////////////////////////////////////
+      /////////////////////////////////////////////////////////////////////
+      // The main server will eventually hand over the connection socket
+      // needed to communicate with a client via the IPC descriptor
+      /////////////////////////////////////////////////////////////////////
 
-        hResult = CFS_ReceiveDescriptor(stream_fd, &conn_fd, -1);
+      hResult = CFS_ReceiveDescriptor(stream_fd, &conn_fd, -1);
 
-        if (CS_SUCCEED(hResult)) {
+      if (CS_SUCCEED(hResult)) {
 
-           //////////////////////////////////////////////////////////////////
-           // ECHO handler using CSWSCK non-secure functions
-           //////////////////////////////////////////////////////////////////
+        //////////////////////////////////////////////////////////////////
+        // ECHO handler using CSWSCK non-secure functions
+        //////////////////////////////////////////////////////////////////
 
-           pCONN = CSWSCK_OpenChannel(conn_fd, 0, 0);
+        pCONN = CSWSCK_OpenChannel(conn_fd, 0, 0);
 
-           if (pCONN != 0) {
+        if (pCONN != 0) {
 
-              Fragments = CSLIST_Constructor();
-              totalBytes = 0;
+          Fragments = CSLIST_Constructor();
+          totalBytes = 0;
 
-              do {
+          do {
 
-                 hResult = CSWSCK_Receive(pCONN, &size, -1);
+            hResult = CSWSCK_Receive(pCONN, &size, -1);
 
-                 if (CS_SUCCEED(hResult)) {
+            if (CS_SUCCEED(hResult)) {
 
-                    switch(CSWSCK_OPERATION(hResult)) {
+              switch(CSWSCK_OPERATION(hResult)) {
 
-                       case CSWSCK_OPER_TEXT:
-                       case CSWSCK_OPER_CONTINUATION:
+                case CSWSCK_OPER_TEXT:
+                case CSWSCK_OPER_CONTINUATION:
 
-                          szResponse = (char*)malloc(size * sizeof(char));
-                          totalBytes += size;
+                  szResponse = (char*)malloc(size * sizeof(char));
+                  totalBytes += size;
 
-                          CSWSCK_GetData(pCONN, szResponse, 0, size);
+                  CSWSCK_GetData(pCONN, szResponse, 0, size);
 
-                          if (CS_DIAG(hResult) == CSWSCK_MOREDATA) {
+                  if (CS_DIAG(hResult) == CSWSCK_MOREDATA) {
 
-                             sprintf(szMessage,
-                                     "TEXT: Got %lld bytes,"
-                                     " (waiting for more), DATA: ",
-                                     size);
+                    sprintf(szMessage,
+                            "TEXT: Got %lld bytes,"
+                            " (waiting for more), DATA: ",
+                            size);
 
-                             CSLIST_Insert(Fragments, szMessage, strlen(szMessage), CSLIST_BOTTOM);
-                             bytes = size;
-                             CSLIST_Insert(Fragments, szResponse, bytes, CSLIST_BOTTOM);
+                    CSLIST_Insert(Fragments, szMessage,
+                                  strlen(szMessage), CSLIST_BOTTOM);
 
-                          }
-                          else {
+                    bytes = size;
+                    CSLIST_Insert(Fragments, szResponse,
+                                  bytes, CSLIST_BOTTOM);
 
-                             sprintf(szMessage,
-                                     "TEXT-END: Got %lld bytes, DATA: ",
-                                     size);
+                  }
+                  else {
 
-                             CSLIST_Insert(Fragments, szMessage, strlen(szMessage), CSLIST_BOTTOM);
-                             bytes = size;
-                             CSLIST_Insert(Fragments, szResponse, bytes, CSLIST_BOTTOM);
+                    sprintf(szMessage,
+                            "TEXT-END: Got %lld bytes, DATA: ",
+                            size);
 
-                             // Send everything back
+                    CSLIST_Insert(Fragments, szMessage,
+                                  strlen(szMessage), CSLIST_BOTTOM);
+                    bytes = size;
+                    CSLIST_Insert(Fragments, szResponse,
+                                  bytes, CSLIST_BOTTOM);
 
-                             Count = CSLIST_Count(Fragments);
+                    // Send everything back
 
-                             if (Count > 1) {
+                    Count = CSLIST_Count(Fragments);
 
-                                size = CSLIST_ItemSize(Fragments, 0);
-                                bytes = sizeof(pFragment);
-                                CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
+                    if (Count > 1) {
 
-                                CSWSCK_Send(pCONN,
-                                            CSWSCK_OPER_TEXT,
-                                            pFragment,
-                                            size,
-                                            CSWSCK_FIN_OFF,
-                                            -1);
+                      size = CSLIST_ItemSize(Fragments, 0);
+                      bytes = sizeof(pFragment);
+                      CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
 
-                                for (i=1; i<Count-1; i++) {
+                      CSWSCK_Send(pCONN,
+                                  CSWSCK_OPER_TEXT,
+                                  pFragment,
+                                  size,
+                                  CSWSCK_FIN_OFF,
+                                  -1);
 
-                                   size = CSLIST_ItemSize(Fragments, i);
-                                   bytes = sizeof(pFragment);
-                                   CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
+                      for (i=1; i<Count-1; i++) {
 
-                                   CSWSCK_Send(pCONN,
-                                               CSWSCK_OPER_CONTINUATION,
-                                               pFragment,
-                                               size,
-                                               CSWSCK_FIN_OFF,
-                                               -1);
-                                }
+                        size = CSLIST_ItemSize(Fragments, i);
+                        bytes = sizeof(pFragment);
+                        CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
 
-                                size = CSLIST_ItemSize(Fragments, i);
-                                bytes = sizeof(pFragment);
-                                CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
+                        CSWSCK_Send(pCONN,
+                                    CSWSCK_OPER_CONTINUATION,
+                                    pFragment,
+                                    size,
+                                    CSWSCK_FIN_OFF,
+                                    -1);
+                      }
 
-                                CSWSCK_Send(pCONN,
-                                            CSWSCK_OPER_CONTINUATION,
-                                            pFragment,
-                                            size,
-                                            CSWSCK_FIN_OFF,
-                                            -1);
-                             }
-                             else {
+                      size = CSLIST_ItemSize(Fragments, i);
+                      bytes = sizeof(pFragment);
+                      CSLIST_GetDataRef(Fragments, &pFragment, &bytes, i);
 
-                                size = CSLIST_ItemSize(Fragments, 0);
-                                bytes = sizeof(pFragment);
-                                CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
-
-                                CSWSCK_Send(pCONN,
-                                            CSWSCK_OPER_TEXT,
-                                            pFragment,
-                                            size,
-                                            CSWSCK_FIN_OFF,
-                                            -1);
-                             }
-
-                             sprintf(szMessage,
-                                     "<br/>Total bytes received: %lld: <br/>",
-                                     totalBytes);
-
-                             CSWSCK_Send(pCONN,
-                                         CSWSCK_OPER_CONTINUATION,
-                                         szMessage,
-                                         strlen(szMessage),
-                                         CSWSCK_FIN_ON,
-                                         -1);
-
-                             CSLIST_Clear(Fragments);
-                          }
-
-                          free(szResponse);
-
-                          break;
-
-                       case CSWSCK_OPER_CLOSE:
-
-                          CSWSCK_Close(pCONN, 0, 0, -1);
-                          hResult = CS_FAILURE; // to leave the loop
-                          break;
+                      CSWSCK_Send(pCONN,
+                                  CSWSCK_OPER_CONTINUATION,
+                                  pFragment,
+                                  size,
+                                  CSWSCK_FIN_OFF,
+                                  -1);
                     }
-                 }
+                    else {
+
+                      size = CSLIST_ItemSize(Fragments, 0);
+                      bytes = sizeof(pFragment);
+                      CSLIST_GetDataRef(Fragments, &pFragment, &bytes, 0);
+
+                      CSWSCK_Send(pCONN,
+                                  CSWSCK_OPER_TEXT,
+                                  pFragment,
+                                  size,
+                                  CSWSCK_FIN_OFF,
+                                  -1);
+                    }
+
+                    sprintf(szMessage,
+                            "<br/>Total bytes received: %lld: <br/>",
+                            totalBytes);
+
+                    CSWSCK_Send(pCONN,
+                                CSWSCK_OPER_CONTINUATION,
+                                szMessage,
+                                strlen(szMessage),
+                                CSWSCK_FIN_ON,
+                                -1);
+
+                    CSLIST_Clear(Fragments);
+                  }
+
+                  free(szResponse);
+
+                  break;
+
+                case CSWSCK_OPER_CLOSE:
+
+                  CSWSCK_Close(pCONN, 0, 0, -1);
+                  hResult = CS_FAILURE; // to leave the loop
+                  break;
               }
-              while (CS_SUCCEED(hResult));
+            }
+          }
+          while (CS_SUCCEED(hResult));
 
-              CSLIST_Destructor(&Fragments);
-           }
-
-           close(conn_fd);
-
-           //////////////////////////////////////////////////////////////////
-           // Tell main daemon we can handle another connection
-           //////////////////////////////////////////////////////////////////
-
-           send(stream_fd, &buffer, 1, 0);
         }
-     }
+
+        close(conn_fd);
+
+        //////////////////////////////////////////////////////////////////
+        // Tell main daemon we can handle another connection
+        //////////////////////////////////////////////////////////////////
+
+        send(stream_fd, &buffer, 1, 0);
+      }
+    }
+
+    CSLIST_Destructor(&Fragments);
+
   }
   else {
 
@@ -404,7 +410,9 @@ int main (int argc, char **argv)
 
      szInProcHandler[i] = 0;
 
-     pSrvPgm = rslvsp(WLI_SRVPGM, szSrvPgmName, szLibraryName, _AUTH_NONE);
+     pSrvPgm = rslvsp(WLI_SRVPGM, szSrvPgmName,
+                              szLibraryName, _AUTH_NONE);
+
      QleActBndPgm(&pSrvPgm, NULL, NULL, NULL, NULL);
      type = 0;
      CFS_Handler = 0;
