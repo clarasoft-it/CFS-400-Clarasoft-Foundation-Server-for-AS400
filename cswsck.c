@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include "QSYSINC/H/QC3HASH"
 
@@ -428,7 +429,7 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
         // Convert from ASCII to EBCDIC
         /////////////////////////////////////////////////////////////////////
 
-        CSSTRCV_SetConversion(This->cvt, CCSID_ASCII, CCSID_JOBDEFAULT);
+        CSSTRCV_SetConversion(This->cvt, "00819", "00000");
         CSSTRCV_StrCpy(This->cvt, szHTTPRequest, size);
         size = CSSTRCV_Size(This->cvt);
         CSSTRCV_Get(This->cvt, szHTTPRequest);
@@ -560,7 +561,7 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
         strcat(szKeyHash, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
 
         // compute SHA-1 hash; for this we need to convert challenge to ASCII
-        CSSTRCV_SetConversion(This->cvt, CCSID_JOBDEFAULT, CCSID_ASCII);
+        CSSTRCV_SetConversion(This->cvt, "00000", "00819");
         CSSTRCV_StrCpy(This->cvt, szKeyHash, strlen(szKeyHash));
         CSSTRCV_Get(This->cvt, szKeyHash);
 
@@ -590,9 +591,9 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
         // The hash needs to be encoded to BASE64
         /////////////////////////////////////////////////////////////////////
 
-        CSSTRCV_SetConversion(This->cvt, CCSID_ASCII, CCSID_JOBDEFAULT);
-        CSSTRCV_StrCpy(This->cvt, szHash, strlen(szHash));
-        CSSTRCV_Get(This->cvt, szHash);
+        //CSSTRCV_SetConversion(This->cvt, "00819", "00000");
+        //CSSTRCV_StrCpy(This->cvt, szHash, strlen(szHash));
+        //CSSTRCV_Get(This->cvt, szHash);
 
         CSSTR_ToBase64(szHash, 20, szChallenge, 128);
 
@@ -609,9 +610,9 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
         size = (uint64_t)strlen(szHTTPResponse);
 
         // Convert response to ASCII
-        CSSTRCV_SetConversion(This->cvt, CCSID_JOBDEFAULT, CCSID_ASCII);
-        CSSTRCV_StrCpy(This->cvt, szHTTPResponse, size);
-        CSSTRCV_Get(This->cvt, szHTTPResponse);
+        //CSSTRCV_SetConversion(This->cvt, "00000", "00819");
+        //CSSTRCV_StrCpy(This->cvt, szHTTPResponse, size);
+        //CSSTRCV_Get(This->cvt, szHTTPResponse);
 
         hResult = CFS_Write(This->Connection,
                             szHTTPResponse,
@@ -996,7 +997,7 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
            // This means the data is UTF8 format
            //////////////////////////////////////////////////////////////////
 
-           CSSTRCV_SetConversion(This->cvt, CCSID_UTF8, CCSID_JOBDEFAULT);
+           CSSTRCV_SetConversion(This->cvt, "01208", "00000");
            CSSTRCV_StrCpy(This->cvt, This->dataBuffer, This->dataSize);
 
            iSize = CSSTRCV_Size(This->cvt);
@@ -1335,7 +1336,7 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
         // Convert from ASCII to EBCDIC
         /////////////////////////////////////////////////////////////////////
 
-        CSSTRCV_SetConversion(This->cvt, CCSID_ASCII, CCSID_JOBDEFAULT);
+        CSSTRCV_SetConversion(This->cvt, "00819", "00000");
         CSSTRCV_StrCpy(This->cvt, szHTTPRequest, size);
         size = CSSTRCV_Size(This->cvt);
         CSSTRCV_Get(This->cvt, szHTTPRequest);
@@ -1467,7 +1468,7 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
         strcat(szKeyHash, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
 
         // compute SHA-1 hash; for this we need to convert challenge to ASCII
-        CSSTRCV_SetConversion(This->cvt, CCSID_JOBDEFAULT, CCSID_ASCII);
+        CSSTRCV_SetConversion(This->cvt, "00000", "00819");
         CSSTRCV_StrCpy(This->cvt, szKeyHash, strlen(szKeyHash));
         CSSTRCV_Get(This->cvt, szKeyHash);
 
@@ -1497,9 +1498,9 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
         // The hash needs to be encoded to BASE64
         /////////////////////////////////////////////////////////////////////
 
-        CSSTRCV_SetConversion(This->cvt, CCSID_ASCII, CCSID_JOBDEFAULT);
-        CSSTRCV_StrCpy(This->cvt, szHash, strlen(szHash));
-        CSSTRCV_Get(This->cvt, szHash);
+        //CSSTRCV_SetConversion(This->cvt, "00819", "00000");
+        //CSSTRCV_StrCpy(This->cvt, szHash, strlen(szHash));
+        //CSSTRCV_Get(This->cvt, szHash);
 
         CSSTR_ToBase64(szHash, 20, szChallenge, 128);
 
@@ -1516,9 +1517,9 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
         size = (uint64_t)strlen(szHTTPResponse);
 
         // Convert response to ASCII
-        CSSTRCV_SetConversion(This->cvt, CCSID_JOBDEFAULT, CCSID_ASCII);
-        CSSTRCV_StrCpy(This->cvt, szHTTPResponse, size);
-        CSSTRCV_Get(This->cvt, szHTTPResponse);
+        //CSSTRCV_SetConversion(This->cvt, "00000", "00819");
+        //CSSTRCV_StrCpy(This->cvt, szHTTPResponse, size);
+        //CSSTRCV_Get(This->cvt, szHTTPResponse);
 
         hResult = CFS_SecureWrite(This->Connection,
                                   szHTTPResponse,
@@ -1911,7 +1912,7 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
            // This means the data is UTF8 format
            //////////////////////////////////////////////////////////////////
 
-           CSSTRCV_SetConversion(This->cvt, CCSID_UTF8, CCSID_JOBDEFAULT);
+           CSSTRCV_SetConversion(This->cvt, "01208", "00000");
            CSSTRCV_StrCpy(This->cvt, This->dataBuffer, This->dataSize);
 
            iSize = CSSTRCV_Size(This->cvt);
@@ -2159,7 +2160,7 @@ CSRESULT CSWSCK_SecureSend(CSWSCK*  This,
         // Convert data to UTF8
         /////////////////////////////////////////////////////////////////////
 
-        CSSTRCV_SetConversion(This->cvt, CCSID_JOBDEFAULT, CCSID_UTF8);
+        CSSTRCV_SetConversion(This->cvt, "00000", "01208");
         CSSTRCV_StrCpy(This->cvt, data, iDataSize);
         iOutDataSize = CSSTRCV_Size(This->cvt);
 
@@ -2365,7 +2366,7 @@ CSRESULT CSWSCK_Send(CSWSCK*  This,
         // Convert data to UTF8
         /////////////////////////////////////////////////////////////////////
 
-        CSSTRCV_SetConversion(This->cvt, CCSID_JOBDEFAULT, CCSID_UTF8);
+        CSSTRCV_SetConversion(This->cvt, "00000", "01208");
         CSSTRCV_StrCpy(This->cvt, data, iDataSize);
         iOutDataSize = CSSTRCV_Size(This->cvt);
 
