@@ -3,8 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.IO;
 
-
-
+ 
 namespace cfs_client
 {
     partial class cfs_client
