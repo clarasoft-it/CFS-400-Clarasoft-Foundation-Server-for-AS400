@@ -42,25 +42,21 @@
 
 typedef void* CSLIST;
 
+void
+  CSLIST_Clear
+    (CSLIST This);
+
 CSLIST
   CSLIST_Constructor
     (void);
 
+long
+  CSLIST_Count
+    (CSLIST This);
+
 void
   CSLIST_Destructor
     (CSLIST*);
-
-CSRESULT
-  CSLIST_Insert
-    (CSLIST This,
-     void*   value,
-     long    valueSize,
-     long    index);
-
-CSRESULT
-  CSLIST_Remove
-    (CSLIST This,
-     long    index);
 
 CSRESULT
   CSLIST_Get
@@ -70,19 +66,18 @@ CSRESULT
      long    index);
 
 CSRESULT
-  CSLIST_Set
+  CSLIST_GetDataRef
+    (CSLIST This,
+     void**  value,
+     long*   valueSize,
+     long    index);
+
+CSRESULT
+  CSLIST_Insert
     (CSLIST This,
      void*   value,
      long    valueSize,
      long    index);
-
-long
-  CSLIST_Count
-    (CSLIST This);
-
-void
-  CSLIST_Clear
-    (CSLIST This);
 
 long
   CSLIST_ItemSize
@@ -90,10 +85,15 @@ long
      long    index);
 
 CSRESULT
-  CSLIST_GetDataRef
+  CSLIST_Remove
     (CSLIST This,
-     void**  value,
-     long*   valueSize,
+     long    index);
+
+CSRESULT
+  CSLIST_Set
+    (CSLIST This,
+     void*   value,
+     long    valueSize,
      long    index);
 
 #endif
