@@ -2,16 +2,48 @@
   Clarasoft Foundation Server 400
 
   clarah.c
-  Clara daemon handler job
-
+  Clara daemon non-secure handler job
   Version 1.0.0
 
+  Command line arguments
+     - protocol implementation name
+     If argument is *NOLINK, then this handler implements
+     the protocol implementation. Any other value identifies
+     an implementation exported by a service program.
+
   Compile module with:
+
      CRTSQLCI OBJ(CLARAH) SRCFILE(QCSRC)
               SRCMBR(CLARAH) DBGVIEW(*SOURCE)
 
   Build program with:
+
      CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
+
+
+
+  To use this handler's static implementation, call the
+  clarad daemon as follow:
+
+    call clarad parm('41101' '5' '10' '/QSYS.LIB/MYLIB.LIB/CLARAHS.PGM'
+                     '*NOLINK')
+
+  To use this handler's dynamically bound implementation, call the
+  clarad daemon as follow:
+
+    call clarad parm('41101' '5' '10' '/QSYS.LIB/MYLIB.LIB/CLARAHS.PGM'
+                     'ECHO')
+
+  In the above call, the dynamically bound implementation information
+  is stored in the CFSREG file under the ECHO key value field.
+
+  This corresponding record in the CFSREG file might look like this:
+
+  RGSRVNM: ECHO       // Last argument to the clarad daemon
+  RGLIBNM: MYLIB      // The library where the service program resides
+  RGPRCHD: ECHOHDLR   // The service program name
+  RGPRCNM: echo       // The case sensitive name of exported function
+                      // for non secure session
 
   Distributed under the MIT license
 
@@ -91,7 +123,7 @@ int main (int argc, char **argv)
 
   CFS_PROTOCOLHANDLERPROC CFS_Handler;  // Pointer to handler function
 
-  CFS_INSTANCE* pInstance;
+  CFS_INSTANCE pInstance;
 
   CSSTRCV cvtString;
 
@@ -376,4 +408,5 @@ void Cleanup(_CNL_Hndlr_Parms_T* data) {
    close(stream_fd);
    close(conn_fd);
 }
+
 
