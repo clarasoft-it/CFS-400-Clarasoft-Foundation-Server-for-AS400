@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
   // Prepare to connect; we use FTP SSL certificate (application id)
   sessionInfo.szApplicationID = appID;
   sessionInfo.port = 41101;
-  strcpy(szHost, "dvuap001.uapinc.com");
+  strcpy(szHost, "myserver.com");
   sessionInfo.szHostName = szHost;
   sessionInfo.connTimeout = 10;
 
