@@ -53,60 +53,18 @@
 
 typedef void* CSSTRCV;
 
-CSSTRCV
-  CSSTRCV_Constructor
-    (void);
-
-CSRESULT
-  CSSTRCV_Destructor
-    (CSSTRCV* This);
-
-CSRESULT
-  CSSTRCV_SetConversion
-    (CSSTRCV This,
-     char* szFromCCSID,
-     char* szToCCSID);
-
-CSRESULT
-  CSSTRCV_StrCpy
-    (CSSTRCV This,
-     char*  inBuff,
-     long   size);
-
-CSRESULT
-  CSSTRCV_StrCat
-    (CSSTRCV This,
-     char*  inBuff,
-     long   size);
-
-long
-  CSSTRCV_Size
-    (CSSTRCV);
-
-long
-  CSSTRCV_Get
-    (CSSTRCV This,
-     char*  outBuffer);
+uint64_t
+  CSSTR_FromBase64Ex
+    (unsigned char* inBuffer,
+     uint64_t   inSize,
+     unsigned char* outBuffer,
+     uint64_t   outSize,
+     int flags);
 
 char*
   CSSTR_StrTok
     (char* szBuffer,
      char*szDelimiter);
-
-long
-  CSSTR_Trim
-    (char* szTarget,
-     char* szSource);
-
-int
-  CSSTR_ToUpperCase
-    (char* buffer,
-     int size);
-
-int
-  CSSTR_ToLowerCase
-    (char* buffer,
-     int size);
 
 uint64_t
   CSSTR_ToBase64
@@ -116,20 +74,33 @@ uint64_t
      uint64_t   outSize);
 
 uint64_t
-  CSSTR_FromBase64Ex
-    (unsigned char* inBuffer,
-     uint64_t   inSize,
-     unsigned char* outBuffer,
-     uint64_t   outSize,
-     int flags);
-
-uint64_t
   CSSTR_ToBase64Ex
     (unsigned char* inBuffer,
      uint64_t   inSize,
      unsigned char* outBuffer,
      uint64_t   outSize,
      int flags);
+
+int
+  CSSTR_ToLowerCase
+    (char* buffer,
+     int size);
+
+int
+  CSSTR_ToUpperCase
+    (char* buffer,
+     int size);
+
+long
+  CSSTR_Trim
+    (char* szTarget,
+     char* szSource);
+
+uint64_t
+  CSSTR_UrlDecode
+    (unsigned char* in,
+     unsigned char* out,
+     uint64_t size);
 
 uint64_t
   CSSTR_UrlEncode
@@ -139,11 +110,39 @@ uint64_t
      uint64_t size,
      int flags);
 
-uint64_t
-  CSSTR_UrlDecode
-    (unsigned char* in,
-     unsigned char* out,
-     uint64_t size);
+CSSTRCV
+  CSSTRCV_Constructor
+    (void);
 
+CSRESULT
+  CSSTRCV_Destructor
+    (CSSTRCV* This);
+
+long
+  CSSTRCV_Get
+    (CSSTRCV This,
+     char*  outBuffer);
+
+CSRESULT
+  CSSTRCV_SetConversion
+    (CSSTRCV This,
+     char* szFromCCSID,
+     char* szToCCSID);
+
+long
+  CSSTRCV_Size
+    (CSSTRCV);
+
+CSRESULT
+  CSSTRCV_StrCat
+    (CSSTRCV This,
+     char*  inBuff,
+     long   size);
+
+CSRESULT
+  CSSTRCV_StrCpy
+    (CSSTRCV This,
+     char*  inBuff,
+     long   size);
 
 #endif
