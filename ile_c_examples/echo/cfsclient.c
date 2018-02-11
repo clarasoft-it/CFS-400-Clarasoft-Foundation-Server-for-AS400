@@ -12,16 +12,8 @@
 
   Create program with:
 
-  CRTPGM PGM(ZFSOUCIE/CFSCLIENT) BNDSRVPGM((CFSAPI))
+  CRTPGM PGM(CFSCLIENT) BNDSRVPGM((CFSAPI))
 
-  For non secure client, call with:
-  
-    call cfsclient parm(' ')
-
-  For secure client, call with:
-  
-    call cfsclient parm('s')
-    
   Distributed under the MIT license
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
 
@@ -88,7 +80,7 @@ int main(int argc, char** argv) {
   // Prepare to connect; we use FTP SSL certificate (application id)
   sessionInfo.szApplicationID = appID;
   sessionInfo.port = 41101;
-  strcpy(szHost, "myserver.com");
+  strcpy(szHost, "dvuap001.uapinc.com");
   sessionInfo.szHostName = szHost;
   sessionInfo.connTimeout = 10;
 
@@ -114,7 +106,7 @@ int main(int argc, char** argv) {
              (pInstance,
               szData,
               &size,
-              10,
+              -1,
               &iSSLResult);
 
       if (CS_SUCCEED(rc)) {
@@ -126,11 +118,11 @@ int main(int argc, char** argv) {
                (pInstance,
                 szData,
                 &size,
-                10,
+                -1,
                 &iSSLResult);
 
-        size = AsciiToEbcdic(cvtString, szData, szData);
         szData[size] = 0;
+        size = AsciiToEbcdic(cvtString, szData, szData);
 
         // Send quit signal to server
 
@@ -142,7 +134,7 @@ int main(int argc, char** argv) {
                (pInstance,
                 szData,
                 &size,
-                10,
+                -1,
                 &iSSLResult);
 
         size = 255;
@@ -150,11 +142,11 @@ int main(int argc, char** argv) {
                (pInstance,
                 szData,
                 &size,
-                10,
+                -1,
                 &iSSLResult);
 
-        size = AsciiToEbcdic(cvtString, szData, szData);
         szData[size] = 0;
+        size = AsciiToEbcdic(cvtString, szData, szData);
       }
 
       CFS_SecureClose(pInstance);
@@ -171,7 +163,6 @@ int main(int argc, char** argv) {
                   (void*)(&sessionInfo),
                   CFS_CLIENTSESSION_FMT_100);
 
-
     if (pInstance != NULL) {
 
       strcpy(szData, "Hello World!");
@@ -181,7 +172,7 @@ int main(int argc, char** argv) {
              (pInstance,
               szData,
               &size,
-              10);
+              -1);
 
       if (CS_SUCCEED(rc)) {
 
@@ -192,10 +183,10 @@ int main(int argc, char** argv) {
                (pInstance,
                 szData,
                 &size,
-                10);
+                -1);
 
-        size = AsciiToEbcdic(cvtString, szData, szData);
         szData[size] = 0;
+        size = AsciiToEbcdic(cvtString, szData, szData);
 
         // Send quit signal to server
 
@@ -207,17 +198,17 @@ int main(int argc, char** argv) {
                (pInstance,
                 szData,
                 &size,
-                10);
+                -1);
 
         size = 255;
         rc = CFS_Read
                (pInstance,
                 szData,
                 &size,
-                10);
+                -1);
 
-        size = AsciiToEbcdic(cvtString, szData, szData);
         szData[size] = 0;
+        size = AsciiToEbcdic(cvtString, szData, szData);
       }
 
       CFS_Close(pInstance);
