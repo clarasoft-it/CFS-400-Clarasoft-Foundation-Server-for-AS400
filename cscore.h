@@ -1,35 +1,6 @@
 
-/* ==========================================================================
-  Clarasoft Core Tools
-  
-  cscore.h
-  Clarasoft Core definitions
-  Version 1.0.0
-  
-  
-  Distributed under the MIT license
-  
-  Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-  Permission is hereby granted, free of charge, to any person obtaining
-  a copy of this software and associated documentation files
-  (the "Software"), to deal in the Software without restriction,
-  including without limitation the rights to use, copy, modify,
-  merge, publish, distribute, sublicense, and/or sell
-  copies of the Software, and to permit persons to whom the Software is
-  furnished to do so, subject to the following conditions:
-  The above copyright notice and this permission notice shall be
-  included in all copies or substantial portions of the Software.
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-  EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
-  ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
-  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
-  THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-========================================================================== */
- 
-#ifndef __CSCORE_H__
-#define __CSCORE_H__
+#ifndef __CLARASOFT_CSCORE_H__
+#define __CLARASOFT_CSCORE_H__
 
 #define CS_SUCCESS      (0x00000000)
 #define CS_FAILURE      (0x80000000)
@@ -42,18 +13,8 @@
 #define CS_OPER(x)      ((x) & (CS_MASK_OPER))
 #define CS_DIAG(x)      ((x) & (CS_MASK_DIAG))
 
-
 #define CS_OPER_NOVALUE           0x00000000
-
-
 #define CS_DIAG_NOVALUE           0x00000000
-
-
-/* --------------------------------------------------------------------------
-  The macro names are meant to reference a corresponding
-  errno value that can be returned from a system call. The actual values
-  are not those of the errno values as those are system dependant.
--------------------------------------------------------------------------- */
 
 #define CS_DIAG_EDOM              0x0000F001
 #define CS_DIAG_ERANGE            0x0000F002
@@ -67,6 +28,7 @@
 #define CS_DIAG_ESTDERR           0x0000F00A
 #define CS_DIAG_EBADSEEK          0x0000F00B
 #define CS_DIAG_EBADNAME          0x0000F00C
+
 #define CS_DIAG_EBADMODE          0x0000F00D
 #define CS_DIAG_EBADPOS           0x0000F00E
 #define CS_DIAG_ENOPOS            0x0000F00F
@@ -198,3 +160,4 @@
 typedef long CSRESULT;
 
 #endif
+
