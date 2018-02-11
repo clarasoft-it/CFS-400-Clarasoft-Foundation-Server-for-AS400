@@ -3268,9 +3268,9 @@ CFS_INSTANCE*
                break;  // leave loop
              }
              else {
+               close(cfsi->connfd);
                free(cfsi);
                cfsi = NULL;
-               close(cfsi->connfd);
              }
            }
          }
