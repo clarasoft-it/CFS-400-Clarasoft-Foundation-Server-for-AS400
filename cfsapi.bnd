@@ -11,8 +11,6 @@
              EXPORT     SYMBOL('CFS_SecureClose')
              EXPORT     SYMBOL('CFS_SecureConnect')
              EXPORT     SYMBOL('CFS_SecureOpenChannel')
-             EXPORT     SYMBOL('CFS_SecureInitClient')
-             EXPORT     SYMBOL('CFS_SecureInitServer')
              EXPORT     SYMBOL('CFS_SecureRead')
              EXPORT     SYMBOL('CFS_SecureReadRecord')
              EXPORT     SYMBOL('CFS_SecureWrite')
