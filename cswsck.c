@@ -108,17 +108,17 @@ CSRESULT
      uint64_t  iDataSize,
      int       timeout);
 
+CSWSCK*
+  CSWSCK_Connect
+    (void* sessionInfo,
+     int   sessionInfoFmt);
+
 CSRESULT
   CSWSCK_GetData
     (CSWSCK*   This,
      char*     szBuffer,
      uint64_t  offset,
      uint64_t  iMaxDataSize);
-
-CSWSCK*
-  CSWSCK_Connect
-    (void* sessionInfo,
-     int   sessionInfoFmt);
 
 CSWSCK*
   CSWSCK_OpenChannel
@@ -198,30 +198,6 @@ uint64_t htonll(const uint64_t value);
 // Closes the websocket session: this sends the CLOSE websocket operation
 // to the peer. The connection is then closed.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_OpenClient() or the CSWSCK_OpenServer()
-//       function to initialise this instance.
-//
-// szBuffer: A pointer to the data that is to be sent alonside the CLOSE
-//           operation.
-//
-// iDataSize: The number of bytes to send. This is the size of the buffer
-//            pointed to by the szBuffer parameter.
-//
-// timeout: The maximum number of seconds to wait before returning
-//          from the attempt to send the CLOSE operation.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CSWSCK_Close(CSWSCK*  This,
@@ -252,35 +228,27 @@ CSRESULT CSWSCK_Close(CSWSCK*  This,
 
 //////////////////////////////////////////////////////////////////////////////
 //
+// CSWSCK_Connect
+//
+// Establishes a non-secure connection to a websocket server.
+// NOT IMPLEMENTED YET.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSWSCK*
+  CSWSCK_Connect
+    (void* sessionInfo,
+     int   sessionInfoFmt) {
+
+
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
 // CSWSCK_GetData
 //
 // Copies the data received from a peer to a supplied buffer. This function
 // can be used on either secure or non-secure connections.
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       one the CSWSCK_*Open*() functions to initialise this instance.
-//
-// szBuffer: A pointer to a buffer that will receive the data.
-//
-// offset: Am integer representing the number of bytes from which to
-//         start the copy from the internal data buffer. Data is always
-//         copied to the first byte of the szBuffer parameter but the
-//         copy operation may start from any byte from the internal
-//         buffer as specified by this parameter.
-//
-// iMaxDataSize: The maximum number of bytes to copy into the supplied buffer.
-//               If the internal buffer is larger, then the data is partially
-//               copied up to the supplied buffer size.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -304,37 +272,6 @@ CSRESULT CSWSCK_GetData(CSWSCK*   This,
 // CSWSCK_OpenChannel
 //
 // Opens a non-secure websocket server session.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// connfd: A socket descriptor to a TCP connection. This socket must be
-//         already connected.
-//
-// szAppId: This parameter is ignored in this version.
-//
-// szOverflow: A pointer to a buffer that will receive any extra data
-//             received from a web socket client. This should never
-//             happen in practice and is just a precautionary measure.
-//             If this parameter is NULL, then overflow data is ignored.
-//
-// iOverflowMax: The maximum number of overflow bytes to copy into the
-//               szOverflow buffer, if not NULL.
-//
-// sessionInfo: The address of a data structure that will hold additional
-//              data needed to establish a server session. At present, this
-//              parameter is ignored.
-//
-// sessionInfoFmt: An integer identifying the format of the sessionInfo
-//                 data structure. At present, this parameter is ignored.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    A pointer to a CSWSCK instance or NULL if the operation failed.
-//
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -496,7 +433,7 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
            if (token == 0)
              break;
 
-           CSSTR_Trim(szHTTPHeader, token);
+           CSSTR_Trim(token, szHTTPHeader);
            CSSTR_ToUpperCase(szHTTPHeader, 1024);
 
            if (!strcmp(szHTTPHeader, "SEC-WEBSOCKET-KEY")) {
@@ -504,7 +441,7 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
               token = CSSTR_StrTok(0, szColon);
 
               if (token) {
-                 CSSTR_Trim(szKeyHash, token);
+                 CSSTR_Trim(token, szKeyHash);
               }
            }
            else if (!strcmp(token, "CONNECTION")) {
@@ -512,7 +449,7 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
               token = CSSTR_StrTok(0, szColon);
 
               if (token)
-                 CSSTR_Trim(szTempBuff, token);
+                 CSSTR_Trim(token, szTempBuff);
 
               // This header can hold comma-separated values.
               // We want to find the upgrade header among the
@@ -522,7 +459,7 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
 
               while (token != 0) {
 
-                 CSSTR_Trim(szTempBuff_2, token);
+                 CSSTR_Trim(token, szTempBuff_2);
 
                  CSSTR_ToUpperCase(szTempBuff_2, 1024);
 
@@ -540,14 +477,14 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
               token = CSSTR_StrTok(0, szColon);
 
               if (token)
-                 CSSTR_Trim(szUpgrade, token);
+                 CSSTR_Trim(token, szUpgrade);
            }
            else if (!strcmp(token, "SEC-WEBSOCKET-VERSION")) {
 
               token = CSSTR_StrTok(0, szColon);
 
               if (token)
-                 CSSTR_Trim(szWebSocketVersion, token);
+                 CSSTR_Trim(token, szWebSocketVersion);
            }
         }
 
@@ -655,38 +592,6 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
 //
 // Sends a PING request over a non-secure connection.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_OpenClient() or the CSWSCK_OpenServer()
-//       function to initialise this instance.
-//
-// szData: The address of a data buffer that contains the data to send
-//         over to the peer.
-//
-// iDataSize: The number of bytes in the buffer pointed to by szData.
-//
-// timeout: The number of seconds to wait for the PING operation to
-//          succeed.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//    CS_FAILURE | CSWSCK_OPER_PING | CSWSCK_E_PARTIALDATA
-//
-//       Converting the data from EBCDIC to UTF8 yielded a number of
-//       bytes larger than 125 bytes, which is the maximum number of
-//       bytes to send alongside a PING oepration.
-//
-//    CS_FAILURE | CSWSCK_OPER_PING | diagnostics from CFSAPI
-//
-//       A networking error occured.
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CSWSCK_Ping(CSWSCK*   This,
@@ -772,49 +677,6 @@ CSRESULT CSWSCK_Ping(CSWSCK*   This,
 // CSWSCK_Receive
 //
 // Waits for a websocket operation from a peer.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_OpenClient() or the CSWSCK_OpenServer()
-//       function to initialise this instance.
-//
-// iDataSize: The address of an unsigned 64 bit integer that will receive
-//            the number of data bytes that were received. If the return
-//            value is CS_FAILURE, this value is undefined and shouild
-//            not be trusted.
-//
-// timeout: the number of seconds to wait for the peer.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//       This code can be combined with the following oepration codes:
-//
-//         CSWSCK_OPER_CONTINUATION
-//         CSWSCK_OPER_TEXT
-//         CSWSCK_OPER_BINARY
-//         CSWSCK_OPER_CLOSE
-//
-//       This code indicates which websocket
-//       operaation was erceived from the peer.
-//
-//       The success code may be supplemented with the following
-//       diagnostic codes
-//
-//          CSWSCK_ALLDATA
-//          CSWSCK_MOREDATA
-//
-//       When CSWSCK_MOREDATA is returned, this means the fin bit
-//       was off and that a continuation packet can be expected.
-//
-//    CS_FAILURE
-//
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1154,29 +1016,6 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
 // Closes a secure session: this sends the CLOSE websocket operation
 // to the peer. The connection is then closed.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_SecureOpenClient() or the CSWSCK_SecureOpenServer()
-//       function to initialise this instance.
-//
-// szData: The address of a data buffer that contains the data to send
-//         over to the peer.
-//
-// iDataSize: The number of bytes in the buffer pointed to by szData.
-//
-// timeout: The number of seconds to wait for the PING operation to
-//          succeed.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CSWSCK_SecureClose(CSWSCK*   This,
@@ -1207,40 +1046,26 @@ CSRESULT CSWSCK_SecureClose(CSWSCK*   This,
 
 //////////////////////////////////////////////////////////////////////////////
 //
+// CSWSCK_SecureConnect
+//
+// Establishes a secure connection to a websocket server.
+// NOT IMPLEMENTED YET.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSWSCK*
+  CSWSCK_SecureConnect
+    (void* sessionInfo,
+     int   sessionInfoFmt) {
+
+
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
 // CSWSCK_SecureOpenChannel
 //
 // Opens a secure websocket session.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// connfd: A socket descriptor to a TCP connection. This socket must be
-//         already connected.
-//
-// szAppId: This parameter is ignored in this version.
-//
-// szOverflow: A pointer to a buffer that will receive any extra data
-//             received from a web socket client. This should never
-//             happen in practice and is just a precautionary measure.
-//             If this parameter is NULL, then overflow data is ignored.
-//
-// iOverflowMax: The maximum number of overflow bytes to copy into the
-//               szOverflow buffer, if not NULL.
-//
-// sessionInfo: The address of a data structure that will hold additional
-//              data needed to establish a server session. At present, this
-//              parameter is ignored.
-//
-// sessionInfoFmt: An integer identifying the format of the sessionInfo
-//                 data structure. At present, this parameter is ignored.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    A pointer to a CSWSCK instance or NULL if the operation failed.
-//
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1403,7 +1228,7 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
            if (token == 0)
              break;
 
-           CSSTR_Trim(szHTTPHeader, token);
+           CSSTR_Trim(token, szHTTPHeader);
            CSSTR_ToUpperCase(szHTTPHeader, 1024);
 
            if (!strcmp(szHTTPHeader, "SEC-WEBSOCKET-KEY")) {
@@ -1411,7 +1236,7 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
               token = CSSTR_StrTok(0, szColon);
 
               if (token) {
-                 CSSTR_Trim(szKeyHash, token);
+                 CSSTR_Trim(token, szKeyHash);
               }
            }
            else if (!strcmp(token, "CONNECTION")) {
@@ -1419,7 +1244,7 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
               token = CSSTR_StrTok(0, szColon);
 
               if (token)
-                 CSSTR_Trim(szTempBuff, token);
+                 CSSTR_Trim(token, szTempBuff);
 
               // This header can hold comma-separated values.
               // We want to find the upgrade header among the
@@ -1429,7 +1254,7 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
 
               while (token != 0) {
 
-                 CSSTR_Trim(szTempBuff_2, token);
+                 CSSTR_Trim(token, szTempBuff_2);
 
                  CSSTR_ToUpperCase(szTempBuff_2, 1024);
 
@@ -1447,14 +1272,14 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
               token = CSSTR_StrTok(0, szColon);
 
               if (token)
-                 CSSTR_Trim(szUpgrade, token);
+                 CSSTR_Trim(token, szUpgrade);
            }
            else if (!strcmp(token, "SEC-WEBSOCKET-VERSION")) {
 
               token = CSSTR_StrTok(0, szColon);
 
               if (token)
-                 CSSTR_Trim(szWebSocketVersion, token);
+                 CSSTR_Trim(token, szWebSocketVersion);
            }
         }
 
@@ -1563,38 +1388,6 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
 //
 // Sends a PING request over a secure connection.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_SecureOpenClient() or the CSWSCK_SecureOpenServer()
-//       function to initialise this instance.
-//
-// szData: The address of a data buffer that contains the data to send
-//         over to the peer.
-//
-// iDataSize: The number of bytes in the buffer pointed to by szData.
-//
-// timeout: The number of seconds to wait for the PING operation to
-//          succeed.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//    CS_FAILURE | CSWSCK_OPER_PING | CSWSCK_E_PARTIALDATA
-//
-//       Converting the data from EBCDIC to UTF8 yielded a number of
-//       bytes larger than 125 bytes, which is the maximum number of
-//       bytes to send alongside a PING oepration.
-//
-//    CS_FAILURE | CSWSCK_OPER_PING | diagnostics from CFSAPI
-//
-//       A networking error occured.
-//
 ///////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CSWSCK_SecurePing(CSWSCK*   This,
@@ -1683,49 +1476,6 @@ CSRESULT CSWSCK_SecurePing(CSWSCK*   This,
 // CSWSCK_SecureReceive
 //
 // Waits for a websocket operation from a peer.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_SecureOpenClient() or the CSWSCK_SecureOpenServer()
-//       function to initialise this instance.
-//
-// iDataSize: The address of an unsigned 64 bit integer that will receive
-//            the number of data bytes that were received. If the return
-//            value is CS_FAILURE, this value is undefined and shouild
-//            not be trusted.
-//
-// timeout: the number of seconds to wait for the peer.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//       This code can be combined with the following oepration codes:
-//
-//         CSWSCK_OPER_CONTINUATION
-//         CSWSCK_OPER_TEXT
-//         CSWSCK_OPER_BINARY
-//         CSWSCK_OPER_CLOSE
-//
-//       This code indicates which websocket
-//       operaation was erceived from the peer.
-//
-//       The success code may be supplemented with the following
-//       diagnostic codes
-//
-//          CSWSCK_ALLDATA
-//          CSWSCK_MOREDATA
-//
-//       When CSWSCK_MOREDATA is returned, this means the fin bit
-//       was off and that a continuation packet can be expected.
-//
-//    CS_FAILURE
-//
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -2074,49 +1824,6 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
 // supported as it should be sent by using the CSWSCK_SecureClose()
 // function.
 //
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_SecureOpenClient() or the CSWSCK_SecureOpenServer()
-//       function to initialise this instance.
-//
-// operation: The websocket operation to send over to the peer: must
-//            be one of the following values:
-//
-//            CSWSCK_OPER_CONTINUATION
-//            CSWSCK_OPER_TEXT
-//            CSWSCK_OPER_BINARY
-//            CSWSCK_OPER_CLOSE
-//            CSWSCK_OPER_PING
-//            CSWSCK_OPER_PONG
-//
-// data: a pointer to the buffer to send over to the peer.
-//
-// iDataSize: The address of an unsigned 64 bit integer that holds the
-//            the number of data bytes that must be sent to the peer.
-//
-// fin: An integer indicating if this is the last data segment sent.
-//      Possible values are:
-//
-//     CSWSCK_FIN_OFF: More data will be forthcoming in a CONTINUATION
-//                     operation.
-//
-//     CSWSCK_FIN_ON: No more data will be sent for this
-//                     operation.
-//
-// timeout: the number of seconds to wait until the data is sent.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//    CS_FAILURE
-//
-//
 //////////////////////////////////////////////////////////////////////////////
 
 CSRESULT CSWSCK_SecureSend(CSWSCK*  This,
@@ -2279,49 +1986,6 @@ CSRESULT CSWSCK_SecureSend(CSWSCK*  This,
 // CSWSCK_Send
 //
 // Sends a websocket operation to a peer over a non secure connection.
-//
-//
-// Parameters
-// ---------------------------------------------------------------------------
-//
-// This: A pointer to an initialised instance of type CSWSCK. Use
-//       the CSWSCK_OpenClient() or the CSWSCK_OpenServer()
-//       function to initialise this instance.
-//
-// operation: The websocket operation to send over to the peer: must
-//            be one of the following values:
-//
-//            CSWSCK_OPER_CONTINUATION
-//            CSWSCK_OPER_TEXT
-//            CSWSCK_OPER_BINARY
-//            CSWSCK_OPER_CLOSE
-//            CSWSCK_OPER_PING
-//            CSWSCK_OPER_PONG
-//
-// data: a pointer to the buffer to send over to the peer.
-//
-// iDataSize: The address of an unsigned 64 bit integer that holds the
-//            the number of data bytes that must be sent to the peer.
-//
-// fin: An integer indicating if this is the last data segment sent.
-//      Possible values are:
-//
-//     CSWSCK_FIN_OFF: More data will be forthcoming in a CONTINUATION
-//                     operation.
-//
-//     CSWSCK_FIN_ON: No more data will be sent for this
-//                     operation.
-//
-// timeout: the number of seconds to wait until the data is sent.
-//
-//
-// Possible return values:
-// ---------------------------------------------------------------------------
-//
-//    CS_SUCCESS
-//
-//    CS_FAILURE
-//
 //
 //////////////////////////////////////////////////////////////////////////////
 
