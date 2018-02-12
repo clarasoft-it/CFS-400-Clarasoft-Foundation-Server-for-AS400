@@ -58,7 +58,7 @@ CRTPGM PGM(CLARAD) MODULE(CLARAD) BNDSRVPGM(CFSAPI)
 CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
 ```
 
-## CFS-400 example: ILE RPG net work service
+## CFS-400 example: ILE RPG network service
 
 To show how an ILE RPG program can be used to run as a network service, copy the ECHORPG.rpgle and CFSAPIH.rpgle source from this repository (under the ile_rpg_examples directory) to the QRPGLESRC source file on your system. You will then compile the ECHORPG source into a module by issuing the following command:
 
