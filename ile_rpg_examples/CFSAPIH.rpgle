@@ -374,7 +374,7 @@
      D@SSLResult                       *     Value
 
      DCFS_SecureWriteRecord...
-     D                 Pr            10U 0   ExtProc('CFS_SecureReadWrite')
+     D                 Pr            10U 0   ExtProc('CFS_SecureWriteRecord')
      D@This                            *     Value
      D@Data                            *     Value
      D@DataSize                        *     Value
