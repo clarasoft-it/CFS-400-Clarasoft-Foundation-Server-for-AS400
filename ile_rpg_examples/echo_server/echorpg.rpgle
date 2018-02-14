@@ -12,11 +12,12 @@
       //       CRTRPGMOD MODULE(ECHORPG) SRCFILE(QRPGLESRC)
       //                 SRCMBR(ECHORPG) DBGVIEW(*ALL)
       //
-      //    Build program with:
+      //    Build this as a service program program with:
       //
       //       CRTSRVPGM SRVPGM(ECHORPG) MODULE(ECHORPG)
       //       BNDSRVPGM(CFSAPI) EXPORT(*ALL)
       //
+      //    This service program will be loaded by the CLARAH handler (or CLARAHS)...
       //    To use with the CLARAH handler, do the following:
       //
       //      1) Insert the following in the CFSREG file:
