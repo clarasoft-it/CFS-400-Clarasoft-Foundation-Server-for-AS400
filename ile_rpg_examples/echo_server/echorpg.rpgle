@@ -25,7 +25,7 @@
       //         First record:
       //
       //         RGSRVNM: ECHORPG
-      //         RGLIBNM: <the library name where the ECHO service pgm resides>
+      //         RGLIBNM: <the library name where the ECHORPG service pgm resides>
       //         RGPRCHD: ECHORPG or <the name of the service program
       //                          compiled from this source>
       //         RGPRCNM: ECHOHANDLER
@@ -33,7 +33,7 @@
       //         Second record:
       //
       //         RGSRVNM: ECHORPGSEC
-      //         RGLIBNM: <the library name where the ECHO service pgm resides>
+      //         RGLIBNM: <the library name where the ECHORPG service pgm resides>
       //         RGPRCHD: ECHORPG or <the name of the service program
       //                          compiled from this source>
       //         RGPRCNM: ECHOHANDLERSEC
