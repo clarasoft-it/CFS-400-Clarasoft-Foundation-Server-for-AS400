@@ -30,6 +30,7 @@
 #ifndef __CLARASOFT_CT_CSSTR_H__
 #define __CLARASOFT_CT_CSSTR_H__
 
+#include <inttypes.h>
 #include "qcsrc/cscore.h"
 
 #define CCSID_JOBDEFAULT               (0)
