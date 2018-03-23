@@ -108,7 +108,7 @@ CSRESULT
 //
 // Parameters
 // ---------------------------------------------------------------------------
-//
+// 
 // This: The address of a pointer to the CSSTRCV instance.
 //
 //
