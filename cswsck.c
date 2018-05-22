@@ -1,21 +1,12 @@
 /* ==========================================================================
   Clarasoft Foundation Server 400
-
   cswsck.c
   Web Socket Protocol Implementation
   Version 1.0.0
-
-
-
   Compile module with:
-
      CRTCMOD MODULE(CSWSCK) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -528,11 +519,12 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
         // The hash needs to be encoded to BASE64
         /////////////////////////////////////////////////////////////////////
 
-        //CSSTRCV_SetConversion(This->cvt, "00819", "00000");
-        //CSSTRCV_StrCpy(This->cvt, szHash, strlen(szHash));
-        //CSSTRCV_Get(This->cvt, szHash);
-
         CSSTR_ToBase64(szHash, 20, szChallenge, 128);
+
+		// Convert Hash to EBCDIC 
+        CSSTRCV_SetConversion(This->cvt, "00819", "00000");
+        CSSTRCV_StrCpy(This->cvt, szChallenge, strlen(szChallenge));
+        CSSTRCV_Get(This->cvt, szChallenge);
 
         // make HTTP response
 
@@ -547,9 +539,9 @@ CSWSCK* CSWSCK_OpenChannel(int   connfd,
         size = (uint64_t)strlen(szHTTPResponse);
 
         // Convert response to ASCII
-        //CSSTRCV_SetConversion(This->cvt, "00000", "00819");
-        //CSSTRCV_StrCpy(This->cvt, szHTTPResponse, size);
-        //CSSTRCV_Get(This->cvt, szHTTPResponse);
+        CSSTRCV_SetConversion(This->cvt, "00000", "00819");
+        CSSTRCV_StrCpy(This->cvt, szHTTPResponse, size);
+        CSSTRCV_Get(This->cvt, szHTTPResponse);
 
         hResult = CFS_Write(This->Connection,
                             szHTTPResponse,
