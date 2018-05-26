@@ -190,6 +190,8 @@ int main(int argc, char** argv) {
     exit(1);
   }
 
+  memset(szInstance, ' ', 33);
+
   strncpy(szInstance, argv[1], 33);
 
   EXEC SQL
@@ -845,4 +847,5 @@ unsigned long setJobServerType(void) {
 
    return 1;
 }
+
 

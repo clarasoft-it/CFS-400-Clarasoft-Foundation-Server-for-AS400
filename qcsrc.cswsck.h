@@ -32,7 +32,7 @@
 #ifndef __CLARASOFT_CFS_CSWSCK_H__
 #define __CLARASOFT_CFS_CSWSCK_H__
 
-#include "qcsrc/cscore.h"
+#include "qcsrc/cfsapi.h"
 
 
 #define CSWSCK_MASK_OPERATION        (0x0FFF0000)

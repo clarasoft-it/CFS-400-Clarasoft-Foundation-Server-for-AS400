@@ -5,9 +5,8 @@
 
   Linked list definitions
   Version 1.0.0
- 
-  Distributed under the MIT license
 
+  Distributed under the MIT license
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
 
   Permission is hereby granted, free of charge, to any person obtaining
@@ -42,21 +41,25 @@
 
 typedef void* CSLIST;
 
-void
-  CSLIST_Clear
-    (CSLIST This);
-
 CSLIST
   CSLIST_Constructor
     (void);
 
-long
-  CSLIST_Count
-    (CSLIST This);
-
 void
   CSLIST_Destructor
     (CSLIST*);
+
+CSRESULT
+  CSLIST_Insert
+    (CSLIST This,
+     void*   value,
+     long    valueSize,
+     long    index);
+
+CSRESULT
+  CSLIST_Remove
+    (CSLIST This,
+     long    index);
 
 CSRESULT
   CSLIST_Get
@@ -66,18 +69,19 @@ CSRESULT
      long    index);
 
 CSRESULT
-  CSLIST_GetDataRef
-    (CSLIST This,
-     void**  value,
-     long*   valueSize,
-     long    index);
-
-CSRESULT
-  CSLIST_Insert
+  CSLIST_Set
     (CSLIST This,
      void*   value,
      long    valueSize,
      long    index);
+
+long
+  CSLIST_Count
+    (CSLIST This);
+
+void
+  CSLIST_Clear
+    (CSLIST This);
 
 long
   CSLIST_ItemSize
@@ -85,15 +89,10 @@ long
      long    index);
 
 CSRESULT
-  CSLIST_Remove
+  CSLIST_GetDataRef
     (CSLIST This,
-     long    index);
-
-CSRESULT
-  CSLIST_Set
-    (CSLIST This,
-     void*   value,
-     long    valueSize,
+     void**  value,
+     long*   valueSize,
      long    index);
 
 #endif

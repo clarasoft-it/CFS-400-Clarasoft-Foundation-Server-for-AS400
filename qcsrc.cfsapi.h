@@ -27,8 +27,8 @@
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 =========================================================================== */
 
-#ifndef __CFS_CFSAPI_H__
-#define __CFS_CFSAPI_H__
+#ifndef __CLARASOFT_CFS_CFSAPI_H__
+#define __CLARASOFT_CFS_CFSAPI_H__
 
 #include <gskssl.h>
 #include <inttypes.h>
@@ -36,6 +36,9 @@
 #include <QUSRJOBI.h>
 #include <QSYRUSRI.h>
 #include "qcsrc/cscore.h"
+#include "qcsrc/csstr.h"
+#include "qcsrc/cslist.h"
+
 
 //////////////////////////////////////////////////////////////////////////////
 // Clarasoft Foundation Server Definitions
@@ -1156,4 +1159,5 @@ CSRESULT CFS_GetCurJobName
 
 
 #endif
+
 

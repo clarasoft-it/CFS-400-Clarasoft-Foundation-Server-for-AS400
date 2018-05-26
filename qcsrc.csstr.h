@@ -1,14 +1,10 @@
 /* ==========================================================================
   Clarasoft Core Tools
-  
   csstr.h
   string utilities
   Version 1.0.0
-  
   Distributed under the MIT license
-  
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-  
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -31,6 +27,7 @@
 #define __CLARASOFT_CT_CSSTR_H__
 
 #include <inttypes.h>
+
 #include "qcsrc/cscore.h"
 
 #define CCSID_JOBDEFAULT               (0)
@@ -108,7 +105,7 @@ CSRESULT
 //
 // Parameters
 // ---------------------------------------------------------------------------
-// 
+//
 // This: The address of a pointer to the CSSTRCV instance.
 //
 //
