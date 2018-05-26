@@ -1,5 +1,5 @@
 /* ===========================================================================
-  Common Service Access Protocol
+  Clarasoft Foundation Server 400
   cfsapi.h
 
   Networking Primitives definitions
