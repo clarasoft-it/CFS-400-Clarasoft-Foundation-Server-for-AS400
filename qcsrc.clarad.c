@@ -3,7 +3,7 @@
   Clarasoft Foundation Server 400
 
   Clara Daemon
-  Main listenin daemon with pre-spawned handlers
+  Main listening daemon with pre-spawned handlers
   Version 1.0.0
 
   Command line arguments:
