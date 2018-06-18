@@ -924,8 +924,8 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
         // in UTF8 and will not be converted since it must be sent back.
         /////////////////////////////////////////////////////////////////////
 
-        if (CSWSCK_OpCode(ws_header[0]) != CSWSCK_OPER_BINARY &&
-            CSWSCK_OpCode(ws_header[0]) != CSWSCK_OPER_PING) {
+        if (CSWSCK_OpCode(ws_header[0]) != CSWSCK_OP_BINARY &&
+            CSWSCK_OpCode(ws_header[0]) != CSWSCK_OP_PING) {
 
            //////////////////////////////////////////////////////////////////
            // This means the data is UTF8 format
@@ -1727,8 +1727,8 @@ CSRESULT CSWSCK_SecureReceive(CSWSCK*   This,
         // in UTF8 and will not be converted since it must be sent back.
         /////////////////////////////////////////////////////////////////////
 
-        if (CSWSCK_OpCode(ws_header[0]) != CSWSCK_OPER_BINARY &&
-            CSWSCK_OpCode(ws_header[0]) != CSWSCK_OPER_PING) {
+        if (CSWSCK_OpCode(ws_header[0]) != CSWSCK_OP_BINARY &&
+            CSWSCK_OpCode(ws_header[0]) != CSWSCK_OP_PING) {
 
            //////////////////////////////////////////////////////////////////
            // This means the data is UTF8 format
