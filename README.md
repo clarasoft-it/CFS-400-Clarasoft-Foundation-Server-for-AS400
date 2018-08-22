@@ -67,7 +67,7 @@ CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
 To show how an ILE RPG program can be used to run as a network service, copy the QRPGLESRC/ECHOH and QRPGLESRC/CFSAPIH source from this repository (under the qrpglesrc directory) to the QRPGLESRC source file on your system. You will then compile the ECHOH source into a module by issuing the following command:
 
 ```bash
-CRTRPGMOD MODULE(ECHOH) SRCFILE(QRPGLESRC) SRCMBR(ECHOH.RPGLE) DBGVIEW(*ALL)  
+CRTRPGMOD MODULE(ECHOH) SRCFILE(QRPGLESRC) SRCMBR(ECHOH) DBGVIEW(*ALL)  
 ```
 Next, you will create a SRVPGM object from the above module (notice this uses the CFSAPI service program built above):
 
