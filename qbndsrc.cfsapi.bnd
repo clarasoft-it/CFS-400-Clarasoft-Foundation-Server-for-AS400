@@ -3,7 +3,6 @@
                 EXPORT     SYMBOL('CFS_Close')
                 EXPORT     SYMBOL('CFS_Connect')
                 EXPORT     SYMBOL('CFS_MakeUUID')
-                EXPORT     SYMBOL('CFS_NetworkToPresentation')
                 EXPORT     SYMBOL('CFS_OpenChannel')
                 EXPORT     SYMBOL('CFS_Read')
                 EXPORT     SYMBOL('CFS_ReadRecord')
