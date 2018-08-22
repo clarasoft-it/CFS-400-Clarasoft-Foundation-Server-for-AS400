@@ -9,6 +9,7 @@ CFS-400 is a TCP server platform for AS400. More specifically, CFS-400 is:
 
 *A software development kit for ILE RPG developpers who want to create their own TCP clients and services
 
+*An implementation of the websocket protocole as well as an SDK to develop websocket clients and services in ILE RPG
 
 ## Building the TCP server and server handler
 
