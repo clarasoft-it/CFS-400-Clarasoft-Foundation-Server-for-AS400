@@ -85,7 +85,7 @@ RGPRCHD: ECHOH
 RGPRCNM: RUNECHO   
 ```
 
-Where LIBNAME is the name of the library where the ECHOH service program resides. All other fields have to be as shown above (the RGPRCNM field holds the name of the sub-procedure exported by the service program ans is the sub-procedure that will be called by the CLARAH handler when a client connects to the service). 
+Where LIBNAME is the name of the library where the ECHOH service program resides. All other fields have to be as shown above (the RGPRCNM field holds the name of the sub-procedure exported by the service program and is the sub-procedure that will be called by the CLARAH handler when a client connects to the service). 
 
 For the clarad daemon to execute CLARAH and have it bind to the ECHOH service program, the following record needs to be inserted intot the CFSCONF file:
 
