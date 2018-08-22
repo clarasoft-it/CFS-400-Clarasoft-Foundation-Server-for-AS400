@@ -21,7 +21,7 @@ Copy the files on your AS400 in a source file named QCSRC (the CFSREG source nee
 * CSSTR
 * CSWSCK
 
-From the AS400 command line, execute the following comamnds to create the above modules:
+From the AS400 command line, execute the following commands to create the above modules:
 
 ```bash
 CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRC) DBGVIEW(*ALL)  
