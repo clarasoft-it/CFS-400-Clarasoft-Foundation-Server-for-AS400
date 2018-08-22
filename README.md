@@ -96,11 +96,13 @@ CFMINHND: 3
 CFMAXHND: 10
 CFHNDPTH: /QSYS.LIB/LIBNAME/CLARAH.PGM
 CFBKLOG: 1024
+```
 
 To test this ILE RPG service, you can execute the CFS-400 daemon from the command line (in production, this command would be run in its own subsystem) and instruct it to use the ECHOH service by issuing the follwng command (note that the service library does not have to match the library where the daemon resides):
 
 ```bash
 call CLARAD parm('ECHOSERVICE')                                                  
+```
 
 The above command will run three handler jobs and the main daemon job:
 
@@ -117,6 +119,7 @@ There are 3 handlers running waiting for clients to connect (this is specified i
 
 ```bash
 call ECHOC parm('myAS400hostName' '11000')   
+```
 
      
  
