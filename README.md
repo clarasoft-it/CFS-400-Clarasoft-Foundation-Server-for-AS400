@@ -79,18 +79,28 @@ CRTSRVPGM SRVPGM(ECHOH)
 For the CLARAH program to use the ILE RPG echo service, a record must be inserted into the CFSREG file: 
 
 ```bash
-RGSRVNM: ECHO           
+RGSRVNM: ECHOSERVICE           
 RGLIBNM: LIBNAME        
 RGPRCHD: ECHOH        
 RGPRCNM: RUNECHO   
 ```
 
-Where LIBNAME is the name of the library where the ECHOH service program resides. All other fields have to be as shown above (the RGPRCNM field holds the name of the sub-procedure exported by the service program ans is the sub-procedure that will be called by the CLARAH handler when a client connects to the service). Now, to test this ILE RPG service, you can execute the CFS-400 daemon from the command line (in production, this command would be run in its own subsystem) and instruct it to use the ECHOH service by issuing the follwng command (this assumes that CLARAH is also in library LIBNAME although this is not mandatory: the service library does not have to match the library where the daemon resides):
+Where LIBNAME is the name of the library where the ECHOH service program resides. All other fields have to be as shown above (the RGPRCNM field holds the name of the sub-procedure exported by the service program ans is the sub-procedure that will be called by the CLARAH handler when a client connects to the service). 
+
+For the clarad daemon to execute CLARAH and have it bind to the ECHOH service program, the following record needs to be inserted intot the CFSCONF file:
 
 ```bash
-call CLARAD                                                     
- parm('ECHOH') 
-```
+CFINST: ECHOSERVICE           
+CFPORT: 11000        
+CFMINHND: 3        
+CFMAXHND: 10
+CFHNDPTH: /QSYS.LIB/LIBNAME/CLARAH.PGM
+CFBKLOG: 1024
+
+To test this ILE RPG service, you can execute the CFS-400 daemon from the command line (in production, this command would be run in its own subsystem) and instruct it to use the ECHOH service by issuing the follwng command (note that the service library does not have to match the library where the daemon resides):
+
+```bash
+call CLARAD parm('ECHOSERVICE')                                                  
 
 The above command will run three handler jobs and the main daemon job:
 
@@ -103,7 +113,10 @@ Opt  Job         User        Type     -----Status-----  Function
      DUSER       DUSER       INTER    ACTIVE            PGM-CLARAD    
 ```
      
-There are 3 handlers running, waiting for client connections; if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion. To test the handler, you can build thye example ILE RPG client provided by this package (QRPGLESRC/ECHOC).
+There are 3 handlers running waiting for clients to connect (this is specified in CFSCONF.CFMINHND); if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion and so on up to 10 executions of CLARAH (this is specified in CFSCONF.CFMAXHND). To test the handler, you can build the example ILE RPG client provided by this package (QRPGLESRC/ECHOC) and have it connect to your AS400 using the port number specified in CFSCONF.CFPORT:
+
+```bash
+call ECHOC parm('myAS400hostName' '11000')   
 
      
  
