@@ -138,8 +138,7 @@ Assuming you have started the clara-daemon and executed the ECHOH handler (as sh
 ```bash
 call ECHOC parm('myAS400hostName' '11000')   
 ```
-Stepping through the program (assuming the connection succeeded), you will see that the string "Hello World!" will be converted to UTF-8 by calling various CSSTRCV functions and then sent over to the ECHOH handler. Stepping beyond the CFS_Read function that follows the CFS_Write function, the data received from the ECHOH handler will be converted from UTF-8 to EBCDIC (in the job CCSID). You can then check the content of the szMessage variable to see what the ECHOH handler returned.
-
+Stepping through the program (assuming the connection succeeded), you will see that the string "Hello World!" will be converted to ASCII by calling various CSSTRCV functions and then sent over to the ECHOH handler. Stepping beyond the CFS_Read function that follows the CFS_Write function, the data received from the ECHOH handler will be converted from ASCII to EBCDIC (in the job CCSID). You can then check the content of the szMessage variable to see what the ECHOH handler returned. 
 
      
  
