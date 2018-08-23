@@ -63,6 +63,8 @@ CRTPGM PGM(CLARAD) MODULE(CLARAD) BNDSRVPGM(CFSAPI)
 CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
 ```
 
+You now have the basic software components needed to create your own ILE RPG network services (and clients to those services); CFS-400 provides a sample ILE RPG network service that echoes data sent from a client. The next section shows you how to build and run this service using CFS-400. Next, we will show you how to test this ILE RPG echo service by building the sample ILE RPG echo client provided by CFS-400. This will get you started building you own services and clients.
+
 ## CFS-400 example: Creating your own ILE RPG network service
 
 To show how an ILE RPG program can be used to run as a network service, copy the QRPGLESRC/ECHOH and QRPGLESRC/CFSAPIH source from this repository (under the qrpglesrc directory) to the QRPGLESRC source file on your system. You will then compile the ECHOH source into a module by issuing the following command:
@@ -116,11 +118,28 @@ Opt  Job         User        Type     -----Status-----  Function
      DUSER       DUSER       INTER    ACTIVE            PGM-CLARAD    
 ```
      
-There are 3 handlers running waiting for clients to connect (this is specified in CFSCONF.CFMINHND); if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion and so on up to 10 executions of CLARAH (this is specified in CFSCONF.CFMAXHND). To test the handler, you can build the example ILE RPG client provided by this package (QRPGLESRC/ECHOC) and have it connect to your AS400 using the port number specified in CFSCONF.CFPORT:
+There are 3 handlers running waiting for clients to connect (this is specified in CFSCONF.CFMINHND); if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion and so on up to 10 executions of CLARAH (this is specified in CFSCONF.CFMAXHND). 
+
+## CFS-400 example: Creating your own ILE RPG network service
+
+To test the handler, you can build the example ILE RPG client provided by this package (QRPGLESRC/ECHOC) by issuing the follwing commands (this assumes you have built the CFSAPI service program as shown above):
+
+```bash
+CRTRPGMOD MODULE(ECHOC) SRCFILE(QRPGLESRC) 
+                   SRCMBR(ECHOC) DBGVIEW(*ALL)      
+```
+
+```bash
+CRTPGM PGM(ECHOC) BNDSRVPGM((CFSAPI))  
+```
+
+Assuming you have started the clara-daemon and executed the ECHOH handler (as shown above), you can start debugging the program by setting a breakpoint at the call to the CFS_Connect function. Then, call the ECHOC program and have it connect to your AS400 by specifying its network name and using the port number specified in CFSCONF.CFPORT as parameters:
 
 ```bash
 call ECHOC parm('myAS400hostName' '11000')   
 ```
+Stepping through the program (assuming the connection succeeded), you will see that the string "Hello World!" will be converted to UTF-8 by calling various CSSTRCV functions and then sent over to the ECHOH handler. Stepping beyond the CFS_Read function that follows the CFS_Write function, the data received from the ECHOH handler will be converted from UTF-8 to EBCDIC (in the job CCSID). You can then check the content of the szMessage variable to see what the ECHOH handler returned.
+
 
      
  
