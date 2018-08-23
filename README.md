@@ -39,7 +39,7 @@ CRTCMOD MODULE(CSSTR) SRCFILE(QCSRC) DBGVIEW(*ALL)
 CRTCMOD MODULE(CSWSCK) SRCFILE(QCSRC) DBGVIEW(*ALL)  
 ```
 
-Next, you need to create a SRVPGM object that exports the CFS-400 toolkit functions (we will call it CFSAPI) by issuing the following command (you can use the binding source provided in the qbndsrc directory of this package if you wish to manage signatures):
+Next, you need to create a SRVPGM object that exports the CFS-400 toolkit functions (we will call it CFSAPI) by issuing the following command (you can use the binding source provided in the qbndsrc directory of this package if you wish rather than use EXPORT(*ALL)):
 
 ```bash
 CRTSRVPGM SRVPGM(CFSAPI)
