@@ -120,7 +120,7 @@ Opt  Job         User        Type     -----Status-----  Function
      
 There are 3 handlers running waiting for clients to connect (this is specified in CFSCONF.CFMINHND); if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion and so on up to 10 executions of CLARAH (this is specified in CFSCONF.CFMAXHND). 
 
-## CFS-400 example: Creating your own ILE RPG network service
+## CFS-400 example: Testing the ECHOH ILE RPG network service by running the ECHOC ILE RPG client
 
 To test the handler, you can build the example ILE RPG client provided by this package (QRPGLESRC/ECHOC) by issuing the follwing commands (this assumes you have built the CFSAPI service program as shown above):
 
