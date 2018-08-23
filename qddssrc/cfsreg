@@ -1,0 +1,71 @@
+*-----------------------------------------------------------------------
+*
+*  Clarasoft Foundation Server 400
+*
+*
+*  CFSREG
+*  Service handler configuration file
+*  Version 1.0.0
+*
+*  This file contains the service handler startup parameters. 
+*
+*  Fields:
+*
+*  RGSRVNM:
+*     Service name: this is the value of the first paramter to
+*     the service handler.
+*
+*  RGLIBNM:
+*     Library name of service program that will be activated and that
+*     contains the exported sub-procedure or funtion that the service
+*     handler will call.
+*
+*  RGPRCHD:
+*     The name of the service program to activate that
+*     contains the exported sub-procedure or funtion that the service
+*     handler will call.
+*
+*  RGPRCNM:
+*     The name of the exported sub-procedure or function that the
+*     service handler will call to handle client connections.
+*
+*  RGAPPID:
+*     The application ID that resolves to the SSL certificate in DCM. This
+*     field is used by the handler if the handler uses SSL to authenticate
+*     and encrypt comunnications, otherwise, it is ignored.
+*
+*
+*  Distributed under the MIT license
+*
+*  Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+*
+*  Permission is hereby granted, free of charge, to any person obtaining
+*  a copy of this software and associated documentation files
+* (the "Software"), to deal in the Software without restriction,
+* including without limitation the rights to use, copy, modify,
+* merge, publish, distribute, sublicense, and/or sell
+* copies of the Software, and to permit persons to whom the Software is
+* furnished to do so, subject to the following conditions:
+* The above copyright notice and this permission notice shall be
+* included in all copies or substantial portions of the Software.
+* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+* EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+* MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+* IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+* ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+* CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+* WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*
+*
+*-----------------------------------------------------------------------
+
+
+     A          R CSCFSR
+     A            RGSRVNM       64A
+     A            RGLIBNM       10A
+     A            RGPRCHD       10A
+     A            RGPRCNM      255A
+     A            RGAPPID      128A
+     A          K RGSRVNM
+     
+     
