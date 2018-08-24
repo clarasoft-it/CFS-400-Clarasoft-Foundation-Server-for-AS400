@@ -1,0 +1,202 @@
+
+      /////////////////////////////////////////////////////////////////////////////////
+      //
+      //    Clarasoft Foundation Server for AS400
+      //
+      //    WSECHOHS
+      //    Demonstration echo service that uses the websocket protocol
+      //    with SSL
+      //    Version 1.0.0
+      //
+      //    Compile module with:
+      //
+      //       CRTRPGMOD MODULE(WSECHOHS) SRCFILE(QRPGLESRC)
+      //                 SRCMBR(WSECHOHS) DBGVIEW(*ALL)
+      //
+      //    Build program with:
+      //
+      //       CRTSRVPGM SRVPGM(WSECHOHS) MODULE(WSECHOHS)
+      //       BNDSRVPGM(CFSAPI) EXPORT(*ALL)
+      //
+      //    To use with the CLARAH handler, do the following:
+      //
+      //      1) Insert the following in the CFSREG file:
+      //
+      //         RGSRVNM: WSECHOHS
+      //         RGLIBNM: <the library name where the ECHO service pgm resides>
+      //         RGPRCHD: WSECHOHS or <the name of the service program
+      //                          compiled from this source>
+      //         RGPRCNM: RUNWSECHOS
+      //         RGAPPID: <the application ID that resolves to
+      //                   the SSL certificate in DCM; you can
+      //                   set this field to QIBM_QTMF_FTP_SERVER if you
+      //                   do not have your own certificate>
+      //
+      //      2) Execute the CLARAD daemon with the following command:
+      //
+      //           call clarad parm('WSECHOHS')
+      //
+      //           This assumes there is a corresponding record in CFSCONF
+      //           with its handler field value pointing to the WSCKHS program.
+      //
+      //     Distributed under the MIT license
+      //
+      //     Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+      //
+      //     Permission is hereby granted, free of charge, to any person obtaining
+      //     a copy of this software and associated documentation files
+      //     (the "Software"), to deal in the Software without restriction,
+      //     including without limitation the rights to use, copy, modify,
+      //     merge, publish, distribute, sublicense, and/or sell
+      //     copies of the Software, and to permit persons to whom the Software is
+      //     furnished to do so, subject to the following conditions:
+      //     The above copyright notice and this permission notice shall be
+      //     included in all copies or substantial portions of the Software.
+      //     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      //     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      //     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+      //     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+      //     ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+      //     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+      //     THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      //
+      /////////////////////////////////////////////////////////////////////////////////
+
+     H NOMAIN
+
+      /Copy cfsapih
+
+      *----------------------------------------------------------------------
+      *  Connection object: this will be initialised by the CSAP broker
+      *----------------------------------------------------------------------
+
+     PRUNWSECHOS       B                   EXPORT
+     D                 PI            10I 0
+     D@Conn                            *   Value
+
+     DRc               S             10I 0
+     DErrCode          S             10I 0
+     DOpCode           S             10I 0
+     DOffset           S             20U 0
+     DDataSize         S             20U 0
+     DDataBuffer       S           4096A
+
+      /Free
+
+          ErrCode = CS_SUCCESS;
+
+          Dow ErrCode = CS_SUCCESS;
+
+            // Wait for client to send data
+
+            Rc = CSWSCK_SecureReceive(@Conn: %Addr(DataSize): -1);
+
+            // CFS-400 functions return complex results;
+            // the success code has to be extracted from the result code
+            // via bitwise operations
+
+            If %Bitand(Rc: CSWSCK_MASK_ERROR) = CS_SUCCESS;
+
+              If %Bitand(Rc: CSWSCK_MASK_OPERATION) = CSWSCK_OPER_TEXT;
+
+                // This means we got data from the client.
+                // We extract the data into our buffer.
+
+                Offset = 0;  // This to mark where within our
+                             // data buffer we must copy client
+                             // data: this is the number of bytes
+                             // AFTER the beginning position so
+                             // zero means position 1 in the buffer.
+
+                DataBuffer = *Blanks; // To clear previously received data
+
+                CSWSCK_GetData(@Conn:
+                               %Addr(DataBuffer) + Offset:
+                               0:
+                               DataSize);
+
+                Offset += DataSize;
+
+                // Perhaps we just got a fragment of the data ...
+                // read data from client until no more data is forthcoming.
+                // The diagnostic code indicates if more data is waiting
+                // to be read from the client.
+
+                Dow %Bitand(Rc: CSWSCK_MASK_DIAG) = CSWSCK_MOREDATA;
+
+                  Rc = CSWSCK_SecureReceive(@Conn: %Addr(DataSize): -1);
+
+                  If %Bitand(Rc: CSWSCK_MASK_ERROR) = CS_SUCCESS;
+
+                    If %Bitand(Rc: CSWSCK_MASK_OPERATION) =
+                                           CSWSCK_OPER_CONTINUATION;
+
+                      CSWSCK_GetData(@Conn:
+                                     %Addr(DataBuffer) + Offset:
+                                     0:
+                                     DataSize);
+
+                      Offset += DataSize;
+
+                    Else;
+
+                      ErrCode = CS_FAILURE;
+                      Leave;
+
+                    EndIf;
+
+                  Else;
+				
+                    ErrCode = CS_FAILURE;
+                    Leave;
+
+                  EndIf;
+
+                EndDo;
+
+                // Echo back the data
+
+                DataBuffer = 'ECHO RESPONSE: ' + DataBuffer;
+                DataSize = %Len(%Trim(DataBuffer));
+
+                Rc = CSWSCK_SecureSend(@Conn:
+                                       CSWSCK_OPER_TEXT:
+                                       %Addr(DataBuffer):
+                                       DataSize:
+                                       CSWSCK_FIN_ON:
+                                       -1);
+
+                If %Bitand(Rc: CSWSCK_MASK_ERROR) = CS_FAILURE;
+                  ErrCode = CS_FAILURE; // To leave the receive loop
+                EndIf;
+
+              Else;
+
+                If %Bitand(Rc: CSWSCK_MASK_OPERATION) = CSWSCK_OPER_CLOSE;
+
+                  ErrCode = CS_FAILURE; // To leave the receive loop
+
+                Else;
+
+                  // This means we received some other request such as PING
+                  // or binary data: this demonstration program does not
+                  // handle those requests.
+
+                EndIf;
+
+              EndIf;
+
+            Else;
+
+              ErrCode = CS_FAILURE; // To leave the receive loop
+
+            EndIf;
+
+          EndDo;
+		
+          Return 0;
+
+      /End-Free
+
+     P                 E
+
