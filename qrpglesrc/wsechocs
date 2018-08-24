@@ -1,0 +1,136 @@
+
+      /////////////////////////////////////////////////////////////////////////////////
+      //
+      //    Clarasoft Foundation Server for AS400
+      //
+      //    WSECHOCS
+      //    Websocket Echo SSL client for connecting to CFS websocket SSL echo server
+      //    Version 1.0.0
+      //
+      //    Compile module with:
+      //
+      //       CRTRPGMOD MODULE(WSECHOCS) SRCFILE(QRPGLESRC)
+      //                 SRCMBR(WSECHOCS) DBGVIEW(*ALL)
+      //
+      //    Build with:
+      //
+      //       CRTPGM PGM(WSECHOCS) BNDSRVPGM((CFSAPI))
+      //
+      //    Call with:
+      //
+      //       call WSECHOCS parm('hostname' '41101')
+      //
+      //       Parameters are: hostname and port number (as string).
+      //
+      //     Distributed under the MIT license
+      //
+      //     Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+      //
+      //     Permission is hereby granted, free of charge, to any person obtaining
+      //     a copy of this software and associated documentation files
+      //     (the "Software"), to deal in the Software without restriction,
+      //     including without limitation the rights to use, copy, modify,
+      //     merge, publish, distribute, sublicense, and/or sell
+      //     copies of the Software, and to permit persons to whom the Software is
+      //     furnished to do so, subject to the following conditions:
+      //     The above copyright notice and this permission notice shall be
+      //     included in all copies or substantial portions of the Software.
+      //     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      //     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      //     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+      //     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+      //     ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+      //     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+      //     THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      //
+      /////////////////////////////////////////////////////////////////////////////////
+
+      /Copy cfsapih
+
+     DEntryProc        Pr                  ExtPgm('WSECHOCS')
+     D@Host                          32A
+     D@Port                          10A
+
+     DEntryProc        PI
+     D@Host                          32A
+     D@Port                          10A
+
+      *----------------------------------------------------------------------
+      * WSECHOC: non secure CFS echo client
+      *----------------------------------------------------------------------
+
+     DpCONN            S               *
+     DappID            S             32A
+     DszHost           S             33A
+     DhResult          S             10I 0
+     DSize             S             20U 0
+     DszMessage        S            256A
+     Dszresponse       S            256A
+
+
+     DSessionDS        DS                  LikeDS(CLIENTSESSIONINFO_100)
+
+      /Free
+
+         Clear SessionDS;
+
+         szHost = %Trim(@Host) + x'00'; // we must null-terminate hostname
+         SessionDS.szHostName = %Addr(szHost);
+         SessionDS.port = %Int(@Port);
+         SessionDS.connTimeout = 10;
+
+         // We can use any valid SSL certificate; here, we will
+         // use the FTP server certificate.
+         // We must null-terminate the string
+
+         appID = 'QIBM_QTMF_FTP_SERVER' + x'00';
+         SessionDS.szApplicationID = %Addr(appID);
+
+         SessionDS.secSessionType =
+                 CFS_SEC_CLIENT_SESSION_SERVER_AUTH_FULL;
+
+         pCONN = CSWSCK_SecureConnect(%Addr(SessionDS):
+                                      CFS_CLIENTSESSION_FMT_100);
+
+         If (pCONN <> *Null);
+
+           szMessage = 'Hello World!';
+
+           // Send message to server
+
+           Size = %Len(%Trim(szMessage));
+
+           hResult = CSWSCK_SecureSend(pCONN:
+                                       CSWSCK_OPER_TEXT:
+                                       %Addr(szMessage):
+                                       Size:
+                                       CSWSCK_FIN_ON:
+                                       -1);
+
+           If %Bitand(hResult: CS_MASK_ERROR) = CS_SUCCESS;
+
+             // Read echo server response ...
+
+             Size = 255;
+             szMessage = *Blanks;
+             hResult = CSWSCK_SecureReceive(pCONN:
+                                            %Addr(Size):
+                                            -1);
+
+             If  %Bitand(hResult: CS_MASK_ERROR) = CS_SUCCESS;
+
+               CSWSCK_GetData(pCONN: %Addr(szResponse): 0: Size);
+
+             EndIf;
+
+           EndIf;
+
+           CSWSCK_SecureClose(pCONN: *Null: 0: -1);
+
+         EndIf;
+
+         *InLr = *On;
+         Return;
+
+      /End-Free
+
