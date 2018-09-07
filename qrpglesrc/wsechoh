@@ -17,7 +17,8 @@
       //       CRTSRVPGM SRVPGM(WSECHOH) MODULE(WSECHOH)
       //       BNDSRVPGM(CFSAPI) EXPORT(*ALL)
       //
-      //    To use with the CLARAH handler, do the following:
+      //    To use this handler, the websocket server (handler must execute); the following
+      //    must be done:
       //
       //      1) Insert the following in the CFSREG file:
       //
