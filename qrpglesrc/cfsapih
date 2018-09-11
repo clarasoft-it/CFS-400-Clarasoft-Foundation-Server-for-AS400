@@ -308,7 +308,7 @@
       *----------------------------------------------------------------------
 
      DCSWSCK_Connect...
-     D                 Pr            10I 0   ExtProc('CSWSCK_Connect')
+     D                 Pr              *     ExtProc('CSWSCK_Connect')
      D@sessionInfo                     *     Value
      D@sessionInfoFmt                10I 0   Value
 
