@@ -1,0 +1,61 @@
+      *===================================================================
+      * Package: CTBASE
+      * Class:   CTMAP
+      * Source:  Implementation
+      * Version: 01.00.00
+      *
+      * --------------------------------------------------------------------------
+      * Copyright 2014 Clarasoft I.T. Solutions Inc.
+      *===========================================================================
+      
+      /IF NOT DEFINED(CTMAPH)
+      /DEFINE CTMAPH
+      
+      /Include CTBASEH
+
+     DCTMAP_Clear...
+     D                 PR            10I 0
+     D@This                            *
+
+     DCTMAP_Constructor...
+     D                 PR              *
+
+     DCTMAP_Destructor...
+     D                 PR            10I 0
+     D@This                            *
+
+     DCTMAP_Insert...
+     D                 PR            10I 0
+     D@This                            *
+     D@Key                          255A   Value
+     D@Value                           *   Value
+     D@Bytes                         10I 0 Value
+
+     DCTMAP_ItemSize...
+     D                 PR            10I 0
+     D#This                            *
+     D#Key                          255A   Value
+
+     DCTMAP_IterNext...
+     D                 PR            10I 0
+     D@This                            *
+     D@Key                          255A
+     D@Value                           *   Value
+     D@Size                          10I 0
+
+     DCTMAP_IterNextSize...
+     D                 PR            10I 0
+     D@This                            *
+
+     DCTMAP_IterStart...
+     D                 PR            10I 0
+     D@This                            *
+
+     DCTMAP_LookUp...
+     D                 PR            10I 0
+     D@This                            *
+     D@Key                          255A   Value
+     D@Value                           *   Value
+     D@Size                          10I 0
+     
+      /ENDIF
