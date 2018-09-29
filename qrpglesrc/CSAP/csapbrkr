@@ -1,0 +1,438 @@
+
+      /////////////////////////////////////////////////////////////////////////////////
+      //
+      //    Clarasoft Foundation Server for AS400
+      //    Common Service Access Protocol
+      //
+      //    CSAPBRKR
+      //    CSAP Broker Function
+      //    Version 1.0.0
+      //
+      //    This service program requires the Clara-Tools package available
+      //    from the Clarasoft I.T. Solutions web site.
+      //
+      //    Compile module with:
+      //
+      //       CRTSQLRPGI OBJ(CSAPBRKR) SRCFILE(QRPGLESRC)
+      //                 OBJTYPE(*MODULE) DBGVIEW(*SOURCE)
+      //
+      //     Distributed under the MIT license
+      //
+      //     Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+      //
+      //     Permission is hereby granted, free of charge, to any person obtaining
+      //     a copy of this software and associated documentation files
+      //     (the "Software"), to deal in the Software without restriction,
+      //     including without limitation the rights to use, copy, modify,
+      //     merge, publish, distribute, sublicense, and/or sell
+      //     copies of the Software, and to permit persons to whom the Software is
+      //     furnished to do so, subject to the following conditions:
+      //     The above copyright notice and this permission notice shall be
+      //     included in all copies or substantial portions of the Software.
+      //     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      //     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      //     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+      //     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+      //     ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+      //     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+      //     THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      //
+      /////////////////////////////////////////////////////////////////////////////////
+
+     H NOMAIN
+
+      /include cfsapih
+      /include cfsjsnh
+      /include ctbaseh
+
+     PCSAPBRKR         B                   EXPORT
+     D                 PI            10I 0
+     D@Conn                            *   Value
+     D@lpVtbl                          *   Value
+     D@AppID                           *   Value
+
+     DRc               S             10I 0
+     DErrCode          S             10I 0
+     DOpCode           S             10I 0
+     DOffset           S             20U 0
+     DDataSize         S             20U 0
+     DpJsonOut         S               *
+     DpJsonIn          S               *
+     DpBuffer          S               *
+     DpData            S               *
+     DpServiceHandler  S               *   ProcPtr
+     DAction           S            255A
+     DRequest          S            255A
+     DService          S             64A
+     DSessionID        S             32A
+     DLibrary          S             10A
+     DSrvPgm           S             10A
+     DUUID             S             37A
+     DInProcHandler    S            255A
+     DDataBuffer       S           4096A
+     DJsonData         DS                  LikeDS(CFSJSP_DATA)
+
+     DVtbl             DS                  Qualified Based(@lpVtbl)
+     DClose                            *   ProcPtr
+     DGetData                          *   ProcPtr
+     DOpen                             *   ProcPtr
+     DReceive                          *   ProcPtr
+     DSend                             *   ProcPtr
+
+     DReceive...
+     D                 Pr            10I 0   ExtProc(Vtbl.Receive)
+     D@This                            *     Value
+     D@DataSize                        *     Value
+     D@TimeOut                       10I 0   Value
+
+     DSend...
+     D                 Pr            10I 0   ExtProc(Vtbl.Send)
+     D@This                            *     Value
+     D@Operation                     10I 0   Value
+     D@Data                            *     Value
+     D@DataSize                      10I 0   Value
+     D@FinState                      10I 0   Value
+     D@TimeOut                       10I 0   Value
+
+     DGetData...
+     D                 Pr            10I 0   ExtProc(Vtbl.GetData)
+     D@This                            *     Value
+     D@Data                            *     Value
+     D@Offset                        10I 0   Value
+     D@Size                          10I 0   Value
+
+     DMemCpy...
+     D                 PR                  ExtProc('memcpy')
+     D@To                              *   Value
+     D@From                            *   Value
+     D@Len                           10I 0 Value
+
+     DServiceHandler...
+     D                 Pr            10I 0 ExtProc(pServiceHandler)
+     D@ServiceName                   64A   Value
+     D@SessionID                     32A   Value
+     D@Conn                            *   Value
+     D@lpVtbl                          *   Value
+     D@UserData                        *   Value
+
+      /Free
+
+          pJsonOut = CFSJSO_Constructor();
+          pJsonIn  = CFSJSP_Constructor();
+          pBuffer  = CTBUFF_Constructor();
+
+          ////////////////////////////////////////////////////////////////////
+          // Wait for client to send the control data; this could
+          // include credentials and any other information required
+          // by the service. In this example,the control data contains
+          // the name of the program to call as a procedure, in JSON
+          // format:
+          //
+          //          {
+          //             "control":
+          //             {
+          //               "service": "MySERVICE"
+          //             }
+          //          }
+          //
+          ////////////////////////////////////////////////////////////////////
+
+          Rc = Receive(@Conn: %Addr(DataSize): -1);
+
+          If %Bitand(Rc: CSWSCK_MASK_ERROR) = CS_SUCCESS;
+
+            If %Bitand(Rc: CSWSCK_MASK_OPERATION) = CSWSCK_OPER_TEXT;
+
+              // This means we got data from the client.
+              // We extract the data into our buffer.
+
+              Offset = 0;  // This to mark where within our
+                           // data buffer we must copy client
+                           // data: this is the number of bytes
+                           // AFTER the beginning position so
+                           // zero means position 1 in the buffer.
+
+              DataBuffer = *Blanks;  // To clear previously received data
+
+              GetData(@Conn:
+                      %Addr(DataBuffer) + Offset:
+                      0:
+                      DataSize);
+
+              Offset += DataSize;
+
+              // Perhaps we just got a fragment of the data ...
+              // read data from client until no more data is forthcoming.
+              // The diagnostic code indicates if more data is waiting
+              // to be read from the client.
+
+              Dow %Bitand(Rc: CSWSCK_MASK_DIAG) = CSWSCK_MOREDATA;
+
+                Rc = Receive(@Conn: %Addr(DataSize): -1);
+
+                If %Bitand(Rc: CSWSCK_MASK_ERROR) = CS_SUCCESS;
+
+                  If %Bitand(Rc: CSWSCK_MASK_OPERATION) =
+                                         CSWSCK_OPER_CONTINUATION;
+
+                    GetData(@Conn:
+                            %Addr(DataBuffer) + Offset:
+                            0:
+                            DataSize);
+
+                    Offset += DataSize;
+
+                  EndIf;
+
+                Else;
+
+                  ErrCode = CS_FAILURE;
+                  Leave;
+
+                EndIf;
+
+              EndDo;
+
+              If ErrCode = CS_SUCCESS;
+
+                // Parse the data (in JSON format) and extract service name
+
+                CTBUFF_Set(pBuffer:
+                           %Addr(DataBuffer):
+                           %Len(%Trim(dataBuffer)));
+
+                Rc = CFSJSP_Parse(pJsonIn: pBuffer);
+
+                If Rc = CS_SUCCESS;
+
+                  Rc = CFSJSP_Lookup(pJsonIn:
+                                     '/control/service':
+                                     JsonData);
+
+                  If Rc = CS_SUCCESS;
+
+                    Clear Service;
+                    MemCpy(%Addr(Service):
+                          JsonData.Value:
+                          JsonData.Size);
+
+                    // Get service implementation from
+                    // service ID
+
+                    Exec SQL
+                      Select RGLIBNM, RGPRCHD, RGPRCNM
+                         Into :Library, :SrvPgm, :InProcHandler
+                        From CSAPBREG
+                        Where RGSRVNM = :Service;
+
+                    If SQLCODE = 0;
+
+                      pServiceHandler =
+                            GetInProcHandler(Library:
+                                             SrvPgm:
+                                             InProcHandler);
+
+                      If pServiceHandler <> *Null;
+
+					                   CFS_MakeUUID(%Addr(UUID): 0);
+					                   MemCpy(%Addr(SessionID): %Addr(UUID): 32);
+
+                        DataBuffer= '{"control":{"diag":"00000000", ' +
+					                               '"sessionid": "' + SessionID + '"}}';
+
+                        DataSize = %Len(%Trim(DataBuffer));
+
+                        Rc = Send(@Conn:
+                                  CSWSCK_OPER_TEXT:
+                                  %Addr(DataBuffer):
+                                  DataSize:
+                                  CSWSCK_FIN_ON:
+                                  -1);
+
+                        // call the service handler
+                        ServiceHandler(Service:
+					                                  SessionID:
+					                                  @Conn:
+					                                  @lpVtbl:
+					                                  *Null);
+
+                      Else;
+
+                        DataBuffer= '{"control":{"diag":"80000102"}}';
+                        DataSize = %Len(%Trim(DataBuffer));
+
+                        Rc = Send(@Conn:
+                                  CSWSCK_OPER_TEXT:
+                                  %Addr(DataBuffer):
+                                  DataSize:
+                                  CSWSCK_FIN_ON:
+                                  -1);
+                      EndIf;
+
+                    Else;
+                    
+                      DataBuffer= '{"control":{"diag":"80000101"}}';
+                      DataSize = %Len(%Trim(DataBuffer));
+
+                      Rc = Send(@Conn:
+                                CSWSCK_OPER_TEXT:
+                                %Addr(DataBuffer):
+                                DataSize:
+                                CSWSCK_FIN_ON:
+                                -1);
+                    EndIf;
+
+                  Else;
+
+                    // Did not find the application parameter
+
+                    DataBuffer= '{"control":{"diag":"80000000"}}';
+                    DataSize = %Len(%Trim(DataBuffer));
+
+                    Rc = Send(@Conn:
+                              CSWSCK_OPER_TEXT:
+                              %Addr(DataBuffer):
+                              DataSize:
+                              CSWSCK_FIN_ON:
+                              -1);
+
+                  EndIf;
+
+                Else;
+
+                  DataBuffer= '{"control":{"diag":"80000000"}}';
+                  DataSize = %Len(%Trim(DataBuffer));
+
+                  Rc = Send(@Conn:
+                            CSWSCK_OPER_TEXT:
+                            %Addr(DataBuffer):
+                            DataSize:
+                            CSWSCK_FIN_ON:
+                            -1);
+
+                  ErrCode = CS_FAILURE; // To leave the receive loop
+
+                EndIf;
+
+              EndIf;
+
+            EndIf;
+
+          EndIf;
+
+          CFSJSO_Destructor(pJsonOut);
+          CFSJSP_Destructor(pJsonIn);
+          CTBUFF_Destructor(pBuffer);
+
+          *InLR = *On;
+          Return 0;
+
+      /End-Free
+
+     P                 E
+
+     P GetInProcHandler...
+     P                 B
+     D                 Pi              *   ProcPtr
+     D  Library                      10A   Const
+     D  SrvPgm                       10A   Const
+     D  Procedure                   255A   Varying Const
+
+     D RslvSP2         Pr                  ExtProc('_RSLVSP2')
+     D  Ptr                                Like(SysPtr)
+     D  Template                           Like(RslvTemplt) Const
+
+     D RslvSP4         Pr                  ExtProc('_RSLVSP4')
+     D  Ptr                                Like(SysPtr)
+     D  Template                           Like(RslvTemplt) Const
+     D  LibPtr                             Like(SysPtr) Const
+
+     D RslvTemplt      Ds
+     D  Gen_Mat_Id                   32A
+     D   TypeSubtyp                   2A   Overlay(Gen_Mat_Id:1)
+     D   Object                      30A   Overlay(Gen_Mat_Id:3)
+     D  Req_Auth                      2A   Inz(AUTH_NONE)
+
+      //See QSYSINC/MIH/MICOMMON for authority constants
+     D AUTH_NONE       C                   X'0000'
+
+      //Prototype and templates for ActivateBoundProgram (QLEAWI.H)
+     D QleActBndPgm    Pr                  ExtProc('QleActBndPgm')
+     D  SrvpgmPtr                          Like(SysPtr) Const
+     D  ActMark                      10I 0
+     D  ABPInfo                            Like(ABP_Info)
+     D  ABPInfoLen                   10I 0 Const
+     D  ErrorCode                          Like(ErrCode)
+
+     D ABP_Info        Ds
+     D  ABP_Ret                      10I 0 Inz(%Size(ABP_INFO))
+     D  ABP_Avail                    10I 0
+     D                                8A   Inz(*AllX'00')
+     D  ABP_ActGrp                   10I 0
+     D  ABP_ActMark                  10I 0
+     D                                7A   Inz(*AllX'00')
+     D  ABP_Flags                     1A
+     D                                1A   Inz(*AllX'00')
+
+      //Prototype and templates for to resolve a pointer to an export data
+      //or procedure (QLEAWI.H)
+     D GetExport       Pr                  ExtProc('QleGetExp')
+     D  SrvpgmMark                   10I 0
+     D  ExportId                     10I 0 Const
+     D  NameLen                      10I 0 Const
+     D  ExportName                  100A   Const
+     D  ExportPtr                      *   ProcPtr
+     D  ExportType                   10I 0
+     D  ErrorCode                          Like(ErrCode)
+
+     D EX_NOT_FOUND    C                   0
+     D EX_PROC         C                   1
+     D EX_DATA         C                   2
+     D EX_NO_ACCESS    C                   3
+
+     D ErrCode         DS
+     D  ErrProv                      10I 0 Inz(0)
+
+     D LibPtr          S                   Like(SysPtr)
+     D SrvpgmPtr       S                   Like(SysPtr)
+     D ActMark         S             10I 0
+     D ProcPtr         S               *   ProcPtr
+     D ExportType      S             10I 0
+     D TrimedPrc       S            100A   Varying
+
+      //Define a "System-pointer" type.
+     D SysPtr          S               *   ProcPtr Based(dummy)
+
+      /Free
+
+        If Library = '*LIBL';
+          TypeSubtyp = x'0203';
+          Object = Srvpgm;
+          RslvSP2(SrvpgmPtr : RslvTemplt);
+        Else;
+          TypeSubtyp = x'0401';
+          Object = Library;
+          RslvSP2(LibPtr : RslvTemplt);
+          TypeSubtyp = x'0203';
+          Object = Srvpgm;
+          RslvSP4(SrvpgmPtr : RslvTemplt : LibPtr);
+        EndIf;
+
+        QleActBndPgm(SrvpgmPtr : ActMark : ABP_Info :
+                     %size(ABP_Info) : ErrCode);
+        //Finally, get the procedure pointer. We're using nameLen + name rather
+        //than export-number so we pass 0 as the export number.
+        TrimedPrc = %Trim(Procedure);
+        GetExport(ActMark : 0 : %len(TrimedPrc) : TrimedPrc : ProcPtr :
+                  ExportType : ErrCode);
+
+        //Return the procedure pointer
+        If ExportType = EX_PROC;
+          Return ProcPtr;
+        Else;
+          Return *NULL;
+        EndIf;
+
+      /End-Free
+
+     P                 E
