@@ -374,8 +374,6 @@
      D  ABP_Flags                     1A
      D                                1A   Inz(*AllX'00')
 
-      //Prototype and templates for to resolve a pointer to an export data
-      //or procedure (QLEAWI.H)
      D GetExport       Pr                  ExtProc('QleGetExp')
      D  SrvpgmMark                   10I 0
      D  ExportId                     10I 0 Const
@@ -400,7 +398,6 @@
      D ExportType      S             10I 0
      D TrimedPrc       S            100A   Varying
 
-      //Define a "System-pointer" type.
      D SysPtr          S               *   ProcPtr Based(dummy)
 
       /Free
@@ -420,13 +417,11 @@
 
         QleActBndPgm(SrvpgmPtr : ActMark : ABP_Info :
                      %size(ABP_Info) : ErrCode);
-        //Finally, get the procedure pointer. We're using nameLen + name rather
-        //than export-number so we pass 0 as the export number.
+		     
         TrimedPrc = %Trim(Procedure);
         GetExport(ActMark : 0 : %len(TrimedPrc) : TrimedPrc : ProcPtr :
                   ExportType : ErrCode);
 
-        //Return the procedure pointer
         If ExportType = EX_PROC;
           Return ProcPtr;
         Else;
