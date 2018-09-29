@@ -972,18 +972,18 @@
                 SessionInfo.szApplicationID = %Addr(AppID);
 
                 Vtbl.Open       = %PAddr(CSWSCK_SecureConnect);
-                        Vtbl.Close      = %PAddr(CSWSCK_SecureClose);
-                        Vtbl.Receive    = %PAddr(CSWSCK_SecureReceive);
-                        Vtbl.Send       = %PAddr(CSWSCK_SecureSend);
-                        Vtbl.GetData    = %PAddr(CSWSCK_GetData);
+                Vtbl.Close      = %PAddr(CSWSCK_SecureClose);
+                Vtbl.Receive    = %PAddr(CSWSCK_SecureReceive);
+                Vtbl.Send       = %PAddr(CSWSCK_SecureSend);
+                Vtbl.GetData    = %PAddr(CSWSCK_GetData);
 
-            Other;
+              Other;
 
-                        Vtbl.Open       = %PAddr(CSWSCK_Connect);
-                        Vtbl.Close      = %PAddr(CSWSCK_Close);
-                        Vtbl.Receive    = %PAddr(CSWSCK_Receive);
-                        Vtbl.Send       = %PAddr(CSWSCK_Send);
-                        Vtbl.GetData    = %PAddr(CSWSCK_GetData);
+                Vtbl.Open       = %PAddr(CSWSCK_Connect);
+                Vtbl.Close      = %PAddr(CSWSCK_Close);
+                Vtbl.Receive    = %PAddr(CSWSCK_Receive);
+                Vtbl.Send       = %PAddr(CSWSCK_Send);
+                Vtbl.GetData    = %PAddr(CSWSCK_GetData);
 
             EndSl;
 
