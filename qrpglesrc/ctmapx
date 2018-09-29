@@ -1,0 +1,1311 @@
+      *===========================================================================
+      * Package: CTBASE
+      * Class:   CTMAPX
+      * Source:  Implementation
+      * Version: 01.00.00
+      *
+      * --------------------------------------------------------------------------
+      * Copyright 2013 Clarasoft I.T. Solutions Inc.
+      *===========================================================================
+
+     H NOMAIN
+
+      /COPY CTBASEH
+
+     DCTMAPX_Instance  DS                  Qualified Based(Null)
+     DTree                             *
+     DKeys                             *
+     DNextKey                        10I 0
+
+     DCTAVL_Instance   DS                  Qualified Based(Null)
+     DLeft                             *
+     DRight                            *
+     DParent                           *
+     DHeight                         10I 0
+     DKey                              *
+     DValue                            *
+     DKeySize                        10I 0
+     DValueSize                      10I 0
+
+      * ----------------------------------------------------
+      * Private Methods - Prototypes
+      * ----------------------------------------------------
+
+     DCTAVL_PRIVATE_BLookup...
+     D                 PR            10I 0
+     D@Tree                            *   Value
+     D@Key                             *   Value
+     D@Buffer                          *   Value
+
+     DCTAVL_PRIVATE_Clear...
+     D                 PR            10I 0
+     D@Tree                            *
+
+     DCTAVL_PRIVATE_DoubleLeftRotation...
+     D                 PR              *
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_DoubleRightRotation...
+     D                 PR              *
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_Height...
+     D                 PR            10I 0
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_Insert...
+     D                 PR              *
+     D@Tree                            *   Value
+     D@Parent                          *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0 Value
+
+     DCTAVL_PRIVATE_ItemSize...
+     D                 PR            10I 0
+     D@Tree                            *   Value
+     D@Key                             *   Value
+
+     DCTAVL_PRIVATE_Lookup...
+     D                 PR            10I 0
+     D@Tree                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0
+
+     DCTAVL_PRIVATE_MemCpy...
+     D                 PR                  ExtProc('memcpy')
+     D@To                              *   Value
+     D@From                            *   Value
+     D@Len                           10I 0 Value
+
+     DCTAVL_PRIVATE_MemSet...
+     D                 PR                  ExtProc('memset')
+     D@To                              *   Value
+     D@Char                           5I 0 Value
+     D@Len                           10I 0 Value
+
+     DCTAVL_PRIVATE_Rebalance...
+     D                 PR              *
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_Remove...
+     D                 PR              *
+     D@Tree                            *   Value
+     D@Key                             *   Value
+
+     DCTAVL_PRIVATE_ResetTreeHeight...
+     D                 PR            10I 0
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_StrCmp...
+     D                 PR             5I 0 ExtProc('strcmp')
+     D@Str1                            *   Value
+     D@Str2                            *   Value
+
+     DCTAVL_PRIVATE_StrLen...
+     D                 PR             5I 0 ExtProc('strlen')
+     D@Str1                            *   Value
+
+     DCTAVL_PRIVATE_SingleLeftRotation...
+     D                 PR              *
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_SingleRightRotation...
+     D                 PR              *
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_Successor...
+     D                 PR              *
+     D@Tree                            *   Value
+
+     DCTAVL_PRIVATE_Traverse...
+     D                 PR            10I 0
+     D@Tree                            *   Value
+     D@Keys                            *   Value
+
+     DCTAVL_PRIVATE_TraverseFrom...
+     D                 PR            10I 0
+     D@Tree                            *   Value
+     D@Keys                            *   Value
+
+     DCTAVL_PRIVATE_SetLL...
+     D                 PR              *
+     D@Tree                            *   Value
+     D@Key                             *   Value
+
+      * ----------------------------------------------------
+      * Implementation
+      * ----------------------------------------------------
+
+     PCTMAPX_BInsert...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+     DValue            S               *
+     DLen              S             10I 0
+
+      /Free
+
+        If @Key <> *Null;
+
+          Len = CTBUFF_Length(@Value);
+          If Len > 0;
+            Value = %Alloc(Len);
+            CTBUFF_Get(@Value: Value: 1: Len);
+          Else;
+            Value = *Null;
+          EndIf;
+
+          Instance.Tree = CTAVL_PRIVATE_Insert(Instance.Tree:
+                                                *Null:
+                                                @Key:
+                                                Value:
+                                                Len);
+          If Value <> *Null;
+            Dealloc Value;
+          EndIf;
+        Else;
+          Return CS_FAILURE;
+        EndIf;
+
+        Return CS_SUCCESS;
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_BIterNext...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@KeySize                       10I 0
+     D@Value                           *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+     DCount            S             10I 0
+     DKeyBytes         S             10I 0
+
+      /Free
+
+        Count = CTLST_Count(Instance.Keys);
+
+        If Instance.NextKey <= Count;
+          KeyBytes = @KeySize;
+          CTLST_Get(Instance.Keys: @Key: KeyBytes: Instance.NextKey);
+          If KeyBytes > @KeySize;
+            @KeySize = KeyBytes;
+            Return CS_FAILURE;
+          Else;
+            CTAVL_PRIVATE_BLookup(Instance.Tree:
+                                  @Key:
+                                  @Value);
+            Instance.NextKey += 1;
+          EndIf;
+        Else;
+          Return CS_FAILURE;
+        EndIf;
+
+        Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_BLookup...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+
+     DRc               S             10I 0
+
+      /Free
+
+        If @Key = *Null;
+          Return CS_FAILURE;
+        EndIf;
+
+        Rc = CTAVL_PRIVATE_BLookup(Instance.Tree:
+                                   @Key:
+                                   @Value);
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_Clear...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+
+      /Free
+        CTLST_Clear(Instance.Keys);
+        Instance.NextKey = 0;
+        Return CTAVL_PRIVATE_Clear(Instance.Tree);
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_Constructor...
+     P                 B                   EXPORT
+     D                 PI              *
+
+     DThis             S               *
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(This)
+      /Free
+
+          This = %Alloc(%Size(CTMAPX_Instance));
+          Instance.Tree = *Null;
+          Instance.Keys = CTLST_Constructor();
+
+          Return This;
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_Destructor...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+     DTree             DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(Instance.Tree)
+
+      /Free
+
+          If @This <> *Null;
+            CTAVL_PRIVATE_Clear(Instance.Tree);
+            CTLST_Destructor(Instance.Keys);
+            Dealloc @This;
+            @This = *Null;
+          EndIf;
+
+          Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_Insert...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0 Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+
+      /Free
+
+        If @Key <> *Null;
+
+          Instance.Tree = CTAVL_PRIVATE_Insert(Instance.Tree:
+                                               *Null:
+                                               @Key:
+                                               @Value:
+                                               @ValueSize);
+        Else;
+          Return CS_FAILURE;
+        EndIf;
+
+        Return CS_SUCCESS;
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_ItemSize...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+     DValueSize        S             10I 0
+
+      /Free
+        If CTAVL_PRIVATE_Lookup(Instance.Tree: @Key:
+                        *Null: ValueSize) = CS_SUCCESS;
+          Return ValueSize;
+        Else;
+          Return -1;
+        EndIf;
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_IterNext...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@KeySize                       10I 0
+     D@Value                           *   Value
+     D@ValueSize                     10I 0
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+     DCount            S             10I 0
+     DKeyBytes         S             10I 0
+
+      /Free
+
+        Count = CTLST_Count(Instance.Keys);
+
+        If Instance.NextKey <= Count;
+          KeyBytes = @KeySize;
+          CTLST_Get(Instance.Keys: @Key: KeyBytes: Instance.NextKey);
+          If KeyBytes > @KeySize;
+            @KeySize = KeyBytes;
+            Return CS_FAILURE;
+          Else;
+            CTAVL_PRIVATE_Lookup(Instance.Tree:
+                                 @Key:
+                                 @Value:
+                                 @ValueSize);
+            Instance.NextKey += 1;
+          EndIf;
+        Else;
+          Return CS_FAILURE;
+        EndIf;
+
+        Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_IterNextSize...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@KeySize                       10I 0
+     D@ValueSize                     10I 0
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+     DCount            S             10I 0
+     DValueSize        S             10I 0
+     DKeyBuff          S               *
+
+      /Free
+
+        Count = CTLST_Count(Instance.Keys);
+
+        If Instance.NextKey <= Count And Count > 0;
+          @KeySize = CTLST_ItemSize(Instance.Keys: Instance.NextKey);
+          KeyBuff = %Alloc(@KeySize);
+          CTLST_Get(Instance.Keys: KeyBuff: @KeySize: Instance.NextKey);
+          @ValueSize = 0;
+          CTMAPX_Lookup(@This: KeyBuff:
+                               *Null: @ValueSize);
+          Dealloc KeyBuff;
+          Return CS_SUCCESS;
+        Else;
+          @KeySize = -1;
+          @ValueSize = -1;
+          Return CS_FAILURE;
+        EndIf;
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_IterStart...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+
+      /Free
+
+        CTLST_Clear(Instance.Keys);
+
+        CTAVL_PRIVATE_Traverse(Instance.Tree: Instance.Keys);
+        Instance.NextKey = 1;
+
+        Return CTLST_Count(Instance.Keys);
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_Lookup...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+
+     DRc               S             10I 0
+     DCompare          S             10I 0
+
+      /Free
+
+        If @Key = *Null;
+          Return CS_FAILURE;
+        EndIf;
+
+        Rc = CTAVL_PRIVATE_Lookup(Instance.Tree:
+                                  @Key:
+                                  @Value:
+                                  @ValueSize);
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_IterStartKey...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+     DTree             S               *
+
+      /Free
+
+        CTLST_Clear(Instance.Keys);
+
+        Tree = CTAVL_PRIVATE_SetLL(Instance.Tree: @Key);
+        CTAVL_PRIVATE_TraverseFrom(Tree: Instance.Keys);
+        Instance.NextKey = 1;
+
+        Return CTLST_Count(Instance.Keys);
+
+      /End-Free
+
+     P                 E
+
+     PCTMAPX_Remove...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+
+     DInstance         DS                  LikeDs(CTMAPX_Instance)
+     D                                     Based(@This)
+
+      /Free
+
+        Instance.Tree = CTAVL_PRIVATE_Remove(Instance.Tree: @Key);
+
+        Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+      *============================================================
+      *============================================================
+
+     PCTAVL_PRIVATE_BLookup...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+     DCompare          S             10I 0
+
+      /Free
+
+          If @Tree = *Null;
+            Return CS_FAILURE;
+          Else;
+            Compare = CTAVL_PRIVATE_StrCmp(AvlTree.Key: @Key);
+            If Compare = 0;
+              If AvlTree.ValueSize > 0;
+                CTBUFF_Set(@Value: AvlTree.Value: AvlTree.ValueSize);
+              Else;
+                CTBUFF_Set(@Value: *Null: 0);
+              EndIf;
+
+              Return CS_SUCCESS;
+
+            Else;
+              If Compare < 0;
+                Return CTAVL_PRIVATE_BLookup(AvlTree.Right:
+                                            @Key:
+                                            @Value);
+              Else;
+                Return CTAVL_PRIVATE_BLookup(AvlTree.Left:
+                                            @Key:
+                                            @Value);
+              EndIf;
+            EndIf;
+          EndIf;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Clear...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+      /Free
+
+          If @Tree = *Null;
+            Return CS_SUCCESS;
+          EndIf;
+
+          If AvlTree.Left <> *Null;
+            CTAVL_PRIVATE_Clear(AvlTree.Left);
+          EndIf;
+
+          If AvlTree.Right <> *Null;
+            CTAVL_PRIVATE_Clear(AvlTree.Right);
+          EndIf;
+
+          If AvlTree.Value <> *Null;
+            Dealloc AvlTree.Value;
+          EndIf;
+
+          Dealloc AvlTree.Key;
+          Dealloc @Tree;
+          @Tree = *Null;
+
+          Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Lookup...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+     DCompare          S             10I 0
+
+      /Free
+
+          If @Tree = *Null;
+            Return CS_FAILURE;
+          Else;
+            Compare = CTAVL_PRIVATE_StrCmp(AvlTree.Key: @Key);
+            If Compare = 0;
+              If AvlTree.ValueSize > 0;
+                If @ValueSize < AvlTree.ValueSize;
+                  If @Value <> *Null And AvlTree.Value <> *Null;
+                    CTAVL_PRIVATE_MemCpy(@Value: AvlTree.Value:
+                                                          @ValueSize);
+                  EndIf;
+                Else;
+                  If @Value <> *Null And AvlTree.Value <> *Null;
+                    CTAVL_PRIVATE_MemCpy(@Value: AvlTree.Value:
+                                                      AvlTree.ValueSize);
+                  EndIf;
+                EndIf;
+                @ValueSize = AvlTree.ValueSize;
+              Else;
+                @ValueSize = 0;
+              EndIf;
+
+              Return CS_SUCCESS;
+
+            Else;
+              If Compare < 0;
+                Return CTAVL_PRIVATE_Lookup(AvlTree.Right:
+                                            @Key:
+                                            @Value:
+                                            @ValueSize);
+              Else;
+                Return CTAVL_PRIVATE_Lookup(AvlTree.Left:
+                                            @Key:
+                                            @Value:
+                                            @ValueSize);
+              EndIf;
+            EndIf;
+          EndIf;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_ItemSize...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *   Value
+     D@Key                             *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+
+     DCompare          S             10I 0
+
+      /Free
+
+          If @Tree = *Null;
+            Return CS_FAILURE;
+          Else;
+            Compare = CTAVL_PRIVATE_StrCmp(AvlTree.Key: @Key);
+            If Compare = 0;
+              Return AvlTree.ValueSize;
+            Else;
+              If Compare < 0;
+                Return CTAVL_PRIVATE_ItemSize(AvlTree.Right: @Key);
+              Else;
+                Return CTAVL_PRIVATE_ItemSize(AvlTree.Left: @Key);
+              EndIf;
+            EndIf;
+          EndIf;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Insert...
+     P                 B
+     D                 PI              *
+     D@Tree                            *   Value
+     D@Parent                          *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0 Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+
+     DRoot             S               *
+     DRootNode         DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(Root)
+     DCompare          S             10I 0
+     DRightHeight      S             10I 0
+     DLeftHeight       S             10I 0
+     DBalanceFactor    S             10I 0
+     DKeySize          S             10I 0
+
+      /Free
+
+          If @Tree = *Null;
+            If @Key = *Null;
+              Return *Null;
+            Else;
+              Root = %Alloc(%Size(CTAVL_Instance));
+              KeySize = CTAVL_PRIVATE_StrLen(@Key);
+              RootNode.Key = %Alloc(KeySize + 1); // one more for NULL
+
+              CTAVL_PRIVATE_MemSet(RootNode.Key+KeySize: 0: 1);
+
+              CTAVL_PRIVATE_MemCpy(RootNode.Key: @Key: KeySize);
+              RootNode.KeySize = KeySize + 1;  // To include NULL when copying key
+                                               // to key list in iteration loop
+              RootNode.ValueSize = @ValueSize;
+
+              If RootNode.ValueSize > 0;
+                RootNode.Value = %Alloc(RootNode.ValueSize);
+                CTAVL_PRIVATE_MemCpy(RootNode.Value:
+                                        @Value: RootNode.ValueSize);
+              Else;
+                RootNode.Value = *Null;
+              EndIf;
+
+              RootNode.Height = 1;
+              RootNode.Parent = @Parent;
+              RootNode.Left = *Null;
+              RootNode.Right = *Null;
+
+            EndIf;
+          Else;
+
+            Compare = CTAVL_PRIVATE_StrCmp(AvlTree.Key: @Key);
+
+            If Compare = 0;
+
+              If AvlTree.ValueSize > 0;
+                Dealloc AvlTree.Value;
+              EndIf;
+
+              AvlTree.ValueSize = @ValueSize;
+
+              If @ValueSize > 0;
+                AvlTree.Value = %Alloc(@ValueSize);
+                CTAVL_PRIVATE_MemCpy(AvlTree.Value: @Value:
+                                             @ValueSize);
+              Else;
+
+                AvlTree.Value = *Null;
+
+              EndIf;
+
+              Root = @Tree;
+
+            Else;
+              If Compare < 0;
+                AvlTree.Right = CTAVL_PRIVATE_Insert(AvlTree.Right:
+                                                     @Tree:
+                                                     @Key:
+                                                     @Value:
+                                                     @ValueSize);
+              Else;
+                AvlTree.Left = CTAVL_PRIVATE_Insert(AvlTree.Left:
+                                                    @Tree:
+                                                    @Key:
+                                                    @Value:
+                                                    @ValueSize);
+              EndIf;
+
+              CTAVL_PRIVATE_ResetTreeHeight(@Tree);
+              Root = CTAVL_PRIVATE_Rebalance(@Tree);
+
+            EndIf;
+          EndIf;
+
+          Return Root;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Remove...
+     P                 B
+     D                 PI              *
+     D@This                            *   Value
+     D@Key                             *   Value
+
+     DCompare          S             10I 0
+     DLeftHeight       S             10I 0
+     DRightHeight      S             10I 0
+     DBalanceFactor    S             10I 0
+     DSuccessor        S               *
+     DSuccessorRight   S               *
+     DSuccessorParent  S               *
+     DNewRoot          S               *
+     DpParent          S               *
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@This)
+     DRightTree        DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(AvlTree.Right)
+     DLeftTree         DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(AvlTree.Left)
+     DSuccessorNode    DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(Successor)
+     DSuccessorRNode   DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(SuccessorRight)
+     DSuccessorPNode   DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(SuccessorParent)
+     DSuccessorPPNode  DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(SuccessorPNode.Parent)
+     DCurNode          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(pParent)
+
+      /Free
+
+        If @This = *Null;
+          Return *Null;
+        Else;
+
+          Compare = CTAVL_PRIVATE_StrCmp(AvlTree.Key: @Key);
+
+          If Compare = 0;
+
+
+            If AvlTree.Left = *Null And AvlTree.Right = *Null;
+
+              If AvlTree.Value <> *Null;
+                Dealloc AvlTree.Value;
+              EndIf;
+
+              Dealloc AvlTree.Key;
+              Dealloc @This;
+              Return *Null;
+			
+            Else;
+
+              If AvlTree.Left <> *Null And AvlTree.Right <> *Null;
+
+                Successor = CTAVL_PRIVATE_Successor(@This);
+
+                If AvlTree.Value <> *Null;
+                  Dealloc AvlTree.Value;
+                EndIf;
+
+                Dealloc AvlTree.Key;
+
+                AvlTree.Key = SuccessorNode.Key;
+                AvlTree.Value = SuccessorNode.Value;
+                AvlTree.KeySize = SuccessorNode.KeySize;
+                AvlTree.ValueSize = SuccessorNode.ValueSize;
+
+                If Successor = AvlTree.Right;
+
+                  AvlTree.Right = SuccessorNode.Right;
+
+                  If SuccessorNode.Right <> *Null;
+
+                    SuccessorRight = SuccessorNode.Right;
+                    SuccessorRNode.Parent = @This;
+
+                  EndIf;
+                Else;
+
+                  SuccessorRight = SuccessorNode.Right;
+                  SuccessorParent = SuccessorNode.Parent;
+                  SuccessorPNode.Left = SuccessorNode.Right;
+
+                  If SuccessorNode.Right <> *Null;
+                    SuccessorRNode.Parent = SuccessorNode.Parent;
+                  EndIf;
+
+                  CTAVL_PRIVATE_ResetTreeHeight(SuccessorParent);
+
+                  SuccessorPPNode.Left =
+                        CTAVL_PRIVATE_Rebalance(SuccessorParent);
+
+                  pParent = SuccessorPNode.Parent;
+
+                  Dow pParent <> @This;
+                    CTAVL_PRIVATE_ResetTreeHeight(pParent);
+                    pParent = CurNode.Parent;
+                  EndDo;
+
+                EndIf;
+
+                Dealloc Successor;
+
+                CTAVL_PRIVATE_ResetTreeHeight(@This);
+                Return CTAVL_PRIVATE_Rebalance(@This);
+
+              Else;
+
+                If AvlTree.Left <> *Null;
+
+                   LeftTree.Parent = AvlTree.Parent;
+
+                   NewRoot = AvlTree.Left;
+
+                Else;
+
+                   RightTree.Parent = AvlTree.Parent;
+
+                   NewRoot = AvlTree.Right;
+
+                EndIf;
+
+                If AvlTree.Value <> *Null;
+                  Dealloc AvlTree.Value;
+                EndIf;
+
+                Dealloc AvlTree.Key;
+                Dealloc @This;
+
+                CTAVL_PRIVATE_ResetTreeHeight(NewRoot);
+                Return CTAVL_PRIVATE_Rebalance(NewRoot);
+
+              EndIf;
+            EndIf;
+          Else;
+
+            If Compare < 0;
+
+              AvlTree.Right = CTAVL_PRIVATE_Remove(AvlTree.Right: @Key);
+
+            Else;
+
+              AvlTree.Left = CTAVL_PRIVATE_Remove(AvlTree.Left: @Key);
+
+            EndIf;
+
+            CTAVL_PRIVATE_ResetTreeHeight(@This);
+            Return CTAVL_PRIVATE_Rebalance(@This);
+
+          EndIf;
+        EndIf;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_ResetTreeHeight...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+     DLeftHeight       S             10I 0
+     DRightHeight      S             10I 0
+
+      /Free
+
+         LeftHeight = CTAVL_PRIVATE_Height(AvlTree.Left);
+         RightHeight = CTAVL_PRIVATE_Height(AvlTree.Right);
+
+         If LeftHeight > RightHeight;
+           AvlTree.Height = LeftHeight + 1;
+         Else;
+           AvlTree.Height = RightHeight + 1;
+         EndIf;
+
+         Return CS_SUCCESS;
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Rebalance...
+     P                 B
+     D                 PI              *
+     D@Root                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Root)
+     DAvlTreeLeft      DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(AvlTree.Left)
+     DAvlTreeRight     DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(AvlTree.Right)
+     DLeftHeight       S             10I 0
+     DRightHeight      S             10I 0
+     DBalanceFactor    S             10I 0
+
+      /Free
+         LeftHeight = CTAVL_PRIVATE_Height(AvlTree.Left);
+         RightHeight = CTAVL_PRIVATE_Height(AvlTree.Right);
+
+         BalanceFactor = LeftHeight - RightHeight;
+         If BalanceFactor > 1;
+           LeftHeight = CTAVL_PRIVATE_Height(AvlTreeLeft.Left);
+           RightHeight = CTAVL_PRIVATE_Height(AvlTreeLeft.Right);
+           If (RightHeight - LeftHeight) > 0;
+             @Root = CTAVL_PRIVATE_DoubleRightRotation(@Root);
+           Else;
+             @Root = CTAVL_PRIVATE_SingleRightRotation(@Root);
+           EndIf;
+         Else;
+           If BalanceFactor < -1;
+             LeftHeight = CTAVL_PRIVATE_Height(AvlTreeRight.Left);
+             RightHeight = CTAVL_PRIVATE_Height(AvlTreeRight.Right);
+             If LeftHeight - RightHeight > 0;
+               @Root = CTAVL_PRIVATE_DoubleLeftRotation(@Root);
+             Else;
+               @Root = CTAVL_PRIVATE_SingleLeftRotation(@Root);
+             EndIf;
+           EndIf;
+         EndIf;
+
+         Return @Root;
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Height...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+
+      /Free
+         If @Tree = *Null;
+           Return 0;
+         EndIf;
+         Return AvlTree.Height;
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_SingleLeftRotation...
+     P                 B
+     D                 PI              *
+     D@Tree                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+     DLeftHeight       S             10I 0
+     DRightHeight      S             10I 0
+     DTemp             S               *
+     DTempTree         DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(Temp)
+     DRightTree        DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(AvlTree.Right)
+
+      /Free
+
+         Temp = AvlTree.Right;
+         AvlTree.Right = RightTree.Left;
+         TempTree.Left = @Tree;
+         TempTree.Parent = AvlTree.Parent;
+         AvlTree.Parent = Temp;
+
+         If AvlTree.Right <> *Null;
+           RightTree.Parent = @Tree;
+         EndIf;
+
+         LeftHeight = CTAVL_PRIVATE_Height(AvlTree.Left);
+         RightHeight = CTAVL_PRIVATE_Height(AvlTree.Right);
+
+         If LeftHeight > RightHeight;
+           AvlTree.Height = LeftHeight + 1;
+         Else;
+           AvlTree.Height = RightHeight + 1;
+         EndIf;
+
+         LeftHeight = AvlTree.Height;
+         RightHeight = CTAVL_PRIVATE_Height(TempTree.Right);
+
+         If LeftHeight > RightHeight;
+           TempTree.Height = LeftHeight + 1;
+         Else;
+           TempTree.Height = RightHeight + 1;
+         EndIf;
+
+         Return Temp;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_SingleRightRotation...
+     P                 B
+     D                 PI              *
+     D@Tree                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+     DLeftHeight       S             10I 0
+     DRightHeight      S             10I 0
+     DTemp             S               *
+     DTempTree         DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(Temp)
+     DLeftTree         DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(AvlTree.Left)
+
+      /Free
+
+        Temp = AvlTree.Left;
+        AvlTree.Left = LeftTree.Right;
+        TempTree.Right = @Tree;
+        TempTree.Parent = AvlTree.Parent;
+        AvlTree.Parent = Temp;
+
+        If AvlTree.Left <> *Null;
+          LeftTree.Parent = @Tree;
+        EndIf;
+
+        LeftHeight = CTAVL_PRIVATE_Height(AvlTree.Left);
+        RightHeight = CTAVL_PRIVATE_Height(AvlTree.Right);
+
+        If LeftHeight > RightHeight;
+          AvlTree.Height = LeftHeight + 1;
+        Else;
+          AvlTree.Height = RightHeight + 1;
+        EndIf;
+
+        LeftHeight = CTAVL_PRIVATE_Height(TempTree.Left);
+        RightHeight = AvlTree.Height;
+
+        If LeftHeight > RightHeight;
+          TempTree.Height = LeftHeight + 1;
+        Else;
+          TempTree.Height = RightHeight + 1;
+        EndIf;
+
+        Return Temp;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_DoubleLeftRotation...
+     P                 B
+     D                 PI              *
+     D@Tree                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+
+      /Free
+        AvlTree.Right = CTAVL_PRIVATE_SingleRightRotation(AvlTree.Right);
+        Return CTAVL_PRIVATE_SingleLeftRotation(@Tree);
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_DoubleRightRotation...
+     P                 B
+     D                 PI              *
+     D@Tree                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+
+      /Free
+        AvlTree.Left = CTAVL_PRIVATE_SingleLeftRotation(AvlTree.Left);
+        Return CTAVL_PRIVATE_SingleRightRotation(@Tree);
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Successor...
+     P                 B
+     D                 PI              *
+     D@Tree                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+     DpCur             S               *
+
+     DCurTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(pCur)
+
+      /Free
+
+        pCur = AvlTree.Right;
+        Dow CurTree.Left <> *Null;
+          pCur = CurTree.Left;
+        EndDo;
+        Return pCur;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_Traverse...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *   Value
+     D@Keys                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+
+      /Free
+
+        If @Tree = *Null;
+          Return CS_SUCCESS;
+        EndIf;
+
+        If AvlTree.Left <> *Null;
+          CTAVL_PRIVATE_Traverse(AvlTree.Left: @Keys);
+        EndIf;
+
+        CTLST_Insert(@Keys: AvlTree.Key:
+                            AvlTree.KeySize: CTLST_BOTTOM);
+
+        If AvlTree.Right <> *Null;
+          CTAVL_PRIVATE_Traverse(AvlTree.Right: @Keys);
+        EndIf;
+
+        Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_SetLL...
+     P                 B
+     D                 PI              *
+     D@Tree                            *   Value
+     D@Key                             *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+     DCompare          S             10I 0
+
+      /Free
+
+        If @Tree = *Null;
+          Return *Null;
+        Else;
+          Compare = CTAVL_PRIVATE_StrCmp(AvlTree.Key: @Key);
+          If Compare = 0;
+            // Index found
+            Return @Tree;
+
+          Else;
+            If Compare < 0;
+
+              Return CTAVL_PRIVATE_SetLL(AvlTree.Right:
+                                         @Key);
+
+            Else;
+              // THe index is not in tree
+              Return CTAVL_PRIVATE_SetLL(AvlTree.Left:
+                                         @Key);
+            EndIf;
+          EndIf;
+        EndIf;
+
+        Return @Tree;
+
+      /End-Free
+
+     P                 E
+
+     PCTAVL_PRIVATE_TraverseFrom...
+     P                 B
+     D                 PI            10I 0
+     D@Tree                            *   Value
+     D@Keys                            *   Value
+
+     DAvlTree          DS                  LikeDs(CTAVL_Instance)
+     D                                     Based(@Tree)
+
+      /Free
+
+        If @Tree = *Null;
+          Return CS_SUCCESS;
+        EndIf;
+
+        //If AvlTree.Left <> *Null;
+        //  CTAVL_PRIVATE_Traverse(AvlTree.Left: @Keys);
+        //EndIf;
+
+        CTLST_Insert(@Keys: AvlTree.Key:
+                            AvlTree.KeySize: CTLST_BOTTOM);
+
+        If AvlTree.Right <> *Null;
+          CTAVL_PRIVATE_Traverse(AvlTree.Right: @Keys);
+        EndIf;
+
+        Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+ 
