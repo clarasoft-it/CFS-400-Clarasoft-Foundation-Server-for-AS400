@@ -1,6 +1,6 @@
       *===================================================================
-      * Package: CFS: Clarasoft Foundation Server
-      * Class:   CFSJSP: JSON Parser
+      * Package: CFSJSN: JSON Parser
+      * Class:   CFSJSP
       * Source:  Implementation
       * Version: 01.00.00
       *
