@@ -1,6 +1,5 @@
   
   /*==================================================================*/
-  /*                                                                  */
   /*  Package: CTBASE                                                 */
   /*  Version: 01.00.00                                               */
   /* -----------------------------------------------------------------*/
@@ -20,10 +19,6 @@
                           SRCFILE(&SRCLIB/QRPGLESRC) SRCMBR(CTLST) +
                           DBGVIEW(*ALL)
 
-             CRTRPGMOD  MODULE(&SRCLIB/CTBUFFLST) +
-                          SRCFILE(&SRCLIB/QRPGLESRC) +
-                          SRCMBR(CTBUFFLST) DBGVIEW(*ALL)
-
              CRTRPGMOD  MODULE(&SRCLIB/CTBUFF) +
                           SRCFILE(&SRCLIB/QRPGLESRC) SRCMBR(CTBUFF) +
                           DBGVIEW(*ALL)
@@ -33,7 +28,7 @@
                           DBGVIEW(*ALL)
 
              CRTSRVPGM  SRVPGM(&TRGLIB/CTBASE) MODULE(&SRCLIB/CTLST +
-                          &SRCLIB/CTBUFFLST &SRCLIB/CTBUFF &SRCLIB/CTMAPX)
+                               &SRCLIB/CTBUFF &SRCLIB/CTMAPX)
   ENDPGM
   
   
