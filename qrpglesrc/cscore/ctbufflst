@@ -1,0 +1,403 @@
+
+      *===================================================================
+      * Package: CTBASE
+      * Class:   CTBUFFLST
+      * Source:  Implementation
+      * Version: 01.00.00
+      *
+      * Dependencies:
+      *
+      *     CTBASE::CTLST, Version 01.00.00
+      *
+      * ------------------------------------------------------------------
+      * Copyright 2013 Clarasoft I.T. Solutions Inc.
+      *===================================================================
+
+     H NOMAIN
+
+      /COPY CTBASEH
+
+     DCTBUFFLST_PRIVATE_ClearBuffers...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCTBUFFLST_PRIVATE_MemCpy...
+     D                 PR                  ExtProc('memcpy')
+     D@To                              *   Value
+     D@From                            *   Value
+     D@Len                           10I 0 Value
+
+     DCTBUFFLST_Token  DS                  Based(Null)
+     D                                     Qualified
+     DLen                            10I 0
+     DToken                            *
+
+     DCTBUFFLST_Instance...
+     D                 DS                  Based(Null)
+     D                                     Qualified
+     DStrings                          *
+
+     PCTBUFFLST_Constructor...
+     P                 B                   EXPORT
+     D                 PI              *
+
+     D#This            S               *
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(#This)
+
+      /Free
+
+         #This = %Alloc(%Size(CTBUFFLST_Instance));
+         #Instance.Strings = CTLST_Constructor();
+         Return #This;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_Destructor...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+
+      /Free
+
+         CTBUFFLST_PRIVATE_ClearBuffers(@This);
+         CTLST_Destructor(#Instance.Strings);
+         Dealloc @This;
+         Return CS_SUCCESS;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_Clear...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+
+      /Free
+
+         CTBUFFLST_PRIVATE_ClearBuffers(@This);
+         Return CS_SUCCESS;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_BuffLength...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#Rc              S             10I 0
+     D#Bytes           S             10I 0
+
+      /Free
+
+         #Bytes = %Size(#Token);
+         #Rc = CTLST_Get(#Instance.Strings:
+                            %Addr(#Token): #Bytes: @Index);
+         If #Rc = CS_SUCCESS;
+           Return #Token.Len;
+         EndIf;
+         Return 0;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_InsertValue...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Str                             *   Value
+     D@Size                          10I 0 Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+
+      /Free
+
+         If (@Size > 0);
+            #Token.Token = %Alloc(@Size);
+            CTBUFFLST_PRIVATE_memCpy(#Token.Token: @Str: @Size);
+         Else;
+            #Token.Token = *Null;
+         EndIf;
+         #Token.Len = @Size;
+         CTLST_Insert(#Instance.Strings:
+                         %Addr(#Token): %Size(CTBUFFLST_Token): @Index);
+
+         Return CS_SUCCESS;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_InsertBuffer...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@StrObj                          *   Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#Rc              S             10I 0
+
+      /Free
+
+         If @StrObj <> *Null;
+           #Token.Len = CTBUFF_Length(@StrObj);
+           If #Token.Len > 0;
+             #Token.Token = %Alloc(#Token.Len);
+             #Rc = CTBUFF_Get(@StrObj: #Token.Token: 1: #Token.Len);
+           Else;
+             #Token.Token = *Null;
+           EndIf;
+         Else;
+           #Token.Len = 0;
+           #Token.Token = *Null;
+         EndIf;
+
+         #Rc = CTLST_Insert(#Instance.Strings:
+                         %Addr(#Token): %Size(CTBUFFLST_Token): @Index);
+
+         Return #Rc;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_Remove...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#Rc              S             10I 0
+     D#Bytes           S             10I 0
+
+      /Free
+
+         #Bytes = %Size(#Token);
+         #Rc = CTLST_Get(#Instance.Strings:
+                            %Addr(#Token): #Bytes: @Index);
+         If #Rc = CS_SUCCESS;
+           Dealloc #Token.Token;
+           CTLST_Remove(#Instance.Strings: @Index);
+         EndIf;
+
+         Return #Rc;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_Count...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+      /Free
+
+         Return CTLST_Count(#Instance.Strings);
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_SetBuffer...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@StrObj                          *   Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#Rc              S             10I 0
+     D#Bytes           S             10I 0
+     D#Buffer          S               *
+
+      /Free
+
+         If (@StrObj <> *Null);
+           #Bytes = CTBUFF_Length(@StrObj);
+           #Buffer = %Alloc(#Bytes);
+           #Rc = CTBUFF_Get(@StrObj: #Buffer: 1: #Bytes);
+           #Rc = CTBUFFLST_SetValue(@This: #Buffer: #Bytes: @Index);
+           Dealloc #Buffer;
+         Else;
+           #Rc = CTBUFFLST_SetValue(@This: *Null: 0: @Index);
+         EndIf;
+
+         Return #Rc;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_SetValue...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Str                             *   Value
+     D@Size                          10I 0 Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#Rc              S             10I 0
+     D#Bytes           S             10I 0
+
+      /Free
+
+         #Bytes = %Size(#Token);
+         #Rc = CTLST_Get(#Instance.Strings:
+                            %Addr(#Token): #Bytes: @Index);
+         If #Rc = CS_SUCCESS;
+           Dealloc #Token.Token;
+           If (@Str <> *Null And @Size > 0);
+             #Token.Token = %Alloc(@Size);
+             #Token.Len = @Size;
+             CTBUFFLST_PRIVATE_MemCpy(#Token.Token: @Str: @Size);
+           Else;
+             #Token.Token = *Null;
+             #Token.Len = 0;
+           EndIf;
+
+           #Rc = CTLST_Set(#Instance.Strings:
+                           %Addr(#Token): %Size(#Token): @Index);
+
+         EndIf;
+
+         Return #Rc;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_GetBuffer...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@StrObj                          *   Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#Rc              S             10I 0
+     D#Size            S             10I 0
+
+      /Free
+
+         If (@StrObj = *Null);
+           Return CS_FAILURE;
+         EndIf;
+         #Size = %Size(CTBUFFLST_Token);
+         #Rc = CTLST_Get(#Instance.Strings:
+                             %Addr(#Token) :#Size: @Index);
+         If #Rc = CS_SUCCESS;
+           If (#Token.Len > 0);
+             #Rc = CTBUFF_Set(@StrObj: #Token.Token: #Token.Len);
+           Else;
+             #Rc = CTBUFF_Set(@StrObj: *Null: 0);
+           EndIf;
+         Else;
+           #Rc = CTBUFF_Set(@StrObj: *Null: 0);
+         EndIf;
+
+         Return #Rc;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_GetValue...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Str                             *   Value
+     D@Size                          10I 0
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#Rc              S             10I 0
+     D#Bytes           S             10I 0
+
+      /Free
+
+         If (@Str = *Null Or @Size = 0);
+           Return CS_FAILURE;
+         EndIf;
+
+         #Bytes = %Size(CTBUFFLST_Token);
+         #Rc = CTLST_Get(#Instance.Strings:
+                            %Addr(#Token): #Bytes: @Index);
+
+         If #Rc = CS_SUCCESS;
+
+           If #Token.Len > 0;
+             If (@Size > #Token.Len);
+               CTBUFFLST_PRIVATE_MemCpy(@Str: #Token.Token: #Token.Len);
+             Else;
+               CTBUFFLST_PRIVATE_MemCpy(@Str: #Token.Token: @Size);
+             EndIf;
+             @Size = #Token.Len;
+           Else;
+             @Size = 0;
+           EndIf;
+         Else;
+           @Size = 0;
+         EndIf;
+
+         Return #Rc;
+
+      /End-Free
+     P                 E
+
+     PCTBUFFLST_PRIVATE_ClearBuffers...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     D#n               S             10I 0
+     D#Bytes           S             10I 0
+     D#NumTokens       S             10I 0
+
+      /Free
+
+        #NumTokens = CTLST_Count(#Instance.Strings);
+        For #n=1 To #NumTokens;
+           #Bytes = %Size(#Token);
+           CTLST_Get(#Instance.Strings:
+                        %Addr(#Token):
+                        #Bytes:
+                        #n);
+           If (#Token.Token <> *Null);
+             Dealloc #Token.Token;
+           EndIf;
+        EndFor;
+
+        CTLST_Clear(#Instance.Strings);
+        Return CS_SUCCESS;
+      /End-Free
+
+     P                 E
