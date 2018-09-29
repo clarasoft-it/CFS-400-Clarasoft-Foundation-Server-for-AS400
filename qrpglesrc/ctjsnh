@@ -9,6 +9,8 @@
       /IF NOT DEFINED(CTJSNH)
       /DEFINE CTJSNH
 
+     DJSON_TYPE_UNKNOWN...
+     D                 C                     Const(0)
      DJSON_TYPE_ARRAY...
      D                 C                     Const(1)
      DJSON_TYPE_OBJECT...
@@ -19,8 +21,6 @@
      D                 C                     Const(4)
      DJSON_TYPE_NUMERIC...
      D                 C                     Const(5)
-     DJSON_TYPE_UNKNOWN...
-     D                 C                     Const(0)
      DJSON_TYPE_NULL...
      D                 C                     Const(6)
 
@@ -28,7 +28,6 @@
      D                 C                     Const(1)
      DJSON_EVENT_ARRAY_END...
      D                 C                     Const(2)
-
      DJSON_EVENT_OBJECT_START...
      D                 C                     Const(3)
      DJSON_EVENT_OBJECT_END...
@@ -36,41 +35,14 @@
      DJSON_EVENT_VALUE...
      D                 C                     Const(5)
 
-     DCTJSO_Node      DS                  Qualified
-     DType                           10I 0
-     DSize                           10I 0
-     DPath                          255A
-     DpValue                           *
-
-     DCTJSO_DirEntry  DS                  Qualified
-     DPath                          255A
-     DType                           10I 0
-     DNumItems                       10I 0
-
-     DCTJSO_ListEntry...
-     D                 DS                  Qualified
-     DValue                         255A
-     DType                           10I 0
-
-     DCFSJSP_DATA      DS                  Qualified
+     DCTJSP_DATA       DS                  Qualified
      Devent                          10I 0
      Dpath                          255A
      Dlabel                         255A
      Dtype                           10I 0
      Dvalue                            *
      Dsize                           10I 0
-
-     DCFSJSP_Token     DS
-     D                                     Qualified
-     DSize                           10I 0
-     DToken                            *
-
-     DCFSJSP_GetData...
-     D                 PR                  ExtProc('memcpy')
-     D@To                              *   Value
-     D@From                            *   Value
-     D@Len                           10I 0 Value
-
+     
      DCTJSO_Constructor...
      D                 PR              *
 
@@ -135,11 +107,6 @@
      D                 PR            10I 0
      D@This                            *    Value
      D@JsonStr                         *    Value
-
-     DCTJSP_NextEvent...
-     D                 PR            10I 0
-     D@This                            *    Value
-     D@Event                           *    Value
 
      DCTJSP_Lookup...
      D                 PR            10I 0
