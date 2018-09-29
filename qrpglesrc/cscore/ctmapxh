@@ -1,0 +1,86 @@
+      *===========================================================================
+      * Package: CTBASE
+      * Class:   CTMAPX
+      * Source:  Interface
+      * Version  01.00.00
+      * --------------------------------------------------------------------------
+      * Copyright 2013 Clarasoft I.T. Solutions Inc.
+      *===========================================================================
+
+      /IF NOT DEFINED(CTMAPXH)
+      /DEFINE CTMAPXH
+
+     DCTMAPX_BInsert...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Buffer                          *   Value
+
+     DCTMAPX_BIterNext...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@KeySize                       10I 0
+     D@Value                           *   Value
+
+     DCTMAPX_BLookup...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Buffer                          *   Value
+
+     DCTMAPX_Clear...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCTMAPX_Constructor...
+     D                 PR              *
+
+     DCTMAPX_Destructor...
+     D                 PR            10I 0
+     D@This                            *
+
+     DCTMAPX_Insert...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0 Value
+
+     DCTMAPX_ItemSize...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+
+     DCTMAPX_IterNext...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@KeySize                       10I 0
+     D@Value                           *   Value
+     D@ValueSize                     10I 0
+
+     DCTMAPX_IterNextSize...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@KeySize                       10I 0
+     D@ValueSize                     10I 0
+
+     DCTMAPX_IterStart...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCTMAPX_Lookup...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+     D@Value                           *   Value
+     D@ValueSize                     10I 0
+
+     DCTMAPX_Remove...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Key                             *   Value
+
+      /ENDIF
+      
