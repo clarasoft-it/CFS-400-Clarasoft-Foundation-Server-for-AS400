@@ -1,0 +1,2485 @@
+      *===================================================================
+      * Package: CFSCGI: Common Gateway Interface Package
+      * Class:   CFSJSO
+      * Source:  Implementation
+      * Version: 01.00.00
+      *
+      * Dependencies:
+      *
+      *     CTBASE Version 01.00.00
+      *
+      * --------------------------------------------------------------------------
+      * Copyright 2014 Clarasoft I.T. Solutions Inc.
+      *===========================================================================
+
+     HDatEdit(*YMD)
+     HNoMain
+
+      /Include CTBASEH
+
+     DJSON_TYPE_ARRAY...
+     D                 C                     Const(1)
+     DJSON_TYPE_OBJECT...
+     D                 C                     Const(2)
+     DJSON_TYPE_BOOL...
+     D                 C                     Const(3)
+     DJSON_TYPE_STRING...
+     D                 C                     Const(4)
+     DJSON_TYPE_NUMERIC...
+     D                 C                     Const(5)
+     DJSON_TYPE_UNKNOWN...
+     D                 C                     Const(0)
+     DJSON_TYPE_NULL...
+     D                 C                     Const(6)
+
+     DJSON_EVENT_ARRAY_START...
+     D                 C                     Const(1)
+     DJSON_EVENT_ARRAY_END...
+     D                 C                     Const(2)
+
+     DJSON_EVENT_OBJECT_START...
+     D                 C                     Const(3)
+     DJSON_EVENT_OBJECT_END...
+     D                 C                     Const(4)
+     DJSON_EVENT_VALUE...
+     D                 C                     Const(5)
+
+     DCFSJSO_Node      DS                  Qualified
+     DType                           10I 0
+     DSize                           10I 0
+     DPath                          255A
+     DpValue                           *
+
+     DCFSJSO_DirEntry  DS                  Qualified
+     DPath                          255A
+     DType                           10I 0
+     DNumItems                       10I 0
+
+     DCFSJSO_ListEntry...
+     D                 DS                  Qualified
+     DValue                         255A
+     DType                           10I 0
+
+     DCFSJSO_Constructor...
+     D                 PR              *
+
+     DCFSJSO_Destructor...
+     D                 PR            10I 0
+     D@This                            *    Value
+
+     DCFSJSO_Init...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Type                          10I 0  Value
+
+     DCFSJSO_InsertBool...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@Label                        255A    Value
+     D@Value                           N    Value
+
+     DCFSJSO_InsertNull...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@Label                        255A    Value
+
+     DCFSJSO_InsertNumeric...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@Label                        255A    Value
+     D@Value                         32A    Value
+
+     DCFSJSO_InsertString...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@Label                        255A    Value
+     D@Value                           *    Value
+     D@Size                          10I 0  Value
+
+     DCFSJSO_MkDir...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@Label                        255A    Value
+     D@Type                          10I 0  Value
+
+     DCFSJSO_Serialize...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@JsonStr                         *    Value
+
+     DCFSJSO_Lookup...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@Index                         10I 0  Value
+     D@Value                                LikeDS(CFSJSO_Node)
+
+     DCFSJSO_TypeOf...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@Index                         10I 0  Value
+
+     DCFSJSO_Ls...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Path                         255A    Value
+     D@DirEntry                             LikeDS(CFSJSO_DirEntry)
+     D@Listing                         *    Value
+
+     DJSON_TOK_LBRACE...
+     D                 C                     Const(1)
+     DJSON_TOK_RBRACE...
+     D                 C                     Const(2)
+     DJSON_TOK_LBRACKET...
+     D                 C                     Const(3)
+     DJSON_TOK_RBRACKET...
+     D                 C                     Const(4)
+     DJSON_TOK_COLON...
+     D                 C                     Const(5)
+     DJSON_TOK_COMMA...
+     D                 C                     Const(6)
+     DJSON_TOK_STRING...
+     D                 C                     Const(7)
+     DJSON_TOK_LITTERAL...
+     D                 C                     Const(8)
+
+     DCFSJSO_PRIVATE_A...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+
+     DCFSJSO_PRIVATE_ArrayValue...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@ItemIndex                     10I 0  Value
+
+     DCFSJSO_PRIVATE_ClearResources...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCFSJSO_PRIVATE_IsNumeric...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Value                        255A
+
+     DCFSJSO_PRIVATE_Ls...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@DirPath                      255A    Value
+     D@DirEntry                             LikeDS(CFSJSO_PRV_DirEntry)
+
+     DCFSJSO_PRIVATE_MaterializeObject...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCFSJSO_PRIVATE_MemCpy...
+     D                 PR                  ExtProc('memcpy')
+     D@To                              *   Value
+     D@From                            *   Value
+     D@Len                           10I 0 Value
+
+     DCFSJSO_PRIVATE_O...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+
+     DCFSJSO_PRIVATE_Serialize...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Type                          10I 0 Value
+     D@pStr                            *   Value
+
+     DCFSJSO_PRIVATE_Tokenize...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@JsonStr                         *    Value
+
+     DCFSJSO_PRIVATE_VV...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Listing                         *    Value
+
+     DCFSJSO_PRV_DirEntry...
+     D                 DS                  Qualified
+     DPath                          255A
+     DType                           10I 0
+     DNumItems                       10I 0
+     DListing                          *
+
+     DCFSJSO_Instance  DS                  Qualified
+     DpTokens                          *
+     DpTemp                            *
+     DpTokTypes                        *
+     DpValTypes                        *
+     DpObject                          *
+     DpDirectory                       *
+     DpValues                          *
+     DpValuePaths                      *
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_Constructor...
+     P                 B                   Export
+     D                 PI              *
+
+     DThis             S               *
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(This)
+
+      /Free
+
+          This = %Alloc(%Size(CFSJSO_Instance));
+
+          Instance.pTokens     = CTBUFFLST_Constructor();
+          Instance.pValues     = CTBUFFLST_Constructor();
+          Instance.pTemp       = CTBUFF_Constructor();
+          Instance.pTokTypes   = CTLST_Constructor();
+          Instance.pValTypes   = CTLST_Constructor();
+          Instance.pValuePaths = CTBUFFLST_Constructor();
+          Instance.pObject     = CTMAP_Constructor();
+          Instance.pDirectory  = CTMAP_Constructor();
+
+          Return This;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_Destructor...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+
+      /Free
+
+         CFSJSO_PRIVATE_ClearResources(@This);
+
+         CTBUFFLST_Destructor(Instance.pTokens);
+         CTBUFFLST_Destructor(Instance.pValues);
+         CTBUFF_Destructor(Instance.pTemp);
+         CTLST_Destructor(Instance.pTokTypes);
+         CTLST_Destructor(Instance.pValTypes);
+         CTBUFFLST_Destructor(Instance.pValuePaths);
+
+         CTMAP_Destructor(Instance.pObject);
+         CTMAP_Destructor(Instance.pDirectory);
+
+         Dealloc @This;
+
+         Return CS_SUCCESS;
+
+      /End-Free
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_Init...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Type                          10I 0 Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DKey              S            255A
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+
+     DValueNode        DS                   LikeDS(CFSJSO_Node)
+
+      /Free
+
+         CFSJSO_PRIVATE_ClearResources(@This);
+
+         CTLST_Clear(Instance.pValTypes);
+         CTMAP_Clear(Instance.pObject);
+         CTMAP_Clear(Instance.pDirectory);
+
+         If @Type = JSON_TYPE_ARRAY Or
+            @Type = JSON_TYPE_OBJECT;
+           DirEntry.Path = '/';
+           DirEntry.Type = @Type;
+           DirEntry.NumItems = 0;
+           DirEntry.Listing = CTMAP_Constructor();
+           Key = '/';
+           CTMAP_Insert(Instance.pDirectory:
+                            Key: %Addr(DirEntry): %Size(DirEntry));
+           JsonNode.Type = @Type;
+           JsonNode.Size = 1;
+           JsonNode.Path = '/';
+           JsonNode.pValue = *Null;
+           CTMAP_Insert(Instance.pObject: Key:
+                            %Addr(JsonNode): %Size(JsonNode));
+            Rc = CS_SUCCESS;
+         Else;
+            Rc = CS_FAILURE;
+         EndIf;
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_InsertBool...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Label                        255A   Value
+     D@Value                           N   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+     DKey              S            255A
+     DTrue             S              4A   Inz('true')
+     DFalse            S              5A   Inz('false')
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+
+      /Free
+
+         Rc = CFSJSO_TypeOf(@This: @Path: -1);
+
+         Select;
+           When  Rc = JSON_TYPE_ARRAY;
+
+             JsonNode.Type = JSON_TYPE_BOOL;
+
+             If @Value = *On;
+               JsonNode.Size = 4;
+               JsonNode.pValue = %Alloc(4);
+               CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(True): 4);
+             Else;
+               JsonNode.Size = 5;
+               JsonNode.pValue = %Alloc(5);
+               CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(False): 5);
+             EndIf;
+
+             CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+
+             If @Path = '/';
+               JsonNode.Path = '/' + %Char(DirEntry.NumItems);
+             Else;
+              JsonNode.Path = %Trim(@Path) + '/' + %Char(DirEntry.NumItems);
+             EndIf;
+
+             CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                              %Addr(JsonNode): %Size(JsonNode));
+
+             // Update parent directory
+             DirEntry.NumItems = DirEntry.NumItems + 1;
+             CTMAP_Insert(Instance.pDirectory: @Path:
+                              %Addr(DirEntry): %Size(DirEntry));
+
+             Rc = CS_SUCCESS;
+
+           When  Rc = JSON_TYPE_OBJECT;
+
+             If @Path = '/';
+               Key = '/' + @Label;
+             Else;
+               Key = %Trim(@Path) + '/' + @Label;
+             EndIf;
+
+             // Key must not already exist
+
+             Bytes = %Size(JsonNode);
+             Rc = CTMAP_Lookup(Instance.pObject: Key:
+                                   %Addr(JsonNode): Bytes);
+
+             If Rc = CS_FAILURE;  // Value does not already exist
+
+               JsonNode.Path = Key;
+               JsonNode.Type = JSON_TYPE_BOOL;
+               If @Value = *On;
+                 JsonNode.Size = 4;
+                 JsonNode.pValue = %Alloc(4);
+                 CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(True): 4);
+               Else;
+                 JsonNode.Size = 5;
+                 JsonNode.pValue = %Alloc(5);
+                 CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(False): 5);
+               EndIf;
+
+               CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                                %Addr(JsonNode): %Size(JsonNode));
+
+               // Update parent directory
+               CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+               ListEntry.Value = @Label;
+               ListEntry.Type = JSON_TYPE_BOOL;
+               CTMAP_Insert(DirEntry.Listing: ListEntry.Value:
+                                %Addr(ListEntry): %Size(ListEntry));
+
+               // Update directory item count
+               DirEntry.NumItems = DirEntry.NumItems + 1;
+               CTMAP_Insert(Instance.pDirectory: @Path:
+                                %Addr(DirEntry): %Size(DirEntry));
+               Rc = CS_SUCCESS;
+             Else;
+               Rc = CS_FAILURE;
+             EndIf;
+
+           Other;
+             Rc = CS_FAILURE;
+         EndSl;
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_InsertNull...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Label                        255A   Value
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+     DKey              S            255A
+     DNull             S              4A   Inz('null')
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+
+      /Free
+
+         Rc = CFSJSO_TypeOf(@This: @Path: -1);
+
+         Select;
+           When  Rc = JSON_TYPE_ARRAY;
+             JsonNode.Type = JSON_TYPE_NULL;
+             JsonNode.Size = 4;
+             CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+             If @Path = '/';
+               JsonNode.Path = '/' + %Char(DirEntry.NumItems);
+             Else;
+              JsonNode.Path = %Trim(@Path) + '/' + %Char(DirEntry.NumItems);
+             EndIf;
+
+             JsonNode.pValue = %Alloc(4);
+             CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(Null): 4);
+
+             CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                              %Addr(JsonNode): %Size(JsonNode));
+             // Update parent directory
+             DirEntry.NumItems = DirEntry.NumItems + 1;
+             CTMAP_Insert(Instance.pDirectory: @Path:
+                              %Addr(DirEntry): %Size(DirEntry));
+             Rc = CS_SUCCESS;
+           When  Rc = JSON_TYPE_OBJECT;
+
+             If @Path = '/';
+               Key = '/' + @Label;
+             Else;
+               Key = %Trim(@Path) + '/' + @Label;
+             EndIf;
+
+             // Key must not already exist
+
+             Bytes = %Size(JsonNode);
+             Rc = CTMAP_Lookup(Instance.pObject: Key:
+                                   %Addr(JsonNode): Bytes);
+
+             If Rc = CS_FAILURE;  // Value does not already exist
+               JsonNode.Path = Key;
+               JsonNode.Type = JSON_TYPE_NULL;
+               JsonNode.Size = 4;
+
+               JsonNode.pValue = %Alloc(4);
+               CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(Null): 4);
+
+               CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                              %Addr(JsonNode): %Size(JsonNode));
+
+               // Update parent directory
+               CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+               ListEntry.Type = JSON_TYPE_NULL;
+               ListEntry.Value = @Label;
+               CTMAP_Insert(DirEntry.Listing: ListEntry.Value:
+                              %Addr(ListEntry): %Size(ListEntry));
+
+               // Update directory item count
+               DirEntry.NumItems = DirEntry.NumItems + 1;
+               CTMAP_Insert(Instance.pDirectory: @Path:
+                                %Addr(DirEntry): %Size(DirEntry));
+               Rc = CS_SUCCESS;
+             Else;
+               Rc = CS_FAILURE;
+             EndIf;
+
+           Other;
+             Rc = CS_FAILURE;
+         EndSl;
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_InsertNumeric...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Label                        255A   Value
+     D@Value                         32A   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+     DKey              S            255A
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+
+      /Free
+
+         Rc = CFSJSO_TypeOf(@This: @Path: -1);
+
+         Select;
+           When  Rc = JSON_TYPE_ARRAY;
+             JsonNode.Type = JSON_TYPE_NUMERIC;
+             JsonNode.Size = %Len(%Trim(@Value));
+             CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+             If @Path = '/';
+               JsonNode.Path = '/' + %Char(DirEntry.NumItems);
+             Else;
+              JsonNode.Path = %Trim(@Path) + '/' + %Char(DirEntry.NumItems);
+             EndIf;
+
+             JsonNode.pValue = %Alloc(JsonNode.Size);
+             CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(@Value):
+                                                      JsonNode.Size);
+             CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                              %Addr(JsonNode): %Size(JsonNode));
+
+             // Update parent directory
+             DirEntry.NumItems = DirEntry.NumItems + 1;
+             CTMAP_Insert(Instance.pDirectory: @Path:
+                              %Addr(DirEntry): %Size(DirEntry));
+             Rc = CS_SUCCESS;
+           When  Rc = JSON_TYPE_OBJECT;
+
+             If @Path = '/';
+               Key = '/' + @Label;
+             Else;
+               Key = %Trim(@Path) + '/' + @Label;
+             EndIf;
+
+             // Key must not already exist
+
+             Bytes = %Size(JsonNode);
+             Rc = CTMAP_Lookup(Instance.pObject: Key:
+                                   %Addr(JsonNode): Bytes);
+
+             If Rc = CS_FAILURE;  // Value does not already exist
+               JsonNode.Path = Key;
+               JsonNode.Type = JSON_TYPE_NUMERIC;
+               JsonNode.Size = %Len(%Trim(@Value));
+
+               JsonNode.pValue = %Alloc(255);
+               CFSJSO_PRIVATE_MemCpy(JsonNode.pValue: %Addr(@Value): 255);
+
+               CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                              %Addr(JsonNode): %Size(JsonNode));
+
+               // Update parent directory
+               CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+               ListEntry.Value = @Label;
+               ListEntry.Type = JSON_TYPE_NUMERIC;
+               CTMAP_Insert(DirEntry.Listing: ListEntry.Value:
+                              %Addr(ListEntry): %Size(ListEntry));
+
+               // Update directory item count
+               DirEntry.NumItems = DirEntry.NumItems + 1;
+               CTMAP_Insert(Instance.pDirectory: @Path:
+                                %Addr(DirEntry): %Size(DirEntry));
+               Rc = CS_SUCCESS;
+             Else;
+               Rc = CS_FAILURE;
+             EndIf;
+
+           Other;
+             Rc = CS_FAILURE;
+         EndSl;
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_InsertString...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Label                        255A   Value
+     D@Value                           *   Value
+     D@Size                          10I 0 Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DpInString        S               *
+     DpOutString       S               *
+     DRc               S             10I 0
+     Dn                S             10I 0
+     DBytes            S             10I 0
+     DKey              S            255A
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+
+     DCurChar          DS                   Qualified
+     DCode                            3U 0
+     DGlyph                           1A    Overlay(Code)
+
+     DBackSlash        S              1A    Inz('\')
+
+      /Free
+
+         Rc = CFSJSO_TypeOf(@This: @Path: -1);
+
+         Select;
+           When  Rc = JSON_TYPE_ARRAY;
+
+             ExSr SrEscapeQuotes;
+
+             JsonNode.Type = JSON_TYPE_STRING;
+             JsonNode.Size = @Size;
+             CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+             If @Path = '/';
+               JsonNode.Path = '/' + %Char(DirEntry.NumItems);
+             Else;
+              JsonNode.Path = %Trim(@Path) + '/' + %Char(DirEntry.NumItems);
+             EndIf;
+
+             Rc = CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                              %Addr(JsonNode): %Size(JsonNode));
+
+             If Rc = CS_SUCCESS;
+
+               // Update parent directory
+               DirEntry.NumItems = DirEntry.NumItems + 1;
+               CTMAP_Insert(Instance.pDirectory: @Path:
+                                %Addr(DirEntry): %Size(DirEntry));
+               Rc = CS_SUCCESS;
+             Else;
+               Rc = CS_FAILURE;
+             EndIf;
+
+           When  Rc = JSON_TYPE_OBJECT;
+
+             If @Path = '/';
+               Key = '/' + @Label;
+             Else;
+               Key = %Trim(@Path) + '/' + @Label;
+             EndIf;
+
+             // Key must not already exist
+
+             Bytes = %Size(JsonNode);
+             Rc = CTMAP_Lookup(Instance.pObject: Key:
+                                   %Addr(JsonNode): Bytes);
+
+             If Rc = CS_FAILURE;  // Value does not already exist
+
+               ExSr SrEscapeQuotes;
+
+               JsonNode.Path = Key;
+               JsonNode.Type = JSON_TYPE_STRING;
+               JsonNode.Size = @Size;
+
+               CTMAP_Insert(Instance.pObject: JsonNode.Path:
+                              %Addr(JsonNode): %Size(JsonNode));
+
+               // Update parent directory
+               CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+               ListEntry.Value = @Label;
+               ListEntry.Type = JSON_TYPE_STRING;
+               CTMAP_Insert(DirEntry.Listing: ListEntry.Value:
+                                %Addr(ListEntry): %Size(ListEntry));
+
+               // Update directory item count
+               DirEntry.NumItems = DirEntry.NumItems + 1;
+               CTMAP_Insert(Instance.pDirectory: @Path:
+                                %Addr(DirEntry): %Size(DirEntry));
+               Rc = CS_SUCCESS;
+             Else;
+               Rc = CS_FAILURE;
+             EndIf;
+
+           Other;
+             Rc = CS_FAILURE;
+         EndSl;
+
+         Return Rc;
+
+         BegSr SrEscapeQuotes;
+
+           // We must escape double quotes
+           pInString = CTBUFF_Constructor();
+           pOutString = CTBUFF_Constructor();
+           CTBUFF_Set(pInString: @Value: @Size);
+           CTBUFF_Set(pOutString: *Null: 0);
+           For n=1 To @Size By 1;
+             CurChar.Code = CTBUFF_ByteAt(pInString: n);
+             If CurChar.Glyph = '"';
+               CTBUFF_Cat(pOutString: %Addr(BackSlash): 1);
+             EndIf;
+             CTBUFF_Cat(pOutString: %Addr(CurChar.Glyph): 1);
+           EndFor;
+
+           Bytes = CTBUFF_Length(pOutString);
+           If Bytes > 0;
+             JsonNode.pValue = %Alloc(Bytes);
+             CTBUFF_Get(pOutString: JsonNode.pValue: 1: Bytes);
+           Else;
+             JsonNode.pValue = *Null;
+           EndIf;
+
+           @Size = Bytes;
+
+           CTBUFF_Destructor(pInString);
+           CTBUFF_Destructor(pOutString);
+
+         EndSr;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_MkDir...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Label                        255A   Value
+     D@Type                          10I 0 Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DIndex            S             10I 0
+     DKey              S            255A
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DNewDirEntry      DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+
+      /Free
+
+        // Specified parent directory must exist
+        Rc = CFSJSO_TypeOf(@This: @Path: -1);
+        Select;
+          When Rc = JSON_TYPE_ARRAY;
+            // Since this is an array, a new index branch is created
+            CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+            Index = DirEntry.NumItems;
+            If @Path = '/';
+              NewDirEntry.Path = '/' + %Char(Index);
+            Else;
+              NewDirEntry.Path = %Trim(@Path) + '/' + %Char(Index);
+            EndIf;
+            Key = NewDirEntry.Path;
+            NewDirEntry.Type = @Type;
+            NewDirEntry.NumItems = 0;
+            If @Type = JSON_TYPE_OBJECT;
+              NewDirEntry.Listing = CTMAP_Constructor();
+            Else;
+              NewDirEntry.Listing = *Null;
+            EndIf;
+            CTMAP_Insert(Instance.pDirectory:
+                             Key: %Addr(NewDirEntry): %Size(NewDirEntry));
+
+            JsonNode.Type = @Type;
+            JsonNode.Size = 1;
+            JsonNode.Path = Key;
+            JsonNode.pValue = *Null;
+            CTMAP_Insert(Instance.pObject: Key:
+                             %Addr(JsonNode): %Size(JsonNode));
+
+            // Update parent directory
+            DirEntry.NumItems = Index + 1;
+            Key = @Path;
+            CTMAP_Insert(Instance.pDirectory: Key:
+                             %Addr(DirEntry): %Size(DirEntry));
+
+            Rc = CS_SUCCESS;
+          When Rc = JSON_TYPE_OBJECT;
+            If @Path = '/';
+              NewDirEntry.Path = '/' + @Label;
+            Else;
+              NewDirEntry.Path = %Trim(@Path) + '/' + @Label;
+            EndIf;
+            // New Directory must not exist
+            Rc = CFSJSO_TypeOf(@This: NewDirEntry.Path: -1);
+            If Rc = JSON_TYPE_UNKNOWN;
+              CFSJSO_PRIVATE_Ls(@This: @Path: DirEntry);
+              Index = DirEntry.NumItems;
+              Key = NewDirEntry.Path;
+              NewDirEntry.Type = @Type;
+              NewDirEntry.NumItems = 0;
+              If @Type = JSON_TYPE_OBJECT;
+                NewDirEntry.Listing = CTMAP_Constructor();
+              Else;
+                NewDirEntry.Listing = *Null;
+              EndIf;
+              CTMAP_Insert(Instance.pDirectory:
+                               Key: %Addr(NewDirEntry): %Size(NewDirEntry));
+
+              JsonNode.Type = @Type;
+              JsonNode.Size = 1;
+              JsonNode.Path = Key;
+              JsonNode.pValue = *Null;
+              CTMAP_Insert(Instance.pObject: Key:
+                               %Addr(JsonNode): %Size(JsonNode));
+
+              // Update parent directory
+              DirEntry.NumItems = Index + 1;
+              Key = @Path;
+              CTMAP_Insert(Instance.pDirectory: Key:
+                               %Addr(DirEntry): %Size(DirEntry));
+              // This parent dir has a listing (since it is an object)
+              // Add label to listing
+              ListEntry.Value = @Label;
+              ListEntry.Type = @Type;
+              Key = @Label;
+              CTMAP_Insert(DirEntry.Listing: Key:
+                               %Addr(ListEntry): %Size(ListEntry));
+
+              Rc = CS_SUCCESS;
+            Else;
+              Rc = CS_FAILURE;
+            EndIf;
+          Other;
+            Rc = CS_FAILURE;
+        EndSl;
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_Serialize...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@pStr                            *   Value
+
+     DType             S             10I 0
+
+      /Free
+
+        ////////////////////////////////////////////////////////
+        // This is just a wrapper to allow the
+        // initialization of the buffer
+        // passed as a parameter. The actual
+        // serialization is recursive and we must
+        // not clear the buffer with each call
+        // since the point is to concatenate recusrsively.
+        ////////////////////////////////////////////////////////
+
+        CTBUFF_Set(@pStr: *null: 0);
+        Type = CFSJSO_TypeOf(@This: @Path: -1);
+        Return CFSJSO_PRIVATE_Serialize(@This: @Path: Type: @pStr);
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_A...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DpNewPath         S               *
+     DpNewObjPath      S               *
+     DBuffer           S               *
+     DSlash            S              1A   Inz('/')
+     DType             S             10I 0
+     DBytes            S             10I 0
+     DStart            S             10I 0
+     DCurIndex         S             10I 0
+     DcommaFlag        S             10I 0
+     DszCurIndex       S             10A
+     DValue            S            255A
+     DDirectory        S            255A
+     DDirEntry         DS                   LikeDS(CFSJSO_PRV_DirEntry)
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+         pNewObjPath = CTBUFF_Constructor();
+
+         Rc = CS_SUCCESS;
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                 Bytes: @Index);
+
+         If Rc = CS_SUCCESS;
+           If Type = JSON_TOK_LBRACKET;
+
+             @Index += 1;
+
+             If (CTBUFF_Length(@pPath) > 0);
+               Buffer = %Alloc(CTBUFF_Length(@pPath));
+               Bytes = CTBUFF_Length(@pPath);
+               CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+               CTBUFF_Set(pNewPath: Buffer: Bytes);
+               Dealloc Buffer;
+             Else;
+               CTBUFF_Set(pNewPath: %Addr(Slash): 1);
+             EndIf;
+
+             Start = @Index;
+             CurIndex = 0;
+             commaFlag = 0;
+
+             Rc = CS_SUCCESS;
+             Dow (Rc = CS_SUCCESS);
+
+               If (CTBUFF_Length(pNewPath) > 1);  // we are not at root
+                 Buffer = %Alloc(CTBUFF_Length(pNewPath));
+                 Bytes = CTBUFF_Length(pNewPath);
+                 CTBUFF_Get(pNewPath: Buffer: 1: Bytes);
+                 CTBUFF_Set(pNewObjPath: Buffer: Bytes);
+                 CTBUFF_Cat(pNewObjPath: %Addr(Slash): 1);
+                 Dealloc Buffer;
+               Else;
+                 CTBUFF_Set(pNewObjPath: %Addr(Slash): 1);
+               EndIf;
+
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                            Bytes: Start);
+
+               Select;
+                 When Type = JSON_TOK_LBRACE;
+                   commaFlag = 0;
+                   szCurIndex = %Char(curIndex);
+                   CTBUFF_Cat(pNewObjPath: %Addr(szCurIndex):
+                                                %Len(%Trim(szCurIndex)));
+                   Rc = CFSJSO_PRIVATE_O(@This: Start: pNewObjPath);
+                   curIndex += 1;
+                 When Type = JSON_TOK_LBRACKET;
+                   commaFlag = 0;
+                   szCurIndex = %Char(curIndex);
+                   CTBUFF_Cat(pNewObjPath: %Addr(szCurIndex):
+                                                %Len(%Trim(szCurIndex)));
+                   Rc = CFSJSO_PRIVATE_A(@This: Start: pNewObjPath);
+                   curIndex += 1;
+                 When Type = JSON_TOK_COMMA;
+                   commaFlag = 1;
+                   Start += 1;
+                   Rc = CS_SUCCESS;
+                 When Type = JSON_TOK_RBRACKET;
+
+                   If commaFlag = 0;
+
+                     Value = *Blanks;
+                     Directory = *Blanks;
+                     Bytes = %Size(Value);
+                     CTBUFF_Get(pNewPath: %Addr(Value): 1: Bytes);
+                     Directory = Value;
+
+                     CTBUFFLST_InsertValue(Instance.pValuePaths:
+                              %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                     Value = *Blanks;
+                     Bytes = %Size(Value);
+                     CTBUFFLST_InsertValue(Instance.pValues:
+                                %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                     Type = JSON_TYPE_ARRAY;
+                     CTLST_Insert(Instance.pValTypes:
+                                    %Addr(Type): %Size(Type): CTLST_BOTTOM);
+
+                     DirEntry.Path       = Directory;
+                     DirEntry.Type       = JSON_TYPE_ARRAY;
+                     DirEntry.NumItems   = curIndex;
+                     DirEntry.Listing    = CTMAP_Constructor();
+
+                     CTMAP_Insert(Instance.pDirectory:
+                                  Directory:
+                                  %Addr(DirEntry):
+                                  %Size(DirEntry));
+
+                     @Index = Start+1;
+                     Rc = CS_SUCCESS;
+                     Leave;
+                   Else;
+                     Rc = CS_FAILURE;
+                   EndIf;
+                 Other;
+                   commaFlag = 0;
+                   Rc = CFSJSO_PRIVATE_ArrayValue(@This: Start:
+                                                   pNewObjPath: CurIndex);
+                   curIndex += 1;
+               EndSl;
+
+               If Rc = CS_SUCCESS;
+               Else;
+                 Leave;
+               EndIf;
+
+             EndDo;
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+         CTBUFF_Destructor(pNewObjPath);
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_ArrayValue...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@ItemIndex                     10I 0  Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DValue            S            255A
+     DType             S             10I 0
+     DBytes            S             10I 0
+     DpNewPath         S               *
+     DpValue           S               *
+     DBuffer           S               *
+     DszItemIndex      S             10A
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+
+         Rc = CS_SUCCESS;
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                 Bytes: @Index);
+
+         If Rc = CS_SUCCESS;
+           If Type = JSON_TOK_STRING Or
+              Type = JSON_TOK_LITTERAL;
+
+             // Type
+             If Type = JSON_TOK_LITTERAL;
+               Value = *Blanks;
+               Bytes = %Size(Value);
+               Rc = CTBUFFLST_GetValue(Instance.pTokens: %Addr(Value):
+                                                         Bytes: @Index);
+
+               Select;
+                 When Value = 'true';
+                   Type = JSON_TYPE_BOOL;
+                   Rc = CS_SUCCESS;
+                 When Value = 'false';
+                   Type = JSON_TYPE_BOOL;
+                   Rc = CS_SUCCESS;
+                 When Value = 'null';
+                   Type = JSON_TYPE_NULL;
+                   Rc = CS_SUCCESS;
+                 Other;
+                   Type = JSON_TYPE_NUMERIC;
+                   Rc = CFSJSO_PRIVATE_IsNumeric(@This: Value);
+               EndSl;
+             Else;
+               Type = JSON_TYPE_STRING;
+               Rc = CS_SUCCESS;
+             EndIf;
+
+             If Rc = CS_SUCCESS;
+
+               CTLST_Insert(Instance.pValTypes:
+                                 %Addr(Type): %Size(Type): CTLST_BOTTOM);
+
+               If (CTBUFF_Length(@pPath) > 0);
+                 Buffer = %Alloc(CTBUFF_Length(@pPath));
+                 Bytes = CTBUFF_Length(@pPath);
+                 CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+                 CTBUFF_Set(pNewPath: Buffer: Bytes);
+                 Dealloc Buffer;
+               EndIf;
+
+               szItemIndex = %Char(@ItemIndex);
+
+               CTBUFF_Cat(pNewPath: %Addr(szItemIndex):
+                                          %Len(%Trim(szItemIndex)));
+
+               // Cle
+               Value = *Blanks;
+               Bytes = %Size(Value);
+               CTBUFF_Get(pNewPath: %Addr(Value): 1: Bytes);
+
+               CTBUFFLST_InsertValue(Instance.pValuePaths:
+                                  %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+               // Valeur
+
+               Bytes = CTBUFFLST_BuffLength(Instance.pTokens: @Index);
+
+               pValue = %Alloc(Bytes);
+               CTBUFFLST_GetValue(Instance.pTokens: pValue:
+                                                            Bytes: @Index);
+
+               CTBUFFLST_InsertValue(Instance.pValues:
+                                 pValue: Bytes: CTLST_BOTTOM);
+
+               Dealloc pValue;
+
+               @Index += 1;
+             EndIf;
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_ClearResources...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DBytes            S             10I 0
+     DKey              S            255A
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DValueNode        DS                  LikeDS(CFSJSO_Node)
+
+      /Free
+
+         CTMAP_IterStart(Instance.pObject);
+         Bytes = %Size(ValueNode);
+         Clear ValueNode;
+         Dow (CTMAP_IterNext(Instance.pObject: Key:
+                 %Addr(ValueNode): Bytes) = CS_SUCCESS);
+           If ValueNode.pValue <> *Null;
+             Dealloc ValueNode.pValue;
+           EndIf;
+           Bytes = %Size(ValueNode);
+           Clear ValueNode;
+         EndDo;
+
+         CTMAP_IterStart(Instance.pDirectory);
+         Bytes = %Size(DirEntry);
+         Clear DirEntry;
+         Dow (CTMAP_IterNext(Instance.pDirectory: Key:
+                 %Addr(DirEntry): Bytes) = CS_SUCCESS);
+           If DirEntry.Listing <> *Null;
+             CTMAP_Destructor(DirEntry.Listing);
+           EndIf;
+           Bytes = %Size(DirEntry);
+           Clear DirEntry;
+         EndDo;
+
+         Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_IsNumeric...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Value                        255A
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     Dn                S             10I 0
+     DLen              S             10I 0
+     DdotFlag          S             10I 0
+     DBuffer           S            255A
+     DpStr             S               *
+
+     DChar             DS                   Qualified
+     DCode                            3U 0
+     DGlyph                           1A    Overlay(Code)
+
+      /Free
+
+         Rc = CS_SUCCESS;
+         pStr = CTBUFF_Constructor();
+         Buffer = @Value;
+         Len = %Len(%TRim(Buffer));
+         CTBUFF_Set(pStr: %Addr(Buffer): Len);
+         n = 1;
+
+         // Check first char
+
+         Char.Code = CTBUFF_ByteAt(pStr: n);
+
+         If Char.Glyph = '-';
+           // We can ignore the minus sign at the \
+           // beginning of the value
+           n += 1;
+           If n <= Len;
+             Char.Code = CTBUFF_ByteAt(pStr: n);
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         EndIf;
+
+         If Rc = CS_SUCCESS;
+           If Char.Glyph = '0';
+             // Next character must be dot or else it's
+             // an invalid numerical value
+             n += 1;
+             If n <= Len;
+               Char.Code = CTBUFF_ByteAt(pStr: n);
+               If Char.Glyph = '.';
+                 n += 1;
+                 If n <= Len;
+                   Char.Code = CTBUFF_ByteAt(pStr: n);
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               Else;
+                 Rc = CS_FAILURE;
+               EndIf;
+             Else;
+               // This means that the number is simply zero
+               Rc = CS_SUCCESS;
+             EndIf;
+           EndIf;
+         EndIf;
+
+         If Rc = CS_SUCCESS And n <= Len;
+
+           dotFlag = 0;
+
+           Dow 1=1;
+             // Must be a digit from 1 to 9
+             If Char.Code >= 240 And
+                Char.Code <= 249 ;
+                n += 1;
+             Else;
+               If Char.Glyph = '.';
+                 If dotFlag = 0;
+                   dotFlag = 1;
+                   n += 1;
+                 Else;
+                   Rc = CS_FAILURE;
+                   Leave;
+                 EndIf;
+               Else;
+                 Rc = CS_FAILURE;
+                 Leave;
+               EndIf;
+             EndIf;
+             If n <= Len;
+               Char.Code = CTBUFF_ByteAt(pStr: n);
+             Else;
+               Leave;
+             EndIf;
+           EndDo;
+
+           // Make sure litteral does not end with a period and no
+           // decimal positions
+           If Rc = CS_SUCCESS;
+             If Char.Glyph = '.';
+               Rc = CS_FAILURE;
+             EndIf;
+           EndIf;
+         EndIf;
+
+         CTBUFF_Destructor(pStr);
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_Ls...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@DirEntry                            LikeDS(CFSJSO_PRV_DirEntry)
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+
+      /Free
+
+        Clear @DirEntry;
+        Bytes = %Size(CFSJSO_PRV_DirEntry);
+        Rc = CTMAP_Lookup(Instance.pDirectory:
+                          @Path:
+                          %Addr(@DirEntry):
+                          Bytes);
+
+        If Rc = CS_SUCCESS;
+          Rc = CS_SUCCESS;
+        Else;
+          Rc = CS_FAILURE;
+        EndIf;
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_MaterializeObject...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     Dn                S             10I 0
+     DBytes            S             10I 0
+     DNumValues        S             10I 0
+     DpMap             S               *
+     DBuffer           S            255A
+     DKey              S            255A
+
+     DValueNode        DS                   LikeDS(CFSJSO_Node)
+
+      /Free
+
+        NumValues = CTBUFFLST_Count(Instance.pValues);
+
+        For n=1 To NumValues By 1;
+
+          Clear ValueNode;
+
+          Bytes = 255;
+          CTBUFFLST_GetValue(Instance.pValuePaths:
+                                %Addr(ValueNode.Path): Bytes: n);
+
+          Bytes = %Size(ValueNode.Type);
+          CTLST_Get(Instance.pValTypes: %Addr(ValueNode.Type):
+                                                               Bytes: n);
+
+          // No size limit value
+          Bytes = CTBUFFLST_BuffLength(Instance.pValues: n);
+          ValueNode.pValue = %Alloc(Bytes);
+          CTBUFFLST_GetValue(Instance.pValues: ValueNode.pValue:
+                                                           Bytes: n);
+
+          ValueNode.Size = Bytes;
+
+          CTMAP_Insert(Instance.pObject: ValueNode.Path:
+                                 %Addr(ValueNode): %Size(ValueNode));
+
+        EndFor;
+
+        // Release resources
+
+        CTBUFFLST_Clear(Instance.pValues);
+        CTBUFFLST_Clear(Instance.pValuePaths);
+        CTBUFFLST_Clear(Instance.pTokens);
+        CTLST_Clear(Instance.pValTypes);
+        CTLST_Clear(Instance.pTokTypes);
+
+        Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_O...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DType             S             10I 0
+     DBytes            S             10I 0
+     Dvv               S             10I 0
+     DpNewPath         S               *
+     DBuffer           S               *
+     DListing          S               *
+     DValue            S            255A
+     DDirectory        S            255A
+     DSlash            S              1A
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+
+         vv = 0;
+         Rc = CS_SUCCESS;
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                 Bytes: @Index);
+
+         If (CTBUFF_Length(@pPath) > 0);
+           Buffer = %Alloc(CTBUFF_Length(@pPath));
+           Bytes = CTBUFF_Length(@pPath);
+           CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+           CTBUFF_Set(pNewPath: Buffer: Bytes);
+           Dealloc Buffer;
+         Else;
+           Slash = '/';
+           CTBUFF_Set(pNewPath: %Addr(Slash): 1);
+         EndIf;
+
+
+         If Rc = CS_SUCCESS;
+           If Type = JSON_TOK_LBRACE;
+
+             @Index += 1;
+             Listing = CTMAP_Constructor();
+             Dow CFSJSO_PRIVATE_VV(@This: @Index:
+                                  @pPath: Listing) = CS_SUCCESS;
+               vv += 1;
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                        Bytes: @Index);
+               If Rc = CS_SUCCESS;
+                 If Type <> JSON_TOK_COMMA;
+                   Leave;
+                 Else;
+                   @Index += 1;
+                 EndIf;
+                 Rc = CS_SUCCESS;
+               Else;
+                 Rc = CS_FAILURE;
+                 Leave;
+               EndIf;
+             EndDo;
+
+             If Rc = CS_SUCCESS;
+
+               // We have a directory entry (and a number of items)
+
+               Buffer = %Alloc(CTBUFF_Length(pNewPath));
+               Directory = *Blanks;
+               Bytes = 255;
+               CTBUFF_Get(pNewPath: %Addr(Directory): 1: Bytes);
+
+               DirEntry.Path       = Directory;
+               DirEntry.Type       = JSON_TYPE_OBJECT;
+               DirEntry.NumItems   = vv;
+               DirEntry.Listing    = Listing;
+
+               CTMAP_Insert(Instance.pDirectory:
+                            Directory:
+                            %Addr(DirEntry):
+                            %Size(DirEntry));
+
+               Dealloc Buffer;
+
+               If vv > 0;
+                 If Type = JSON_TOK_RBRACE;
+                   Bytes = %Size(Type);
+                   Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                          Bytes: @Index-1);
+                   If Rc = CS_SUCCESS;
+                     If Type = JSON_TOK_COMMA;
+                       Rc = CS_FAILURE;
+                     Else;
+
+                       // Dummy value, just to keep array indices in synch
+                       Value = *Blanks;
+                       Bytes = %Size(Value);
+                       CTBUFFLST_InsertValue(Instance.pValues:
+                                %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                       // Type
+                       Type = JSON_TYPE_OBJECT;
+                       CTLST_Insert(Instance.pValTypes:
+                             %Addr(Type): %Size(Type): CTLST_BOTTOM);
+
+                       Value = *Blanks;
+                       Bytes = %Size(Value);
+                       CTBUFF_Get(pNewPath: %Addr(Value): 1: Bytes);
+
+                       CTBUFFLST_InsertValue(Instance.pValuePaths:
+                               %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                       @Index += 1;
+                       Rc = CS_SUCCESS;
+                     EndIf;
+                   Else;
+                     Rc = CS_FAILURE;
+                   EndIf;
+
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               Else;
+
+                 Bytes = %Size(Type);
+                 Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                        Bytes: @Index);
+
+                 If Rc = CS_SUCCESS;
+                   If Type = JSON_TOK_RBRACE;
+
+                     Bytes = %Size(Type);
+                     Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                            Bytes: @Index-1);
+                     If Rc = CS_SUCCESS;
+                       If Type = JSON_TOK_COMMA;
+                         Rc = CS_FAILURE;
+                       Else;
+
+                         // Dummy value, just to keep array indices in synch
+                         Value = *Blanks;
+                         Bytes = %Size(Value);
+                         CTBUFFLST_InsertValue(Instance.pValues:
+                                  %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                         // Type
+                         Type = JSON_TYPE_OBJECT;
+                         CTLST_Insert(Instance.pValTypes:
+                               %Addr(Type): %Size(Type): CTLST_BOTTOM);
+
+                         Value = *Blanks;
+                         Bytes = %Size(Value);
+                         CTBUFF_Get(pNewPath: %Addr(Value): 1: Bytes);
+
+                         CTBUFFLST_InsertValue(Instance.pValuePaths:
+                                 %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                         @Index += 1;
+                         Rc = CS_SUCCESS;
+                       EndIf;
+                     Else;
+                       Rc = CS_FAILURE;
+                     EndIf;
+
+                   Else;
+                     Rc = CS_FAILURE;
+                   EndIf;
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               EndIf;
+             Else;
+
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                          Bytes: @Index);
+               If Rc = CS_SUCCESS;
+                 If Type = JSON_TOK_RBRACE;
+                   Bytes = %Size(Type);
+                   Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                            Bytes: @Index-1);
+                   If Type = JSON_TOK_COMMA;
+                     Rc = CS_FAILURE;
+                   Else;
+
+                     // Dummy value, just to keep array indices in synch
+                     Value = *Blanks;
+                     Bytes = %Size(Value);
+                     CTBUFFLST_InsertValue(Instance.pValues:
+                                %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                     // Type
+                     Type = JSON_TYPE_OBJECT;
+                     CTLST_Insert(Instance.pValTypes:
+                             %Addr(Type): %Size(Type): CTLST_BOTTOM)       ;
+
+                     Value = *Blanks;
+                     Bytes = %Size(Value);
+                     CTBUFF_Get(pNewPath: %Addr(Value): 1: Bytes);
+
+                     CTBUFFLST_InsertValue(Instance.pValuePaths:
+                               %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                     @Index += 1;
+                     Rc = CS_SUCCESS;
+                   EndIf;
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               Else;
+                 Rc = CS_FAILURE;
+               EndIf;
+             EndIf;
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_Serialize...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Type                          10I 0 Value
+     D@pStr                            *   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DpListing         S               *
+     DRc               S             10I 0
+     Dn                S             10I 0
+     Dk                S             10I 0
+     DBytes            S             10I 0
+     DDoubleQuote      S              1A   Inz('"')
+     DColon            S              1A   Inz(':')
+     DComma            S              1A   Inz(',')
+     DOpenToken        S              1A
+     DCloseToken       S              1A
+     DValue            S            255A
+     DszPath           S            255A
+     DpSource          S               *
+     DpTarget          S               *
+     DpBufferFrom      S               *
+     DpBufferTo        S               *
+     DValueBuff        S               *
+     DCharAtFrom       S              1A   Based(pBufferFrom)
+     DCharAtTo         S              1A   Based(pBufferTo)
+     DDirEntry         DS                  LikeDS(CFSJSO_DirEntry)
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+
+      /Free
+
+         pListing = CTLST_Constructor();
+
+         If @Type = JSON_TYPE_OBJECT;
+           OpenToken  = '{';
+           CTBUFF_Cat(@pStr: %Addr(OpenToken): 1);
+           CFSJSO_Ls(@This: @Path: DirEntry: pListing);
+           For n=1 To DirEntry.NumItems By 1;
+             Bytes = %Size(ListEntry);
+             CTLST_Get(pListing: %Addr(ListEntry): Bytes: n);
+             CTBUFF_Cat(@pStr: %Addr(DoubleQuote): 1);
+             //Clear Value;
+             Value = ListEntry.Value;
+             Bytes = %Len(%Trim(Value));
+             CTBUFF_Cat(@pStr: %Addr(Value): Bytes);
+             CTBUFF_Cat(@pStr: %Addr(DoubleQuote): 1);
+             CTBUFF_Cat(@pStr: %Addr(Colon): 1);
+             If (@Path = '/');
+               szPath = %Trim(@Path) + Value;
+             Else;
+               szPath = %Trim(@Path) + '/' + Value;
+             EndIf;
+             Select;
+               When ListEntry.Type = JSON_TYPE_ARRAY;
+                 Rc = CFSJSO_PRIVATE_Serialize(@This: szPath:
+                                              ListEntry.Type: @pStr);
+               When ListEntry.Type = JSON_TYPE_OBJECT;
+                 Rc = CFSJSO_PRIVATE_Serialize(@This: szPath:
+                                              ListEntry.Type: @pStr);
+               Other;
+                 ValueBuff = CTBUFF_Constructor();
+                 JsonNode.pValue = ValueBuff;
+                 CFSJSO_Lookup(@This: szPath: -1: JsonNode);
+
+                 Bytes = CTBUFF_Length(ValueBuff);
+
+                 If ListEntry.Type = JSON_TYPE_STRING;
+                   CTBUFF_Cat(@pStr: %Addr(DoubleQuote): 1);
+                   // Escape all double quotes
+                   If Bytes > 0;
+                     pSource = %Alloc(Bytes);
+                     pBufferFrom = pSource;
+                     pTarget = %Alloc(2 * Bytes);
+                     pBufferTo = pTarget;
+                     CTBUFF_Get(ValueBuff: pSource: 1: Bytes);
+                     Bytes = 0;
+                     For k=1 To JsonNode.Size By 1;
+                       If CharAtFrom = '"';
+                         CharAtTo = '\';
+                         pBufferTo +=1;
+                         Bytes += 1;
+                       EndIf;
+                       CharAtTo = CharAtFrom;
+                       pBufferFrom += 1;
+                       pBufferTo +=1;
+                       Bytes += 1;
+                     EndFor;
+
+                     Dealloc pSource;
+
+                     CTBUFF_Cat(@pStr: pTarget: Bytes);
+                     Dealloc pTarget;
+
+                   EndIf;
+                   CTBUFF_Cat(@pStr: %Addr(DoubleQuote): 1);
+                 Else;
+                   CTBUFF_BuffCat(@pStr: ValueBuff);
+                 EndIf;
+
+                 CTBUFF_Destructor(ValueBuff);
+                 Rc = CS_SUCCESS;
+             EndSl;
+             If Rc = CS_FAILURE;
+               Leave;
+             Else;
+               If n < DirEntry.NumItems;
+                 CTBUFF_Cat(@pStr: %Addr(Comma): 1);
+               EndIf;
+             EndIf;
+           EndFor;
+           CloseToken = '}';
+           CTBUFF_Cat(@pStr: %Addr(CloseToken): 1);
+         Else;
+           If @Type = JSON_TYPE_ARRAY;
+             OpenToken  = '[';
+             CTBUFF_Cat(@pStr: %Addr(OpenToken): 1);
+             CFSJSO_Ls(@This: @Path: DirEntry: pListing);
+             For n=1 To DirEntry.NumItems By 1;
+               Bytes = %Size(ListEntry);
+               CTLST_Get(pListing: %Addr(ListEntry): Bytes: n);
+               //Clear Value;
+               Value = ListEntry.Value;
+               Bytes = %Len(%Trim(Value));
+               If (@Path = '/');
+                 szPath = %Trim(@Path) + Value;
+               Else;
+                 szPath = %Trim(@Path) + '/' + Value;
+               EndIf;
+               Select;
+                 When ListEntry.Type = JSON_TYPE_ARRAY;
+                   Rc = CFSJSO_PRIVATE_Serialize(@This: szPath:
+                                                ListEntry.Type: @pStr);
+                 When ListEntry.Type = JSON_TYPE_OBJECT;
+                   Rc = CFSJSO_PRIVATE_Serialize(@This: szPath:
+                                                ListEntry.Type: @pStr);
+                 Other;
+                   ValueBuff = CTBUFF_Constructor();
+                   JsonNode.pValue = ValueBuff;
+                   CFSJSO_Lookup(@This: @Path: n-1: JsonNode);
+
+                   Bytes = CTBUFF_Length(ValueBuff);
+
+                   If ListEntry.Type = JSON_TYPE_STRING;
+                     CTBUFF_Cat(@pStr: %Addr(DoubleQuote): 1);
+                     // Escape all double quotes
+                     If Bytes > 0;
+                       pSource = %Alloc(Bytes);
+                       pBufferFrom = pSource;
+                       pTarget = %Alloc(2 * Bytes);
+                       pBufferTo = pTarget;
+                       CTBUFF_Get(ValueBuff: pSource: 1: Bytes);
+                       Bytes = 0;
+                       For k=1 To JsonNode.Size By 1;
+                         If CharAtFrom = '"';
+                           CharAtTo = '\';
+                           pBufferTo +=1;
+                           Bytes += 1;
+                         EndIf;
+                         CharAtTo = CharAtFrom;
+                         pBufferFrom += 1;
+                         pBufferTo +=1;
+                         Bytes += 1;
+                       EndFor;
+
+                       Dealloc pSource;
+
+                       CTBUFF_Cat(@pStr: pTarget: Bytes);
+                       Dealloc pTarget;
+
+                     EndIf;
+                     CTBUFF_Cat(@pStr: %Addr(DoubleQuote): 1);
+                   Else;
+                     CTBUFF_BuffCat(@pStr: ValueBuff);
+                   EndIf;
+
+                   CTBUFF_Destructor(ValueBuff);
+                   Rc = CS_SUCCESS;
+               EndSl;
+               If Rc = CS_FAILURE;
+                 Leave;
+               Else;
+                 If n < DirEntry.NumItems;
+                   CTBUFF_Cat(@pStr: %Addr(Comma): 1);
+                 EndIf;
+               EndIf;
+             EndFor;
+             CloseToken = ']';
+             CTBUFF_Cat(@pStr: %Addr(CloseToken): 1);
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         EndIf;
+
+         CTLST_Destructor(pListing);
+         Return Rc;
+
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_Tokenize...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@pJsonStr                        *   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+
+     Dn                S             10I 0
+     DType             S             10I 0
+     DLen              S             10I 0
+     DRc               S             10I 0
+
+     DChar             DS                   Qualified
+     DCode                            3U 0
+     DGlyph                           1A    Overlay(Code)
+
+     DCurChar          DS                   Qualified
+     DCode                            3U 0
+     DGlyph                           1A    Overlay(Code)
+
+      /Free
+
+        CTBUFFLST_Clear(Instance.pTokens);
+        CTLST_Clear(Instance.pTokTypes);
+
+        Rc = CS_SUCCESS;   // until proven otherwise
+        Len = CTBUFF_Length(@pJsonStr);
+        n=1;
+        Dow n <= Len;
+          Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+
+          Select;
+            When Char.Glyph = ',';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_COMMA;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '{';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_LBRACE;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '}';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_RBRACE;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '[';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_LBRACKET;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = ']';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_RBRACKET;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = ':';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_COLON;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '"';
+              ExSr SrPrcString;
+              If Rc = CS_SUCCESS;
+                CTBUFFLST_InsertBuffer(Instance.pTokens: Instance.pTemp:
+                                               CTLST_BOTTOM);
+                Type = JSON_TOK_STRING;
+                CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+              Else;
+                Leave;
+              EndIf;
+
+            Other;
+
+              If (Char.Code >= 240 And  Char.Code <= 249) Or  // Digits
+                 (Char.Glyph = 'f') Or  // false ?
+                 (Char.Glyph = 't') Or  // true ?
+                 (Char.Glyph = 'n') Or  // null ?
+                 (Char.Glyph = '-');    // number starting with minus sign
+
+                 ExSr SrPrcLitteral;
+                 If Rc = CS_SUCCESS;
+                   CTBUFFLST_InsertBuffer(Instance.pTokens:
+                                          Instance.pTemp:
+                                          CTLST_BOTTOM);
+                   Type = JSON_TOK_LITTERAL;
+                   CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+                 Else;
+                   Leave;
+                 EndIf;
+              EndIf;
+
+          EndSl;
+
+          n += 1;
+
+        EndDo;
+
+        Return Rc;
+
+        BegSr SrPrcString;
+
+          CurChar.Code = 0;
+          CTBUFF_Set(Instance.pTemp: *Null: 0);
+          n += 1;
+          Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+
+          Dow n <= Len;
+            Select;
+              When Char.Glyph = '\';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CurChar = Char;
+                EndIf;
+              When Char.Glyph = 't';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(CurChar): 1);
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                EndIf;
+              When Char.Glyph = 'r';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(CurChar): 1);
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                EndIf;
+              When Char.Glyph = 'n';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(CurChar): 1);
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                EndIf;
+              When Char.Glyph = '"';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   Leave;
+                EndIf;
+              Other;
+                CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+
+            EndSl;
+
+            n += 1;
+            Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+          EndDo;
+
+          If  Char.Glyph = '"';
+            Rc = CS_SUCCESS;
+          Else;
+            Rc = CS_FAILURE;
+          EndIf;
+
+        EndSr;
+
+        BegSr SrPrcLitteral;
+          CTBUFF_Set(Instance.pTemp: %Addr(Char): 1);
+          n += 1;
+          Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+          Dow n <= Len;
+            Select;
+              When Char.Glyph = ' ';
+                Leave;
+              When Char.Glyph = ',';
+                n -= 1;
+                Leave;
+              When Char.Glyph = ':';
+                n -= 1;
+                Leave;
+              When Char.Glyph = ']';
+                n -= 1;
+                Leave;
+              When Char.Glyph = '[';
+                n -= 1;
+                Leave;
+              When Char.Glyph = '{';
+                n -= 1;
+                Leave;
+              When Char.Glyph = '}';
+                n -= 1;
+                Leave;
+              Other;
+                CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                n += 1;
+                Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+            EndSl;
+          EndDo;
+        EndSr;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_PRIVATE_VV...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Listing                         *    Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DValue            S            255A
+     DLabel            S            255A
+     DKey              S            255A
+     DType             S             10I 0
+     DBytes            S             10I 0
+     DpNewPath         S               *
+     DBuffer           S               *
+     DSlash            S              1A   Inz('/')
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+
+         Rc = CS_SUCCESS;
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                 Bytes: @Index);
+
+         If Rc = CS_SUCCESS;
+
+           If Type = JSON_TOK_STRING;
+
+             If (CTBUFF_Length(@pPath) > 0);
+               Buffer = %Alloc(CTBUFF_Length(@pPath));
+               Bytes = CTBUFF_Length(@pPath);
+               CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+               CTBUFF_Set(pNewPath: Buffer: Bytes);
+               Dealloc Buffer;
+             EndIf;
+
+             CTBUFF_Cat(pNewPath: %Addr(Slash): 1);
+
+             Value = *Blanks;
+             Bytes = %Size(Label);
+             CTBUFFLST_GetValue(Instance.pTokens: %Addr(Label):
+                                                       Bytes: @Index);
+             Bytes = %Len(%Trim(Label));
+             CTBUFF_Cat(pNewPath: %Addr(Label): Bytes);
+
+             @Index += 1;
+             Bytes = %Size(Type);
+             Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                      Bytes: @Index);
+
+             If Type = JSON_TOK_COLON;
+               @Index += 1;
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                        Bytes: @Index);
+
+               Select;
+                 When Type = JSON_TOK_LBRACE;
+                    Rc = CFSJSO_PRIVATE_O(@This: @Index: pNewPath);
+                    If (Rc = CS_SUCCESS);
+
+                      Key = %Trim(Label);
+                      ListEntry.Value = %Trim(Label);
+                      ListEntry.Type = JSON_TYPE_OBJECT;
+                      Bytes = %Size(ListEntry);
+                      CTMAP_Insert(@Listing: Key: %Addr(ListEntry): Bytes);
+
+                    EndIf;
+                 When Type = JSON_TOK_LBRACKET;
+                    Rc = CFSJSO_PRIVATE_A(@This: @Index: pNewPath);
+
+                    If (Rc = CS_SUCCESS);
+                      Key = %Trim(Label);
+                      ListEntry.Value = %Trim(Label);
+                      ListEntry.Type = JSON_TYPE_ARRAY;
+                      Bytes = %Size(ListEntry);
+                      CTMAP_Insert(@Listing: Key: %Addr(ListEntry): Bytes);
+                    EndIf;
+
+                 When Type = JSON_TOK_STRING Or
+                      Type = JSON_TOK_LITTERAL;
+
+                    // Cle
+                    Value = *Blanks;
+                    Bytes = %Size(Value);
+                    CTBUFF_Get(pNewPath: %Addr(Value): 1: Bytes);
+
+                    CTBUFFLST_InsertValue(Instance.pValuePaths:
+                                     %Addr(Value): %Size(Value): CTLST_BOTTOM);
+
+                    //Value = *Blanks;
+                    //Bytes = %Size(Value);
+
+                    Bytes = CTBUFFLST_BuffLength(Instance.pTokens:
+                                                 @Index);
+                    Buffer = %Alloc(Bytes);
+                    CTBUFFLST_GetValue(Instance.pTokens: Buffer:
+                                              Bytes: @Index);
+
+                    CTBUFFLST_InsertValue(Instance.pValues:
+                                 Buffer: Bytes: CTLST_BOTTOM);
+
+
+                    If Type = JSON_TOK_STRING;
+                      Type = JSON_TYPE_STRING;
+                      CTLST_Insert(Instance.pValTypes:
+                                    %Addr(Type): %Size(Type): CTLST_BOTTOM);
+                      @Index += 1;
+                      Rc = CS_SUCCESS;
+                    Else;
+                      Value = *Blanks;
+                      CFSJSO_PRIVATE_MemCpy(%Addr(Value): Buffer: Bytes);
+                      Select;
+                        When Value = 'true';
+                          Type = JSON_TYPE_BOOL;
+                          Rc = CS_SUCCESS;
+                        When Value = 'false';
+                          Type = JSON_TYPE_BOOL;
+                          Rc = CS_SUCCESS;
+                        When Value = 'null';
+                          Type = JSON_TYPE_NULL;
+                          Rc = CS_SUCCESS;
+                        Other;
+                          Type = JSON_TYPE_NUMERIC;
+                          Rc = CFSJSO_PRIVATE_IsNumeric(@This: Value);
+                      EndSl;
+
+                      If Rc = CS_SUCCESS;
+                        CTLST_Insert(Instance.pValTypes:
+                                %Addr(Type): %Size(Type): CTLST_BOTTOM);
+                        Bytes = %Size(Value);
+                        @Index += 1;
+                      EndIf;
+
+                    EndIf;
+
+                    Dealloc Buffer;
+
+                    If Rc = CS_SUCCESS;
+
+                      Key = %Trim(Label);
+                      ListEntry.Value = %Trim(Label);
+                      ListEntry.Type = Type;
+                      Bytes = %Size(ListEntry);
+                      CTMAP_Insert(@Listing: Key: %Addr(ListEntry): Bytes);
+
+                    EndIf;
+
+                 Other;
+                    Rc = CS_FAILURE;
+
+               EndSl;
+
+             Else;
+               Rc = CS_FAILURE;
+             EndIf;
+
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_Lookup...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Index                         10I 0 Value
+     D@JsonNode                            LikeDS(CFSJSO_Node)
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+     DpTempBuff        S               *
+     DKey              S            255A
+     DOutNode          DS                  LikeDS(CFSJSO_Node)
+
+      /Free
+
+        If @JsonNode.pValue <> *Null;
+          pTempBuff = @JsonNode.pValue;
+          CTBUFF_Set(pTempBuff: *Null: 0);
+        EndIf;
+
+        Bytes = %Size(CFSJSO_Node);
+        Rc = CTMAP_Lookup(Instance.pObject:
+                          @Path:
+                          %Addr(OutNode):
+                          Bytes);
+
+        If Rc = CS_SUCCESS;
+          If OutNode.Type = JSON_TYPE_ARRAY;
+            If @Index >= 0;
+              If %Trim(@Path) <> '/';
+                Key = %Trim(@Path) + '/' + %Char(@Index);
+              Else;
+                Key = %Trim(@Path) + %Char(@Index);
+              EndIf;
+              Bytes = %Size(CFSJSO_Node);
+              Rc = CTMAP_Lookup(instance.pObject:
+                                Key:
+                                %Addr(OutNode):
+                                Bytes);
+
+              If Rc = CS_SUCCESS;
+                If pTempBuff <> *Null;
+                  Bytes = OutNode.Size;
+                  CTBUFF_Set(pTempBuff: OutNode.pValue: Bytes);
+                EndIf;
+                OutNode.pValue = pTempBuff;
+                @JsonNode = OutNode;
+                Rc = CS_SUCCESS;
+              Else;
+                Rc = CS_FAILURE;
+              EndIf;
+            Else;
+              // We want the root object description only
+              OutNode.pValue = pTempBuff;
+              @JsonNode = OutNode;
+              Rc = CS_SUCCESS;
+            EndIf;
+          Else;
+            Rc = CS_SUCCESS;
+            If OutNode.Type = JSON_TYPE_OBJECT;
+              OutNode.pValue = pTempBuff;
+              @JsonNode = OutNode;
+            Else;
+              If pTempBuff <> *Null;
+                CTBUFF_Set(pTempBuff: OutNode.pValue: OutNode.Size);
+              EndIf;
+              OutNode.pValue = pTempBuff;
+              @JsonNode = OutNode;
+            EndIf;
+          EndIf;
+        Else;
+          Rc = CS_FAILURE;
+        EndIf;
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_TypeOf...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@Index                         10I 0 Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+     DJsonNode         DS                  LikeDS(CFSJSO_Node)
+
+      /Free
+
+        Clear JsonNode;
+        Bytes = %Size(CFSJSO_Node);
+        Rc = CTMAP_Lookup(Instance.pObject:
+                          @Path:
+                          %Addr(JsonNode):
+                          Bytes);
+
+        If RC = CS_SUCCESS;
+          Rc = JsonNode.Type;
+        Else;
+          Rc = JSON_TYPE_UNKNOWN;
+        EndIF;
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSO_Ls...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@PathDesc                            LikeDS(CFSJSO_DirEntry)
+     D@Listing                         *   Value
+
+     DInstance         DS                  LikeDs(CFSJSO_Instance) Based(@This)
+     DRc               S             10I 0
+     Dn                S             10I 0
+     DBytes            S             10I 0
+     DKey              S            255A
+     DDirEntry         DS                  LikeDS(CFSJSO_PRV_DirEntry)
+     DNodeEntry        DS                  LikeDS(CFSJSO_Node)
+     DListEntry        DS                  LikeDS(CFSJSO_ListEntry)
+
+      /Free
+
+        Clear DirEntry;
+        Clear @PathDesc;
+        Bytes = %Size(CFSJSO_PRV_DirEntry);
+        Rc = CTMAP_Lookup(Instance.pDirectory:
+                          @Path:
+                          %Addr(DirEntry):
+                          Bytes);
+
+        If RC = CS_SUCCESS;
+          Rc = CS_SUCCESS;
+          Clear @PathDesc;
+          @PathDesc.Type = DirEntry.Type;
+          @PathDesc.Path = DirEntry.Path;  // redundant
+          @PathDesc.NumItems = DirEntry.NumItems;
+          If @Listing <> *Null;
+            CTLST_Clear(@Listing);
+          EndIf;
+          If DirEntry.Type = JSON_TYPE_ARRAY;
+            If @Listing <> *Null;
+              For n=0 To @PathDesc.NumItems-1 By 1;
+                Clear ListEntry;
+                ListEntry.Value = %Char(n);
+
+                Bytes = %Size(NodeEntry);
+                Rc = CFSJSO_Lookup(@This:
+                                  @Path:
+                                  n:
+                                  NodeEntry);
+
+                ListEntry.Type = NodeEntry.Type;
+                Bytes = %Size(CFSJSO_ListEntry);
+                CTLST_Insert(@Listing: %Addr(ListEntry):
+                                    Bytes: CTLST_BOTTOM);
+              EndFor;
+            EndIf;
+          Else;
+            If DirEntry.Type = JSON_TYPE_OBJECT;
+              If @Listing <> *Null;
+                Bytes = %Size(CFSJSO_ListEntry);
+                Clear ListEntry;
+                CTMAP_IterStart(DirEntry.Listing);
+                Dow (CTMAP_IterNext(DirEntry.Listing: Key:
+                               %Addr(ListEntry): Bytes) = CS_SUCCESS);
+                  CTLST_Insert(@Listing: %Addr(ListEntry):
+                                         Bytes: CTLST_BOTTOM);
+                  Bytes = %Size(CFSJSO_ListEntry);
+                  Clear ListEntry;
+                EndDo;
+              EndIf;
+            Else;
+              Rc = CS_FAILURE;
+            EndIf;
+          EndIf;
+        Else;
+          Rc = CS_FAILURE;
+        EndIF;
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
