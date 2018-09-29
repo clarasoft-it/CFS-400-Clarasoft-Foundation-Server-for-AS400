@@ -1,0 +1,1436 @@
+      *===================================================================
+      * Package: CFS: Clarasoft Foundation Server
+      * Class:   CFSJSP: JSON Parser
+      * Source:  Implementation
+      * Version: 01.00.00
+      *
+      * Dependencies:
+      *
+      *     CTBASE Version 01.00.00
+      *
+      * --------------------------------------------------------------------------
+      * Copyright 2014 Clarasoft I.T. Solutions Inc.
+      *===========================================================================
+
+     HDatEdit(*YMD)
+     HNoMain
+
+      /Include CTBASEH
+
+     DJSON_TOK_LBRACE...
+     D                 C                     Const(1)
+     DJSON_TOK_RBRACE...
+     D                 C                     Const(2)
+     DJSON_TOK_LBRACKET...
+     D                 C                     Const(3)
+     DJSON_TOK_RBRACKET...
+     D                 C                     Const(4)
+     DJSON_TOK_COLON...
+     D                 C                     Const(5)
+     DJSON_TOK_COMMA...
+     D                 C                     Const(6)
+     DJSON_TOK_STRING...
+     D                 C                     Const(7)
+     DJSON_TOK_LITTERAL...
+     D                 C                     Const(8)
+
+     DJSON_EVENT_ARRAY_START...
+     D                 C                     Const(1)
+     DJSON_EVENT_ARRAY_END...
+     D                 C                     Const(2)
+
+     DJSON_EVENT_OBJECT_START...
+     D                 C                     Const(3)
+     DJSON_EVENT_OBJECT_END...
+     D                 C                     Const(4)
+     DJSON_EVENT_VALUE...
+     D                 C                     Const(5)
+
+     DJSON_TYPE_ARRAY...
+     D                 C                     Const(1)
+     DJSON_TYPE_OBJECT...
+     D                 C                     Const(2)
+     DJSON_TYPE_BOOL...
+     D                 C                     Const(3)
+     DJSON_TYPE_STRING...
+     D                 C                     Const(4)
+     DJSON_TYPE_NUMERIC...
+     D                 C                     Const(5)
+     DJSON_TYPE_UNKNOWN...
+     D                 C                     Const(0)
+     DJSON_TYPE_NULL...
+     D                 C                     Const(6)
+
+     DCTBUFFLST_PROTECTED_GetTokenRef...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@pToken                          *   Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_PROTECTED_SetTokenRef...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@pToken                          *   Value
+     D@Index                         10I 0 Value
+
+     DCFSJSP_PRIVATE_A...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Label                        255A
+
+     DCFSJSP_PRIVATE_ArrayValue...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@ItemIndex                     10I 0  Value
+
+     DCFSJSP_PRIVATE_IsNumeric...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Value                        255A
+
+     DCFSJSP_PRIVATE_MemCpy...
+     D                 PR                  ExtProc('memcpy')
+     D@To                              *   Value
+     D@From                            *   Value
+     D@Len                           10I 0 Value
+
+     DCFSJSP_PRIVATE_O...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Label                        255A
+
+     DCFSJSP_PRIVATE_Tokenize...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@JsonStr                         *    Value
+
+     DCFSJSP_PRIVATE_VV...
+     D                 PR            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Listing                         *    Value
+
+     DCFSJSP_PRIVATE_ClearResources...
+     D                 PR            10I 0
+     D@This                            *    Value
+
+     DCTBUFFLST_Token  DS                  Based(Null)
+     D                                     Qualified
+     DLen                            10I 0
+     DToken                            *
+
+     DCTBUFFLST_Instance...
+     D                 DS                  Based(Null)
+     D                                     Qualified
+     DStrings                          *
+
+     DCFSJSP_Instance  DS                  Qualified
+     DpTokens                          *
+     DpTemp                            *
+     DpTokTypes                        *
+     DpDump                            *
+     DpMap                             *
+     DCurEvent                       10I 0
+
+     DCFSJSP_DATA      DS                  Qualified
+     Devent                          10I 0
+     Dpath                          255A
+     Dlabel                         255A
+     Dtype                           10I 0
+     Dvalue                            *
+     Dsize                           10I 0
+
+     DCFSJSP_Token     DS
+     D                                     Qualified
+     DSize                           10I 0
+     DToken                            *
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_Constructor...
+     P                 B                   Export
+     D                 PI              *
+
+     DThis             S               *
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(This)
+
+      /Free
+
+          This = %Alloc(%Size(CFSJSP_Instance));
+
+          Instance.pTokens     = CTBUFFLST_Constructor();
+          Instance.pTemp       = CTBUFF_Constructor();
+          Instance.pTokTypes   = CTLST_Constructor();
+          Instance.pDump       = CTLST_Constructor();
+          Instance.pMap        = CTMAP_Constructor();
+          Instance.CurEvent    = 0;
+
+          Return This;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_Destructor...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+
+      /Free
+
+         CTBUFFLST_Destructor(Instance.pTokens);
+         CTBUFF_Destructor(Instance.pTemp);
+         CTLST_Destructor(Instance.pTokTypes);
+         CTLST_Destructor(Instance.pDump);
+         CTMAP_Destructor(Instance.pMap);
+         Dealloc @This;
+
+         Return CS_SUCCESS;
+
+      /End-Free
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_Parse...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@pJsonStr                        *   Value
+
+     D
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DIndex            S             10I 0
+     DBytes            S             10I 0
+     DCount            S             10I 0
+     DpPath            S               *
+     DLabel            S            255A
+
+      /Free
+
+         pPath = CTBUFF_Constructor();
+
+         Rc = CFSJSP_PRIVATE_Tokenize(@This: @pJsonStr);
+
+         If Rc = CS_SUCCESS;
+
+           Instance.CurEvent = 0;
+
+           CFSJSP_PRIVATE_ClearResources(@This);
+           Clear Label;
+           Index = 1;
+           Rc = CFSJSP_PRIVATE_O(@This: Index: pPath: Label);
+           If Rc = CS_FAILURE;
+             Rc = CFSJSP_PRIVATE_A(@This: Index: pPath: Label);
+           EndIf;
+
+         EndIf;
+
+         CTBUFF_Destructor(pPath);
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_NextEvent...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Event                           *   Value
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+
+      /Free
+
+         Instance.CurEvent += 1;
+         Bytes = %Size(CFSJSP_DATA);
+         Rc = CTLST_Get(Instance.pDump: @Event:
+                        Bytes: Instance.Curevent);
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_Lookup...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Path                         255A   Value
+     D@JsonEvent                           LikeDS(CFSJSP_DATA)
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+     DpTempBuff        S               *
+     DKey              S            255A
+     DOutNode          DS                  LikeDS(CFSJSP_DATA)
+
+      /Free
+
+        Bytes = %Size(CFSJSP_DATA);
+        Rc = CTMAP_Lookup(Instance.pMap:
+                          @Path:
+                          %Addr(OutNode):
+                          Bytes);
+
+        If Rc = CS_SUCCESS;
+          @JsonEvent = OutNode;
+        Else;
+          Rc = CS_FAILURE;
+        EndIf;
+
+        Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_PRIVATE_A...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Label                        255A
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DpNewPath         S               *
+     DpNewObjPath      S               *
+     DBuffer           S               *
+     DSlash            S              1A   Inz('/')
+     DType             S             10I 0
+     DBytes            S             10I 0
+     DStart            S             10I 0
+     DCurIndex         S             10I 0
+     DcommaFlag        S             10I 0
+     DszCurIndex       S             10A
+     DLabel            S            255A
+     DKey              S            255A
+     DEvent            DS                   LikeDS(CFSJSP_DATA)
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+         pNewObjPath = CTBUFF_Constructor();
+
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                 Bytes: @Index);
+
+         If Rc = CS_SUCCESS;
+           If Type = JSON_TOK_LBRACKET;
+
+             @Index += 1;
+
+             If (CTBUFF_Length(@pPath) > 0);
+               Buffer = %Alloc(CTBUFF_Length(@pPath));
+               Bytes = CTBUFF_Length(@pPath);
+               CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+               CTBUFF_Set(pNewPath: Buffer: Bytes);
+               Dealloc Buffer;
+             Else;
+               CTBUFF_Set(pNewPath: %Addr(Slash): 1);
+             EndIf;
+
+             Start = @Index;
+             CurIndex = 0;
+             commaFlag = 0;
+
+             ////////////////////////////////////////////
+             // EVENT
+             Clear Event;
+             Event.Event = JSON_EVENT_ARRAY_START;
+             Event.type = JSON_TYPE_ARRAY;
+             Event.Label = @Label;
+             Bytes = -1;
+             CTBUFF_Get(pNewPath: %Addr(Event.path): 1: Bytes);
+             Bytes = %Size(Event);
+             CTLST_Insert(Instance.pDump: %Addr(Event):
+                                  Bytes: CTLST_BOTTOM);
+
+             If %Trim(Event.Label) <> *Blanks;
+               Key = %Trim(Event.path) + '/' + Event.Label;
+             Else;
+               Key = %Trim(Event.path);
+             EndIf;
+
+             CTMAP_Insert(Instance.pMap: Key:
+                              %Addr(Event): Bytes);
+
+             ////////////////////////////////////////////
+
+             Dow (Rc = CS_SUCCESS);
+
+               If (CTBUFF_Length(pNewPath) > 1);  // we are not at root
+                 Buffer = %Alloc(CTBUFF_Length(pNewPath));
+                 Bytes = CTBUFF_Length(pNewPath);
+                 CTBUFF_Get(pNewPath: Buffer: 1: Bytes);
+                 CTBUFF_Set(pNewObjPath: Buffer: Bytes);
+                 CTBUFF_Cat(pNewObjPath: %Addr(Slash): 1);
+                 Dealloc Buffer;
+               Else;
+                 CTBUFF_Set(pNewObjPath: %Addr(Slash): 1);
+               EndIf;
+
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes:
+                              %Addr(Type): Bytes: Start);
+
+               commaFlag = 0;
+               szCurIndex = %Char(curIndex);
+               Label = szCurIndex;
+
+               Select;
+                 When Type = JSON_TOK_LBRACE;
+                   CTBUFF_Cat(pNewObjPath: %Addr(szCurIndex):
+                              %Len(%Trim(szCurIndex)));
+                   Rc = CFSJSP_PRIVATE_O(@This: Start: pNewObjPath: Label);
+                   curIndex += 1;
+                 When Type = JSON_TOK_LBRACKET;
+                   CTBUFF_Cat(pNewObjPath: %Addr(szCurIndex):
+                              %Len(%Trim(szCurIndex)));
+                   Rc = CFSJSP_PRIVATE_A(@This: Start: pNewObjPath: Label);
+                   curIndex += 1;
+                 When Type = JSON_TOK_COMMA;
+                   commaFlag = 1;
+                   Start += 1;
+                   Rc = CS_SUCCESS;
+                 When Type = JSON_TOK_RBRACKET;
+
+                   If commaFlag = 0;
+
+                     ////////////////////////////////////////////
+                     // EVENT
+                     Clear Event;
+                     Event.Event = JSON_EVENT_ARRAY_END;
+                     Event.type = JSON_TYPE_ARRAY;
+                     Bytes = -1;
+                     CTBUFF_Get(@pPath: %Addr(Event.path): 1: Bytes);
+                     Event.label = @Label;
+                     Bytes = %Size(Event);
+                     CTLST_Insert(Instance.pDump: %Addr(Event):
+                                  Bytes: CTLST_BOTTOM);
+                     ///////////////////////////////////////////
+
+                     @Index = Start+1;
+                     Rc = CS_SUCCESS;
+                     Leave;
+                   Else;
+                     Rc = CS_FAILURE;
+                   EndIf;
+                 Other;
+                   commaFlag = 0;
+                   Rc = CFSJSP_PRIVATE_ArrayValue(@This: Start:
+                                                 pNewObjPath: CurIndex);
+                   curIndex += 1;
+               EndSl;
+
+               If Rc = CS_SUCCESS;
+               Else;
+                 Leave;
+               EndIf;
+
+             EndDo;
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+         CTBUFF_Destructor(pNewObjPath);
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_PRIVATE_ArrayValue...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@ItemIndex                     10I 0  Value
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DValue            S            255A
+     DKey              S            255A
+     DType             S             10I 0
+     DBytes            S             10I 0
+     DSize             S             10I 0
+     DpNewPath         S               *
+     DBuffer           S               *
+     DszItemIndex      S             10A
+     DEvent            Ds                  LikeDS(CFSJSP_DATA)
+     DValueToken       Ds                  LikeDS(CFSJSP_Token)
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                                 Bytes: @Index);
+
+         If Rc = CS_SUCCESS;
+           If Type = JSON_TOK_STRING Or
+              Type = JSON_TOK_LITTERAL;
+
+             // Type
+             If Type = JSON_TOK_LITTERAL;
+               Value = *Blanks;
+               Bytes = %Size(Value);
+               Rc = CTBUFFLST_GetValue(Instance.pTokens: %Addr(Value):
+                                                         Bytes: @Index);
+
+               Select;
+                 When Value = 'true';
+                   Type = JSON_TYPE_BOOL;
+                   Rc = CS_SUCCESS;
+                 When Value = 'false';
+                   Type = JSON_TYPE_BOOL;
+                   Rc = CS_SUCCESS;
+                 When Value = 'null';
+                   Type = JSON_TYPE_NULL;
+                   Rc = CS_SUCCESS;
+                 Other;
+                   Type = JSON_TYPE_NUMERIC;
+                   Rc = CFSJSP_PRIVATE_IsNumeric(@This: Value);
+               EndSl;
+             Else;
+               Type = JSON_TYPE_STRING;
+               Rc = CS_SUCCESS;
+             EndIf;
+
+             If Rc = CS_SUCCESS;
+
+               Clear Event;
+
+               If (CTBUFF_Length(@pPath) > 0);
+                 Buffer = %Alloc(CTBUFF_Length(@pPath));
+                 Bytes = CTBUFF_Length(@pPath);
+                 CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+                 CTBUFF_Set(pNewPath: Buffer: Bytes);
+                 // We strip the ending slash from the path, hence bytes-1
+                 CFSJSP_PRIVATE_Memcpy(%Addr(Event.path): buffer: bytes-1);
+                 Dealloc Buffer;
+               EndIf;
+
+               szItemIndex = %Char(@ItemIndex);
+
+               CTBUFF_Cat(pNewPath: %Addr(szItemIndex):
+                          %Len(%Trim(szItemIndex)));
+
+               ////////////////////////////////////////////
+               // EVENT
+               Event.Event = JSON_EVENT_VALUE;
+               Event.Type = Type;
+               Size = 255;
+               Event.label = szItemIndex;
+               CTBUFFLST_PROTECTED_GetTokenRef(Instance.pTokens:
+                                             %Addr(ValueToken): @Index);
+
+               Event.Size = ValueToken.Size;
+               Event.Value = ValueToken.token;
+
+               // This to avoid deleting the value when the tokens
+               // are reclaimed
+
+               ValueToken.Size = 0;
+               ValueToken.token = *Null;
+
+               CTBUFFLST_PROTECTED_SetTokenRef(Instance.pTokens:
+                                               %Addr(ValueToken): @Index);
+
+               Size = %Size(Event);
+               CTLST_Insert(Instance.pDump: %Addr(Event):
+                            Size: CTLST_BOTTOM);
+
+               If %Trim(Event.Label) <> *Blanks;
+                 Key = %Trim(Event.path) + '/' + Event.Label;
+               Else;
+                 Key = %Trim(Event.path);
+               EndIf;
+
+               CTMAP_Insert(Instance.pMap: Key:
+                                %Addr(Event): Size);
+               ////////////////////////////////////////////
+
+               @Index += 1;
+             EndIf;
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_PRIVATE_IsNumeric...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@Value                        255A
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     Dn                S             10I 0
+     DLen              S             10I 0
+     DdotFlag          S             10I 0
+     DBuffer           S            255A
+     DpStr             S               *
+
+     DChar             DS                   Qualified
+     DCode                            3U 0
+     DGlyph                           1A    Overlay(Code)
+
+      /Free
+
+         Rc = CS_SUCCESS;
+         pStr = CTBUFF_Constructor();
+         Buffer = @Value;
+         Len = %Len(%TRim(Buffer));
+         CTBUFF_Set(pStr: %Addr(Buffer): Len);
+         n = 1;
+
+         // Check first char
+
+         Char.Code = CTBUFF_ByteAt(pStr: n);
+
+         If Char.Glyph = '-';
+           // We can ignore the minus sign at the \
+           // beginning of the value
+           n += 1;
+           If n <= Len;
+             Char.Code = CTBUFF_ByteAt(pStr: n);
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         EndIf;
+
+         If Rc = CS_SUCCESS;
+           If Char.Glyph = '0';
+             // Next character must be dot or else it's
+             // an invalid numerical value
+             n += 1;
+             If n <= Len;
+               Char.Code = CTBUFF_ByteAt(pStr: n);
+               If Char.Glyph = '.';
+                 n += 1;
+                 If n <= Len;
+                   Char.Code = CTBUFF_ByteAt(pStr: n);
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               Else;
+                 Rc = CS_FAILURE;
+               EndIf;
+             Else;
+               // This means that the number is simply zero
+               Rc = CS_SUCCESS;
+             EndIf;
+           EndIf;
+         EndIf;
+
+         If Rc = CS_SUCCESS And n <= Len;
+
+           dotFlag = 0;
+
+           Dow 1=1;
+             // Must be a digit from 1 to 9
+             If Char.Code >= 240 And
+                Char.Code <= 249 ;
+                n += 1;
+             Else;
+               If Char.Glyph = '.';
+                 If dotFlag = 0;
+                   dotFlag = 1;
+                   n += 1;
+                 Else;
+                   Rc = CS_FAILURE;
+                   Leave;
+                 EndIf;
+               Else;
+                 Rc = CS_FAILURE;
+                 Leave;
+               EndIf;
+             EndIf;
+             If n <= Len;
+               Char.Code = CTBUFF_ByteAt(pStr: n);
+             Else;
+               Leave;
+             EndIf;
+           EndDo;
+
+           // Make sure litteral does not end with a period and no
+           // decimal positions
+           If Rc = CS_SUCCESS;
+             If Char.Glyph = '.';
+               Rc = CS_FAILURE;
+             EndIf;
+           EndIf;
+         EndIf;
+
+         CTBUFF_Destructor(pStr);
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_PRIVATE_O...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Label                        255A
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DType             S             10I 0
+     DBytes            S             10I 0
+     Dvv               S             10I 0
+     DpNewPath         S               *
+     DBuffer           S               *
+     DListing          S               *
+     DValue            S            255A
+     DKey              S            255A
+     DDirectory        S            255A
+     DSlash            S              1A
+     DEvent            DS                   LikeDS(CFSJSP_DATA)
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+
+         vv = 0;
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                        Bytes: @Index);
+
+         If (CTBUFF_Length(@pPath) > 0);
+           Buffer = %Alloc(CTBUFF_Length(@pPath));
+           Bytes = CTBUFF_Length(@pPath);
+           CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+           CTBUFF_Set(pNewPath: Buffer: Bytes);
+           Dealloc Buffer;
+         Else;
+           Slash = '/';
+           CTBUFF_Set(pNewPath: %Addr(Slash): 1);
+         EndIf;
+
+         If Rc = CS_SUCCESS;
+           If Type = JSON_TOK_LBRACE;
+
+             ////////////////////////////////////////////
+             // EVENT
+             Clear Event;
+             Event.Event = JSON_EVENT_OBJECT_START;
+             Event.Type = JSON_TYPE_OBJECT;
+             Bytes = -1;
+             CTBUFF_Get(pNewPath: %Addr(Event.path): 1: Bytes);
+             Event.label = @Label;
+             Bytes = %Size(Event);
+             CTLST_Insert(Instance.pDump: %Addr(Event):
+                                  Bytes: CTLST_BOTTOM);
+
+             If %Trim(Event.Label) <> *Blanks;
+               Key = %Trim(Event.path) + '/' + Event.Label;
+             Else;
+               Key = %Trim(Event.path);
+             EndIf;
+
+             Bytes = %Size(Event);
+             CTMAP_Insert(Instance.pMap: Key:
+                              %Addr(Event): Bytes);
+             ////////////////////////////////////////////
+
+             @Index += 1;
+             Listing = *Null;
+             Dow CFSJSP_PRIVATE_VV(@This: @Index:
+                                  @pPath: Listing) = CS_SUCCESS;
+               vv += 1;
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                              Bytes: @Index);
+               If Rc = CS_SUCCESS;
+                 If Type <> JSON_TOK_COMMA;
+                   Leave;
+                 Else;
+                   @Index += 1;
+                 EndIf;
+                 Rc = CS_SUCCESS;
+               Else;
+                 Rc = CS_FAILURE;
+                 Leave;
+               EndIf;
+             EndDo;
+
+             If Rc = CS_SUCCESS;
+
+               // We have a directory entry (and a number of items)
+
+               If vv > 0;
+                 If Type = JSON_TOK_RBRACE;
+                   Bytes = %Size(Type);
+                   Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                  Bytes: @Index-1);
+                   If Rc = CS_SUCCESS;
+                     If Type = JSON_TOK_COMMA;
+                       Rc = CS_FAILURE;
+                     Else;
+
+                       ////////////////////////////////////////////
+                       // EVENT
+                       Clear Event;
+                       Event.Event = JSON_EVENT_OBJECT_END;
+                       Event.Type = JSON_TYPE_OBJECT;
+                       Bytes = -1;
+                       CTBUFF_Get(pNewPath: %Addr(Event.path): 1: Bytes);
+                       Event.label = @Label;
+                       Bytes = %Size(Event);
+                       CTLST_Insert(Instance.pDump: %Addr(Event):
+                                    Bytes: CTLST_BOTTOM);
+                       ////////////////////////////////////////////
+
+                       @Index += 1;
+                       Rc = CS_SUCCESS;
+                     EndIf;
+                   Else;
+                     Rc = CS_FAILURE;
+                   EndIf;
+
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               Else;
+
+                 Bytes = %Size(Type);
+                 Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                Bytes: @Index);
+
+                 If Rc = CS_SUCCESS;
+                   If Type = JSON_TOK_RBRACE;
+
+                     Bytes = %Size(Type);
+                     Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                    Bytes: @Index-1);
+                     If Rc = CS_SUCCESS;
+                       If Type = JSON_TOK_COMMA;
+                         Rc = CS_FAILURE;
+                       Else;
+
+                         ////////////////////////////////////////////
+                         // EVENT
+                         Clear Event;
+                         Event.Event = JSON_EVENT_OBJECT_END;
+                         Event.Type = JSON_TYPE_OBJECT;
+                         Bytes = -1;
+                         CTBUFF_Get(pNewPath: %Addr(Event.path): 1: Bytes);
+                         Event.label = @Label;
+                         Bytes = %Size(Event);
+                         CTLST_Insert(Instance.pDump: %Addr(Event):
+                                                Bytes: CTLST_BOTTOM);
+                         ////////////////////////////////////////////
+
+                         @Index += 1;
+                         Rc = CS_SUCCESS;
+                       EndIf;
+                     Else;
+                       Rc = CS_FAILURE;
+                     EndIf;
+
+                   Else;
+                     Rc = CS_FAILURE;
+                   EndIf;
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               EndIf;
+             Else;
+
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                              Bytes: @Index);
+               If Rc = CS_SUCCESS;
+                 If Type = JSON_TOK_RBRACE;
+                   Bytes = %Size(Type);
+                   Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                                  Bytes: @Index-1);
+                   If Type = JSON_TOK_COMMA;
+                     Rc = CS_FAILURE;
+                   Else;
+                     ////////////////////////////////////////////
+                     // EVENT
+                     Clear Event;
+                     Event.Event = JSON_EVENT_OBJECT_END;
+                     Event.Type = JSON_TYPE_OBJECT;
+                     Bytes = -1;
+                     CTBUFF_Get(pNewPath: %Addr(Event.path): 1: Bytes);
+                     Event.label = @Label;
+                     Bytes = %Size(Event);
+                     CTLST_Insert(Instance.pDump: %Addr(Event):
+                                  Bytes: CTLST_BOTTOM);
+                     ////////////////////////////////////////////
+
+                     @Index += 1;
+                     Rc = CS_SUCCESS;
+                   EndIf;
+                 Else;
+                   Rc = CS_FAILURE;
+                 EndIf;
+               Else;
+                 Rc = CS_FAILURE;
+               EndIf;
+             EndIf;
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_PRIVATE_Tokenize...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@pJsonStr                        *   Value
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+
+     Dn                S             10I 0
+     DType             S             10I 0
+     DLen              S             10I 0
+     DRc               S             10I 0
+
+     DChar             DS                   Qualified
+     DCode                            3U 0
+     DGlyph                           1A    Overlay(Code)
+
+     DCurChar          DS                   Qualified
+     DCode                            3U 0
+     DGlyph                           1A    Overlay(Code)
+
+      /Free
+
+        CTBUFFLST_Clear(Instance.pTokens);
+        CTLST_Clear(Instance.pTokTypes);
+
+        Rc = CS_SUCCESS;   // until proven otherwise
+        Len = CTBUFF_Length(@pJsonStr);
+        n=1;
+        Dow n <= Len;
+          Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+
+          Select;
+            When Char.Glyph = ',';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_COMMA;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '{';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_LBRACE;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '}';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_RBRACE;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '[';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_LBRACKET;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = ']';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_RBRACKET;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = ':';
+              CTBUFFLST_InsertValue(Instance.pTokens: %Addr(Char.Glyph):
+                                                1: CTLST_BOTTOM);
+              Type = JSON_TOK_COLON;
+              CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+            When Char.Glyph = '"';
+              ExSr SrPrcString;
+              If Rc = CS_SUCCESS;
+                CTBUFFLST_InsertBuffer(Instance.pTokens: Instance.pTemp:
+                                               CTLST_BOTTOM);
+                Type = JSON_TOK_STRING;
+                CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+              Else;
+                Leave;
+              EndIf;
+
+            Other;
+
+              If (Char.Code >= 240 And  Char.Code <= 249) Or  // Digits
+                 (Char.Glyph = 'f') Or  // false ?
+                 (Char.Glyph = 't') Or  // true ?
+                 (Char.Glyph = 'n') Or  // null ?
+                 (Char.Glyph = '-');    // number starting with minus sign
+
+                 ExSr SrPrcLitteral;
+                 If Rc = CS_SUCCESS;
+                   CTBUFFLST_InsertBuffer(Instance.pTokens:
+                                          Instance.pTemp:
+                                          CTLST_BOTTOM);
+                   Type = JSON_TOK_LITTERAL;
+                   CTLST_Insert(Instance.pTokTypes: %Addr(Type):
+                                             %Size(Type): CTLST_BOTTOM);
+                 Else;
+                   Leave;
+                 EndIf;
+              EndIf;
+
+          EndSl;
+
+          n += 1;
+
+        EndDo;
+
+        Return Rc;
+
+        BegSr SrPrcString;
+
+          CurChar.Code = 0;
+          CTBUFF_Set(Instance.pTemp: *Null: 0);
+          n += 1;
+          Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+
+          Dow n <= Len;
+            Select;
+              When Char.Glyph = '\';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CurChar = Char;
+                EndIf;
+              When Char.Glyph = 't';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(CurChar): 1);
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                EndIf;
+              When Char.Glyph = 'r';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(CurChar): 1);
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                EndIf;
+              When Char.Glyph = 'n';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(CurChar): 1);
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                EndIf;
+              When Char.Glyph = '"';
+                If CurChar.Glyph = '\';
+                   CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                   CurChar.Code = 0;
+                Else;
+                   Leave;
+                EndIf;
+              Other;
+                CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+
+            EndSl;
+
+            n += 1;
+            Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+          EndDo;
+
+          If  Char.Glyph = '"';
+            Rc = CS_SUCCESS;
+          Else;
+            Rc = CS_FAILURE;
+          EndIf;
+
+        EndSr;
+
+        BegSr SrPrcLitteral;
+          CTBUFF_Set(Instance.pTemp: %Addr(Char): 1);
+          n += 1;
+          Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+          Dow n <= Len;
+            Select;
+              When Char.Glyph = ' ';
+                Leave;
+              When Char.Glyph = ',';
+                n -= 1;
+                Leave;
+              When Char.Glyph = ':';
+                n -= 1;
+                Leave;
+              When Char.Glyph = ']';
+                n -= 1;
+                Leave;
+              When Char.Glyph = '[';
+                n -= 1;
+                Leave;
+              When Char.Glyph = '{';
+                n -= 1;
+                Leave;
+              When Char.Glyph = '}';
+                n -= 1;
+                Leave;
+              Other;
+                CTBUFF_Cat(Instance.pTemp: %Addr(Char): 1);
+                n += 1;
+                Char.Code = CTBUFF_ByteAt(@pJsonStr: n);
+            EndSl;
+          EndDo;
+        EndSr;
+
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_PRIVATE_VV...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+     D@Index                         10I 0
+     D@pPath                           *    Value
+     D@Listing                         *    Value
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DValue            S            255A
+     DKey              S            255A
+     DLabel            S            255A
+     DType             S             10I 0
+     DBytes            S             10I 0
+     DSize             S             10I 0
+     DpNewPath         S               *
+     DBuffer           S               *
+     DSlash            S              1A   Inz('/')
+     DEvent            Ds                  LikeDS(CFSJSP_DATA)
+     DValueToken       Ds                  LikeDS(CFSJSP_Token)
+
+      /Free
+
+         pNewPath = CTBUFF_Constructor();
+
+         Rc = CS_SUCCESS;
+         Bytes = %Size(Type);
+         Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                        Bytes: @Index);
+
+         If Rc = CS_SUCCESS;
+
+           If Type = JSON_TOK_STRING;
+
+             Clear Event;
+
+             If (CTBUFF_Length(@pPath) > 0);
+               Buffer = %Alloc(CTBUFF_Length(@pPath));
+               Bytes = CTBUFF_Length(@pPath);
+               CTBUFF_Get(@pPath: Buffer: 1: Bytes);
+               CTBUFF_Set(pNewPath: Buffer: Bytes);
+               CFSJSP_PRIVATE_Memcpy(%Addr(Event.path): buffer: bytes);
+               Dealloc Buffer;
+             EndIf;
+
+             CTBUFF_Cat(pNewPath: %Addr(Slash): 1);
+
+             Value = *Blanks;
+             Label = *Blanks;
+             Bytes = %Size(Label);
+             CTBUFFLST_GetValue(Instance.pTokens: %Addr(Label):
+                                Bytes: @Index);
+             Bytes = %Len(%Trim(Label));
+             CTBUFF_Cat(pNewPath: %Addr(Label): Bytes);
+
+             @Index += 1;
+             Bytes = %Size(Type);
+             Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                            Bytes: @Index);
+
+             If Type = JSON_TOK_COLON;
+               @Index += 1;
+               Bytes = %Size(Type);
+               Rc = CTLST_Get(Instance.pTokTypes: %Addr(Type):
+                              Bytes: @Index);
+
+               Select;
+                 When Type = JSON_TOK_LBRACE;
+                    Rc = CFSJSP_PRIVATE_O(@This: @Index: pNewPath: label);
+                 When Type = JSON_TOK_LBRACKET;
+                    Rc = CFSJSP_PRIVATE_A(@This: @Index: pNewPath: label);
+                 When Type = JSON_TOK_STRING Or
+                      Type = JSON_TOK_LITTERAL;
+
+                    Bytes = CTBUFFLST_BuffLength(Instance.pTokens:
+                                                 @Index);
+
+                    If Bytes > 0;
+                      Buffer = %Alloc(Bytes);
+                      CTBUFFLST_GetValue(Instance.pTokens: Buffer:
+                                         Bytes: @Index);
+                    Else;
+                      Buffer = *Null;
+                    EndIf;
+
+                    If Type = JSON_TOK_STRING;
+                      Type = JSON_TYPE_STRING;
+                      @Index += 1;
+                      Rc = CS_SUCCESS;
+                    Else;
+                      Value = *Blanks;
+                      CFSJSP_PRIVATE_MemCpy(%Addr(Value): Buffer: Bytes);
+                      Select;
+                        When Value = 'true';
+                          Type = JSON_TYPE_BOOL;
+                          Rc = CS_SUCCESS;
+                        When Value = 'false';
+                          Type = JSON_TYPE_BOOL;
+                          Rc = CS_SUCCESS;
+                        When Value = 'null';
+                          Type = JSON_TYPE_NULL;
+                          Rc = CS_SUCCESS;
+                        Other;
+                          Type = JSON_TYPE_NUMERIC;
+                          Rc = CFSJSP_PRIVATE_IsNumeric(@This: Value);
+                      EndSl;
+
+                      If Rc = CS_SUCCESS;
+                        @Index += 1;
+                      EndIf;
+
+                    EndIf;
+
+                    ////////////////////////////////////////////
+                    // EVENT
+                    Event.Type = Type;
+                    Event.Event = JSON_EVENT_VALUE;
+                    Size = 255;
+                    Event.Label = Label;
+                    CTBUFFLST_PROTECTED_GetTokenRef(Instance.pTokens:
+                                              %Addr(ValueToken): @Index-1);
+
+                    Event.Size = ValueToken.Size;
+                    Event.Value = ValueToken.token;
+
+                    // This to avoid deleting the value when the tokens
+                    // are reclaimed
+
+                    ValueToken.Size = 0;
+                    ValueToken.token = *Null;
+
+                    CTBUFFLST_PROTECTED_SetTokenRef(Instance.pTokens:
+                                              %Addr(ValueToken): @Index-1);
+                    Size = %Size(Event);
+                    CTLST_Insert(Instance.pDump: %Addr(Event):
+                                           Size: CTLST_BOTTOM);
+
+                    If %Trim(Event.Label) <> *Blanks;
+                      Key = %Trim(Event.path) + '/' + Event.Label;
+                    Else;
+                      Key = %Trim(Event.path) + '/' + Event.Label;
+                    EndIf;
+
+                    CTMAP_Insert(Instance.pMap: Key:
+                                     %Addr(Event): Size);
+                    ////////////////////////////////////////////
+
+                    If Buffer <> *Null;
+                      Dealloc Buffer;
+                    EndIf;
+
+                 Other;
+                    Rc = CS_FAILURE;
+
+               EndSl;
+
+             Else;
+               Rc = CS_FAILURE;
+             EndIf;
+
+           Else;
+             Rc = CS_FAILURE;
+           EndIf;
+         Else;
+           Rc = CS_FAILURE;
+         EndIf;
+
+         CTBUFF_Destructor(pNewPath);
+         Return Rc;
+      /End-Free
+
+     P                 E
+
+      *-------------------------------------------------------------------------------
+
+     PCFSJSP_PRIVATE_ClearResources...
+     P                 B
+     D                 PI            10I 0
+     D@This                            *    Value
+
+     DInstance         DS                  LikeDs(CFSJSP_Instance) Based(@This)
+     DRc               S             10I 0
+     DBytes            S             10I 0
+     Dn                S             10I 0
+     DCount            S             10I 0
+     DEvent            Ds                  LikeDS(CFSJSP_DATA)
+
+      /Free
+
+        Count = CTLST_Count(Instance.pDump);
+        For n=1 To Count By 1;
+          Bytes = %Size(Event);
+          CTLST_Get(Instance.pDump: %Addr(Event):
+                      Bytes: n);
+
+          If Event.Value <> *Null;
+            Dealloc Event.Value;
+          EndIf;
+        EndFor;
+
+        CTLST_Clear(instance.pDump);
+        CTMAP_Clear(instance.pMap);
+
+        Return CS_SUCCESS;
+
+      /End-Free
+
+     P                 E
+
+
+     PCFSJSP_DEBUG_GetDump...
+     P                 B                   Export
+     D                 PI              *
+     D#This                            *   Value
+
+     D#Instance        DS                  LikeDs(CFSJSP_Instance) Based(#This)
+
+      /Free
+
+         Return #Instance.pDump;
+
+      /End-Free
+
+     P                 E
+
+     PCTBUFFLST_PROTECTED_GetTokenRef...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@pToken                          *   Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     DRc               S             10I 0
+     D#Bytes           S             10I 0
+
+      /Free
+
+         #Bytes = %Size(CTBUFFLST_Token);
+         Rc = CTLST_Get(#Instance.Strings:
+                        @pToken:
+                        #Bytes:
+                        @Index);
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
+     PCTBUFFLST_PROTECTED_SetTokenRef...
+     P                 B                   Export
+     D                 PI            10I 0
+     D@This                            *   Value
+     D@pToken                          *   Value
+     D@Index                         10I 0 Value
+
+     D#Instance        DS                  LikeDs(CTBUFFLST_Instance)
+     D                                     Based(@This)
+     D#Token           DS                  LikeDs(CTBUFFLST_Token)
+     DRc               S             10I 0
+     D#Bytes           S             10I 0
+
+      /Free
+
+         #Bytes = %Size(CTBUFFLST_Token);
+         Rc = CTLST_Set(#Instance.Strings:
+                        @pToken:
+                        #Bytes:
+                        @Index);
+
+         Return Rc;
+
+      /End-Free
+
+     P                 E
+
