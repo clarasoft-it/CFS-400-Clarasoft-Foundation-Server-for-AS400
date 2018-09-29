@@ -2779,11 +2779,11 @@
 
                       If pServiceHandler <> *Null;
 
-                                       CFS_MakeUUID(%Addr(UUID): 0);
-                                       MemCpy(%Addr(SessionID): %Addr(UUID): 32);
+                        CFS_MakeUUID(%Addr(UUID): 0);
+                        MemCpy(%Addr(SessionID): %Addr(UUID): 32);
 
                         DataBuffer= '{"control":{"diag":"00000000", ' +
-                                                   '"sessionid": "' + SessionID + '"}}';
+                                            '"sessionid": "' + SessionID + '"}}';
 
                         DataSize = %Len(%Trim(DataBuffer));
 
@@ -2796,10 +2796,10 @@
 
                         // call the service handler
                         ServiceHandler(Service:
-                                                      SessionID:
-                                                      @Conn:
-                                                      @lpVtbl:
-                                                      *Null);
+                                       SessionID:
+                                       @Conn:
+                                       @lpVtbl:
+                                       *Null);
 
                       Else;
 
@@ -2898,10 +2898,8 @@
      D   Object                      30A   Overlay(Gen_Mat_Id:3)
      D  Req_Auth                      2A   Inz(AUTH_NONE)
 
-      //See QSYSINC/MIH/MICOMMON for authority constants
      D AUTH_NONE       C                   X'0000'
 
-      //Prototype and templates for ActivateBoundProgram (QLEAWI.H)
      D QleActBndPgm    Pr                  ExtProc('QleActBndPgm')
      D  SrvpgmPtr                          Like(SysPtr) Const
      D  ActMark                      10I 0
