@@ -1,0 +1,77 @@
+      *===================================================================
+      * Package: CTBASE
+      * Class:   CTBUFFLST
+      * Source:  Interface
+      * Version: 01.00.00
+      * ------------------------------------------------------------------
+      * Copyright 2013 Clarasoft I.T. Solutions Inc.
+      *===================================================================
+
+      /IF NOT DEFINED(CTBUFFLH)
+      /DEFINE CTBUFFLH
+
+     DCTBUFFLST_Constructor...
+     D                 PR              *
+
+     DCTBUFFLST_Destructor...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCTBUFFLST_BuffLength...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_InsertValue...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Str                             *   Value
+     D@Len                           10I 0 Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_InsertBuffer...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@StrObj                          *   Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_Remove...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_SetBuffer...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@StrObj                          *   Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_SetValue...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Str                             *   Value
+     D@Len                           10I 0 Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_GetBuffer...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@StrObj                          *   Value
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_GetValue...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@ValBuff                         *   Value
+     D@Size                          10I 0
+     D@Index                         10I 0 Value
+
+     DCTBUFFLST_Count...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCTBUFFLST_Clear...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+      /ENDIF
