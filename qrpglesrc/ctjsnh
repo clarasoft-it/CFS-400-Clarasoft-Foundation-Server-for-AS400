@@ -9,11 +9,6 @@
       /IF NOT DEFINED(CTJSNH)
       /DEFINE CTJSNH
 
-      /Include CSCOREH
-      /Include CTLSTH
-      /Include CTBUFFH
-      /Include CTMAPH
-
      DJSON_TYPE_ARRAY...
      D                 C                     Const(1)
      DJSON_TYPE_OBJECT...
