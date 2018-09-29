@@ -1,0 +1,19 @@
+      *===================================================================
+      * Package: CTBASE
+      * Source:  Package Interface
+      * Version: 1.00.00
+      * ------------------------------------------------------------------
+      * Copyright 2013 Clarasoft I.T. Solutions Inc.
+      *===================================================================
+
+      /IF NOT DEFINED(CTBASEH)
+      /DEFINE CTBASEH
+
+      /INCLUDE CSCOREH
+
+      /INCLUDE CTBUFFH
+      /INCLUDE CTBUFFLH
+      /INCLUDE CTLSTH
+      /INCLUDE CTMAPXH
+
+      /ENDIF
