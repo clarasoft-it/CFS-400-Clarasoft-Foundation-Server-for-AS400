@@ -40,7 +40,7 @@
                           DBGVIEW(*ALL)
 
              CRTSRVPGM  SRVPGM(&TRGLIB/CTBASE) MODULE(&SRCLIB/CTLST +
-                            &SRCLIB/CTBUFF &SRCLIB/CTMAP &SRCLIB/CTMAP +
+                            &SRCLIB/CTBUFF &SRCLIB/CTMAP &SRCLIB/CTMAPX +
                             &SRCLIB/CTJSO &SRCLIB/CTJSP)
                             
   ENDPGM
