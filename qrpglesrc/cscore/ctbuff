@@ -5,11 +5,6 @@
       * Source:  Implementation
       * Version: 01.00.00
       *
-      * Dependencies:
-      *
-      *     CTBASE::CTLST, Version 1.00.00
-      *     CTBASE::CTBUFFLST, Version 1.00.00
-      *
       * ------------------------------------------------------------------
       * Copyright 2013 Clarasoft I.T. Solutions Inc.
       *===================================================================
