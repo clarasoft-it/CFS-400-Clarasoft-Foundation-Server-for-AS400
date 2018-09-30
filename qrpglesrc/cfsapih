@@ -39,7 +39,7 @@
       *  CFS Constants
       *----------------------------------------------------------------------
 
-      /include CSCORE.H
+      /copy CSCOREH
 
      DCS_MASK_ERROR...
      D                 C                     Const(x'80000000')
@@ -99,6 +99,11 @@
      D                 C                     Const(x'0000FFFE')
      DCFS_DIAG_UNKNOWN...
      D                 C                     Const(x'0000FFFF')
+
+     DCFS_SEC_CLIENT_SESSION_SERVER_AUTH_FULL...
+     D                 C                     Const(1)
+     DCFS_SEC_CLIENT_SESSION_SERVER_AUTH_PASSTHROUGH...
+     D                 C                     Const(2)
 
      DCFS_SERVICEINFO_100...
      D                 DS                    Align
@@ -510,4 +515,4 @@
      D  Size                         20U 0 Value
 
       /ENDIF
-      
+

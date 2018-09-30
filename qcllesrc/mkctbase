@@ -1,5 +1,5 @@
-  
   /*==================================================================*/
+  /*                                                                  */
   /*  Package: CTBASE                                                 */
   /*  Version: 01.00.00                                               */
   /* -----------------------------------------------------------------*/
@@ -9,7 +9,7 @@
   /* Modules are created in a source (from) library and the resulting */
   /* service program object is created in a target library            */
   /*==================================================================*/
-  
+
   PGM  PARM(&SRCLIB &TRGLIB)
 
              DCL        VAR(&SRCLIB) TYPE(*CHAR) LEN(10)
@@ -26,7 +26,7 @@
              CRTRPGMOD  MODULE(&SRCLIB/CTMAP) +
                           SRCFILE(&SRCLIB/QRPGLESRC) SRCMBR(CTMAP) +
                           DBGVIEW(*ALL)
-                          
+
              CRTRPGMOD  MODULE(&SRCLIB/CTMAPX) +
                           SRCFILE(&SRCLIB/QRPGLESRC) SRCMBR(CTMAPX) +
                           DBGVIEW(*ALL)
@@ -34,14 +34,15 @@
              CRTRPGMOD  MODULE(&SRCLIB/CTJSO) +
                           SRCFILE(&SRCLIB/QRPGLESRC) SRCMBR(CTJSO) +
                           DBGVIEW(*ALL)
-                          
+
              CRTRPGMOD  MODULE(&SRCLIB/CTJSP) +
                           SRCFILE(&SRCLIB/QRPGLESRC) SRCMBR(CTJSP) +
                           DBGVIEW(*ALL)
 
              CRTSRVPGM  SRVPGM(&TRGLIB/CTBASE) MODULE(&SRCLIB/CTLST +
-                            &SRCLIB/CTBUFF &SRCLIB/CTMAP &SRCLIB/CTMAPX +
-                            &SRCLIB/CTJSO &SRCLIB/CTJSP)
-                            
+                          &SRCLIB/CTBUFF &SRCLIB/CTMAP &SRCLIB/CTMAPX +
+                          &SRCLIB/CTJSO &SRCLIB/CTJSP) +
+                          EXPORT(*SRCFILE) SRCFILE(&SRCLIB/QSRVSRC)
   ENDPGM
-  
+
+

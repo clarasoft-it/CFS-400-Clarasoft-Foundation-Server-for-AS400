@@ -43,7 +43,7 @@
      D@To                              *   Value
      D@Char                           3U 0 Value
      D@Len                           10I 0 Value
-     
+
      DCTBUFFLST_PRIVATE_ClearBuffers...
      D                 PR            10I 0
      D@This                            *   Value
@@ -1520,4 +1520,4 @@
       /End-Free
 
      P                 E
-     
+

@@ -269,7 +269,7 @@
                       EndIf;
 
                     Else;
-                    
+
                       DataBuffer= '{"control":{"diag":"80000101"}}';
                       DataSize = %Len(%Trim(DataBuffer));
 
@@ -414,7 +414,7 @@
 
         QleActBndPgm(SrvpgmPtr : ActMark : ABP_Info :
                      %size(ABP_Info) : ErrCode);
-             
+
         TrimedPrc = %Trim(Procedure);
         GetExport(ActMark : 0 : %len(TrimedPrc) : TrimedPrc : ProcPtr :
                   ExportType : ErrCode);
@@ -428,4 +428,4 @@
       /End-Free
 
      P                 E
-     
+

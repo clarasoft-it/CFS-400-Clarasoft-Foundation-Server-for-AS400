@@ -1,7 +1,7 @@
 
 /* ==========================================================================
   Clarasoft Foundation Server 400
-  
+
   wsckhs.c
   Web socket server using SSL
   Version 1.0.0
@@ -15,9 +15,9 @@
     CRTPGM PGM(WSCKHS) MODULE(WSCKHS) BNDSRVPGM((CFSAPI))
 
   Distributed under the MIT license
-  
+
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-  
+
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -44,8 +44,6 @@
 #include <sys/socket.h>
 
 #include "qcsrc/cswsck.h"
-
-#define BUFF_MAX 256
 
 #define CFS_DEF_SERVICENAME_MAX  (65)
 #define CFS_DEF_LIBNAME_MAX      (11)
@@ -85,9 +83,6 @@ int main (int argc, char **argv)
 
   char buffer = 0; // dummy byte character
                    // to send to main daemon
-
-  char szMessage[BUFF_MAX+1];
-  char szClientByte[BUFF_MAX+1];
 
   char* outBuffer;
   char* szResponse;
@@ -211,8 +206,6 @@ int main (int argc, char **argv)
     memset(&sinfo, 0, sizeof(sinfo));
     sinfo.szApplicationID = szAppID;
 
-    send(stream_fd, &buffer, 1, 0);
-
     for (;;) {
 
       //////////////////////////////////////////////////////////////////
@@ -248,6 +241,7 @@ int main (int argc, char **argv)
             //////////////////////////////////////////////////////////////////
 
             CSWSCK_SecureClose(pCONN, 0, 0, -1);
+            pCONN = 0;
           }
 
           close(conn_fd);
@@ -275,8 +269,10 @@ int main (int argc, char **argv)
 
 void Cleanup(_CNL_Hndlr_Parms_T* data) {
 
-   CSWSCK_SecureClose(pCONN, 0, 0, -1);
+   if (pCONN != 0) {
+     CSWSCK_SecureClose(pCONN, 0, 0, -1);
+   }
+
    close(stream_fd);
    close(conn_fd);
 }
-

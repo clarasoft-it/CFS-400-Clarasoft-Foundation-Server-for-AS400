@@ -7,10 +7,10 @@
       * --------------------------------------------------------------------------
       * Copyright 2014 Clarasoft I.T. Solutions Inc.
       *===========================================================================
-      
+
       /IF NOT DEFINED(CTMAPH)
       /DEFINE CTMAPH
-      
+
       /Include CTBASEH
 
      DCTMAP_Clear...
@@ -57,6 +57,6 @@
      D@Key                          255A   Value
      D@Value                           *   Value
      D@Size                          10I 0
-     
+
       /ENDIF
-      
+

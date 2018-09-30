@@ -10,7 +10,7 @@
 
      HDatEdit(*YMD)
      HNoMain
- 
+
       /Include CSCOREH
       /Include CTLSTH
       /Include CTBUFFH
@@ -43,13 +43,13 @@
      DJSON_EVENT_VALUE...
      D                 C                     Const(5)
 
-     DCTJSO_Node      DS                  Qualified
+     DCTJSO_Node       DS                  Qualified
      DType                           10I 0
      DSize                           10I 0
      DPath                          255A
      DpValue                           *
 
-     DCTJSO_DirEntry  DS                  Qualified
+     DCTJSO_DirEntry   DS                  Qualified
      DPath                          255A
      DType                           10I 0
      DNumItems                       10I 0
@@ -219,7 +219,7 @@
      DNumItems                       10I 0
      DListing                          *
 
-     DCTJSO_Instance  DS                  Qualified
+     DCTJSO_Instance   DS                  Qualified
      DpTokens                          *
      DpTemp                            *
      DpTokTypes                        *

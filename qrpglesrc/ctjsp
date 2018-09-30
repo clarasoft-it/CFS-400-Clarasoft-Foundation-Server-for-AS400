@@ -15,7 +15,7 @@
       /Include CTLSTH
       /Include CTBUFFH
       /Include CTMAPH
-      
+
      DJSON_TOK_LBRACE...
      D                 C                     Const(1)
      DJSON_TOK_RBRACE...
@@ -130,7 +130,7 @@
      D                                     Qualified
      DStrings                          *
 
-     DCTJSP_Instance  DS                  Qualified
+     DCTJSP_Instance   DS                  Qualified
      DpTokens                          *
      DpTemp                            *
      DpTokTypes                        *
@@ -138,7 +138,7 @@
      DpMap                             *
      DCurEvent                       10I 0
 
-     DCTJSP_DATA      DS                  Qualified
+     DCTJSP_DATA       DS                  Qualified
      Devent                          10I 0
      Dpath                          255A
      Dlabel                         255A
@@ -146,7 +146,7 @@
      Dvalue                            *
      Dsize                           10I 0
 
-     DCTJSP_Token     DS
+     DCTJSP_Token      DS
      D                                     Qualified
      DSize                           10I 0
      DToken                            *

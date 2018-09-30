@@ -8,7 +8,11 @@
       * ------------------------------------------------------------------
       * Copyright 2013 Clarasoft I.T. Solutions Inc.
       *===================================================================
-      
+
+     H NOMAIN
+
+      /Copy CSCOREH
+      /Copy CTLSTH
 
      DCPAVL_PRIVATE_Clear...
      D                 PR            10I 0
@@ -89,7 +93,7 @@
      DKey                           255A
      DValue                            *
      DBytes                          10I 0
-     
+
 
      PCTMAP_Clear...
      P                 B                   EXPORT
@@ -234,7 +238,7 @@
            CPAVL_PRIVATE_Retrieve(Map.AvlTree: @Key: @Value: @Bytes);
          EndIf;
 
-         Return #Rc;
+         Return Rc;
 
       /End-free
      P                 E
@@ -493,10 +497,10 @@
 
            If (@Value <> *Null And @Bytes > 0);
              NewTree.Value  = %Alloc(@Bytes);
-             CPAVL_PRIVATE_MemCpy(NewTree.Value: Value: Bytes);
+             CPAVL_PRIVATE_MemCpy(NewTree.Value: @Value: @Bytes);
            Else;
              NewTree.Value  = *Null;
-             Bytes = 0;
+             @Bytes = 0;
            EndIf;
 
            NewTree.Key    = @Key;
@@ -506,12 +510,12 @@
            NewTree.Height = 0;
 
         Else;
-           If (Tree.Key = Key);
+           If (Tree.Key = @Key);
               If (Tree.Value <> *Null);
                 Dealloc Tree.Value;
               EndIf;
 
-              If (Value <> *Null And @Bytes > 0);
+              If (@Value <> *Null And @Bytes > 0);
                 Tree.Value = %Alloc(@Bytes);
                 CPAVL_PRIVATE_MemCpy(Tree.Value: @Value: @Bytes);
               Else;
@@ -551,7 +555,7 @@
                           CPAVL_PRIVATE_DoubleLeftRotation(@This);
                     EndIf;
                  Else;
-                    pNewTree = This;
+                    pNewTree = @This;
                  EndIf;
               Else;
 
@@ -573,7 +577,7 @@
 
                  If (BalanceFactor > 1);
                     pRightTree = Tree.Right;
-                    If (Key > RightTree.Key);
+                    If (@Key > RightTree.Key);
                        pNewTree =
                            CPAVL_PRIVATE_SingleRightRotation(@This);
                     Else;
@@ -656,7 +660,7 @@
             EndIf;
             Return CS_SUCCESS;
           Else;
-             If (Tree.Key > Key);
+             If (Tree.Key > @Key);
                 Return CPAVL_PRIVATE_Retrieve(Tree.Left:
                                               @Key: @Value: @Bytes);
              Else;
@@ -686,7 +690,7 @@
              Return -1;
           EndIf;
 
-          If (Tree.Key = Key);
+          If (Tree.Key = @Key);
              Return Tree.Bytes;
           Else;
              If (Tree.Key > @Key);
@@ -713,13 +717,13 @@
      DpNewTree         S               *
      DNewTree          DS                  LikeDs(CPAVL_Tree) Based(pNewTree)
      DOriginalLeftHeight...
-     D                  S             10I 0
+     D                 S             10I 0
      DOriginalRightHeight...
-     D                  S             10I 0
+     D                 S             10I 0
      DNewLeftHeight...
-     D                  S             10I 0
+     D                 S             10I 0
      DNewRightHeight...
-     D                  S             10I 0
+     D                 S             10I 0
 
       /Free
 
@@ -808,4 +812,4 @@
       /End-Free
 
      P                 E
- 
+
