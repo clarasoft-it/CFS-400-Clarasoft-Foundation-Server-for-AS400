@@ -1,0 +1,190 @@
+      /////////////////////////////////////////////////////////////////////////////////
+      //
+      //    Common Service Access Protocol
+      //
+      //    CSAPAPIH
+      //    CSAP Application Programming Interface Definitions
+      //    Version 1.0.0
+      //
+      //    Distributed under the MIT license
+      //
+      //    Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+      //
+      //    Permission is hereby granted, free of charge, to any person obtaining
+      //    a copy of this software and associated documentation files
+      //    (the "Software"), to deal in the Software without restriction,
+      //    including without limitation the rights to use, copy, modify,
+      //    merge, publish, distribute, sublicense, and/or sell
+      //    copies of the Software, and to permit persons to whom the Software is
+      //    furnished to do so, subject to the following conditions:
+      //    The above copyright notice and this permission notice shall be
+      //    included in all copies or substantial portions of the Software.
+      //    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      //    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      //    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+      //    IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+      //    ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+      //    TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+      //    THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      //
+      /////////////////////////////////////////////////////////////////////////////////
+
+      /IF NOT DEFINED(CSAPAPIH)
+      /DEFINE CSAPAPIH
+
+      *---------------------------------------------------------------
+      * CSAP Error domains
+      *---------------------------------------------------------------
+     DCSAP_OPEN...
+     D                 C                   Const(x'00010000')
+     DCSAP_SND...
+     D                 C                   Const(x'00020000')
+     DCSAP_RECV...
+     D                 C                   Const(x'00030000')
+     DCSAP_CLOSE...
+     D                 C                   Const(x'00040000')
+      *---------------------------------------------------------------
+      * CSAP Error codes
+      *---------------------------------------------------------------
+     DCSAP_TIMEOUT...
+     D                 C                   Const(x'00000002')
+     DCSAP_FATALERROR...
+     D                 C                   Const(x'00000999')
+     DCSAP_BUFFERERROR...
+     D                 C                   Const(x'00000004')
+     DCSAP_NODATA...
+     D                 C                   Const(x'00000005')
+     DCSAP_SRVNOTFOUND...
+     D                 C                   Const(x'00000006')
+     DCSAP_HOSTNOTFOUND...
+     D                 C                   Const(x'00000007')
+     DCSAP_INVALIDADDRESS...
+     D                 C                   Const(x'00000008')
+     DCSAP_SOCKETFAILURE...
+     D                 C                   Const(x'00000009')
+     DCSAP_CONNECTFAILURE...
+     D                 C                   Const(x'00000010')
+     DCSAP_SRVNOTREG...
+     D                 C                   Const(x'00000011')
+     DCSAP_SRVFAULT...
+     D                 C                   Const(x'00000012')
+     DCSAP_SOSENDFAILURE...
+     D                 C                   Const(x'00000013')
+     DCSAP_SORECVFAILURE...
+     D                 C                   Const(x'00000014')
+     DCSAP_INCOMPLETEDATA...
+     D                 C                   Const(x'00000015')
+
+      *---------------------------------------------------------------
+      * Payload format
+      *---------------------------------------------------------------
+     DCSAP_FMT_TEXT...
+     D                 C                   Const(x'00000000')
+     DCSAP_FMT_BINARY...
+     D                 C                   Const(x'00000001')
+
+      *---------------------------------------------------------------
+      * Security flags
+      *---------------------------------------------------------------
+     DCSAP_SECURITY_NONE...
+     D                 C                   Const(x'00000000')
+     DCSAP_SECURITY_SSL...
+     D                 C                   Const(x'00000001')
+
+      *---------------------------------------------------------------
+      * Data structures
+      *---------------------------------------------------------------
+
+     DCSAP_Session...
+     D                 DS                  Qualified
+     DSessionID                      32A
+     DVersion                        10A
+
+     DCSAP_CtlFrame...
+     D                 DS                  Qualified
+     DCtlCode                         3A
+     DUserRef                        32A
+     DDataFrameSize                  10I 0
+     DUserCtlSize                    10I 0
+     DBytesAvail                     10I 0
+
+
+      *=========================================================================
+      *
+      *  CSAP FUNCTIONS
+      *
+      *=========================================================================
+
+     DCSAP_CloseChannel...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCSAP_CloseService...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCSAP_Constructor...
+     D                 PR              *
+
+     DCSAP_Destructor...
+     D                 PR            10I 0
+     D@This                            *
+	
+     DCSAP_Flush...
+     D                 PR            10I 0
+     D@This                            *   Value
+
+     DCSAP_GetData...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Data                            *   Value
+     D@DataSize                      10I 0
+
+     DCSAP_GetUserCtl...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Data                            *   Value
+     D@DataSize                      10I 0
+
+     DCSAP_LSeek...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Limit                         10I 0 Value
+
+     DCSAP_OpenChannel...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@ServiceName                   64A   Value
+     D@SessionID                     32A   Value
+     D@ConnectionHandle...
+     D                                 *   Value
+     D@Interface                       *   Value
+     D@UserData...
+     D                                 *   Value
+
+     DCSAP_OpenService...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@ServiceName                   64A   Value
+     D@SessionInfo                         LikeDS(CSAP_Session)
+
+     DCSAP_PutData...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@Data                            *   Value
+     D@DataSize                      10I 0 Value
+
+     DCSAP_Receive...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@CtlFrame                            LikeDS(CSAP_CtlFrame)
+
+     DCSAP_Send...
+     D                 PR            10I 0
+     D@This                            *   Value
+     D@UserCtl                         *   Value
+     D@Size                          10I 0 Value
+     D@UserRef                       32A   Value
+     D@DataFmt                       10I 0 Value
+
+      /ENDIF
