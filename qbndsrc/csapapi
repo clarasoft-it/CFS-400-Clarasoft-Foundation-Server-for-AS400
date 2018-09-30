@@ -1,0 +1,17 @@
+
+             STRPGMEXP  PGMLVL(*CURRENT) SIGNATURE(*GEN)
+                EXPORT     SYMBOL('CSAP_CLOSECHANNEL')
+                EXPORT     SYMBOL('CSAP_CLOSESERVICE')
+                EXPORT     SYMBOL('CSAP_CONSTRUCTOR')
+                EXPORT     SYMBOL('CSAP_DESTRUCTOR')
+                EXPORT     SYMBOL('CSAP_FLUSH')
+                EXPORT     SYMBOL('CSAP_GETDATA')
+                EXPORT     SYMBOL('CSAP_GETUSERCTL')
+                EXPORT     SYMBOL('CSAP_LSEEK')
+                EXPORT     SYMBOL('CSAP_OPENCHANNEL')
+                EXPORT     SYMBOL('CSAP_OPENSERVICE')
+                EXPORT     SYMBOL('CSAP_PUTDATA')
+                EXPORT     SYMBOL('CSAP_RECEIVE')
+                EXPORT     SYMBOL('CSAP_SEND')
+             ENDPGMEXP
+

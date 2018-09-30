@@ -1,0 +1,20 @@
+
+      *------------------------------------------------------------------------*
+      *  APPLICATION - COMMON SERVICE ACCESS PROTOCOL                          *
+      *  FILE        - SERVICES FILE                                           *
+      *  AUTHOR      - CLARASOFT I.T. SOLUTIONS INC.                           *
+      *  DATE        - 2017/07/05                                              *
+      *------------------------------------------------------------------------*
+     A          R CSAPCDIRR
+     A            DIR001ALIA    64A
+     A            DIR001SERV    64A
+     A            DIR001HOST   255A
+     A            DIR001PORT     5S 0
+     A            DIR001DESC   255A
+     A            DIR001FLGS   255A
+     A            DIRX01SCMD    10A
+     A            DIRX01PID     32A
+     A          K DIR001ALIA
+
+
+

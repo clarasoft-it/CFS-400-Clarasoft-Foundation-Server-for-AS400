@@ -1,0 +1,39 @@
+  /*==================================================================*/
+  /*  Package: CSAP                                                   */
+  /*  Version: 01.00.00                                               */
+  /* -----------------------------------------------------------------*/
+  /* Copyright 2013 Clarasoft I.T. Solutions Inc.                     */
+  /*                                                                  */
+  /* Creates the CSAP package.                                        */
+  /* Modules are created in a source (from) library and the resulting */
+  /* service program object is created in a target library            */
+  /*==================================================================*/
+
+PGM        PARM(&LIBF &LIBT)
+
+             DCL        VAR(&LIBF)   TYPE(*CHAR) LEN(10)
+             DCL        VAR(&LIBT)   TYPE(*CHAR) LEN(10)
+
+             CRTSQLCI   OBJ(&LIBF/CSAPHNDLR) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(CSAPHNDLR) DBGVIEW(*SOURCE)
+
+             CRTRPGMOD  MODULE(&LIBF/CSAPAPI) +
+                          SRCFILE(&LIBF/QRPGLESRC) DBGVIEW(*SOURCE)
+
+             CRTSQLRPGI OBJ(&LIBF/CSAPBRKR) SRCFILE(&LIBF/QRPGLESRC) +
+                          SRCMBR(CSAPBRKR) OBJTYPE(*MODULE) +
+                          DBGVIEW(*SOURCE)
+
+             CRTSRVPGM  SRVPGM(&LIBT/CSAPAPI) MODULE(&LIBF/CSAPAPI) +
+                          EXPORT(*ALL) TEXT('CSAP API') +
+                          BNDSRVPGM((CFSAPI) (CTBASE))
+
+             CRTSRVPGM  SRVPGM(&LIBT/CSAPBRKR) +
+                          MODULE(&LIBF/CSAPBRKR) EXPORT(*ALL) +
+                          TEXT('CSAP BROKER') +
+                          BNDSRVPGM((&LIBT/CFSAPI) (CTBASE))
+
+             CRTPGM     PGM(&LIBT/CSAPHNDLR) MODULE(&LIBF/CSAPHNDLR) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+
+ENDPGM

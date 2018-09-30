@@ -1,0 +1,89 @@
+  /*==================================================================*/
+  /*  Package: CFS                                                    */
+  /*  Version: 01.00.00                                               */
+  /* -----------------------------------------------------------------*/
+  /* Copyright 2013 Clarasoft I.T. Solutions Inc.                     */
+  /*                                                                  */
+  /* Creates the CFS package.                                         */
+  /* Modules are created in a source (from) library and the resulting */
+  /* service program object is created in a target library            */
+  /*==================================================================*/
+
+PGM        PARM(&LIBF &LIBT)
+
+             DCL        VAR(&LIBF)   TYPE(*CHAR) LEN(10)
+             DCL        VAR(&LIBT)   TYPE(*CHAR) LEN(10)
+
+             CRTCMOD  MODULE(&LIBF/CFSAPI) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(CFSAPI.C) DBGVIEW(*SOURCE)
+             CRTCMOD  MODULE(&LIBF/CSSTR) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(CSSTR.C) DBGVIEW(*SOURCE)
+             CRTCMOD  MODULE(&LIBF/CSLIST) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(CSLIST.C) DBGVIEW(*SOURCE)
+             CRTCMOD  MODULE(&LIBF/CSWSCK) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(CSWSCK.C) DBGVIEW(*SOURCE)
+             CRTSQLCI   OBJ(&LIBT/CLARAD) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(CLARAD.C) DBGVIEW(*SOURCE)
+             CRTSQLCI   OBJ(&LIBT/WSCKH) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(WSCKH.C) DBGVIEW(*SOURCE)
+             CRTSQLCI   OBJ(&LIBT/WSCKHS) SRCFILE(&LIBF/QCSRC) +
+                          SRCMBR(WSCKHS.C) DBGVIEW(*SOURCE)
+             CRTSQLCI   OBJ(&LIBF/CLARAH) SRCFILE(&LIBF/QCSRC) +
+                  SRCMBR(CLARAH.C) DBGVIEW(*SOURCE)
+             CRTRPGMOD MODULE(&LIBF/ECHOC) SRCFILE(QRPGLESRC) +
+                          SRCMBR(ECHOC) DBGVIEW(*ALL)
+             CRTRPGMOD MODULE(&LIBF/ECHOCS) SRCFILE(QRPGLESRC) +
+                          SRCMBR(ECHOCS) DBGVIEW(*ALL)
+             CRTRPGMOD MODULE(&LIBF/ECHOH) SRCFILE(QRPGLESRC) +
+                          SRCMBR(ECHOH) DBGVIEW(*ALL)
+             CRTRPGMOD MODULE(&LIBF/ECHOHS) SRCFILE(QRPGLESRC) +
+                          SRCMBR(ECHOHS) DBGVIEW(*ALL)
+             CRTRPGMOD MODULE(&LIBF/WSECHOH) SRCFILE(QRPGLESRC) +
+                          SRCMBR(WSECHOH) DBGVIEW(*ALL)
+             CRTRPGMOD MODULE(&LIBF/WSECHOHS) SRCFILE(QRPGLESRC) +
+                          SRCMBR(WSECHOHS) DBGVIEW(*ALL)
+             CRTRPGMOD MODULE(&LIBF/WSECHOC) SRCFILE(&LIBF/QRPGLESRC) +
+                          SRCMBR(WSECHOC) DBGVIEW(*ALL)
+             CRTRPGMOD MODULE(&LIBF/WSECHOCS) SRCFILE(&LIBF/QRPGLESRC) +
+                          SRCMBR(WSECHOCS) DBGVIEW(*ALL)
+
+             CRTSRVPGM  SRVPGM(&LIBT/CFSAPI) MODULE(CFSAPI CSSTR +
+                          CSLIST CSWSCK) EXPORT(*SRCFILE) +
+                          SRCFILE(&LIBF/QSRVSRC) TEXT('Clarasoft +
+                          Foundation Server API')
+
+             CRTSRVPGM  SRVPGM(&LIBT/ECHOH) MODULE(ECHOH) +
+                          EXPORT(*ALL) TEXT('CFS-400 ECHO SERVICE +
+                          HANDLER') BNDSRVPGM((&LIBT/CFSAPI))
+
+             CRTSRVPGM  SRVPGM(&LIBT/ECHOHS) MODULE(ECHOHS) +
+                          EXPORT(*ALL) TEXT('CFS-400 SSL ECHO SERVICE +
+                          HANDLER') BNDSRVPGM((&LIBT/CFSAPI))
+
+             CRTSRVPGM  SRVPGM(&LIBT/WSECHOH) MODULE(WSECHOH) +
+                          EXPORT(*ALL) TEXT('CFS-400 WS ECHO SERVICE +
+                          HANDLER') BNDSRVPGM((&LIBT/CFSAPI))
+
+             CRTSRVPGM  SRVPGM(&LIBT/WSECHOHS) MODULE(WSECHOHS) +
+                          EXPORT(*ALL) TEXT('CFS-400 SSL WS ECHO SERVICE +
+                          HANDLER') BNDSRVPGM((&LIBT/CFSAPI))
+
+             CRTPGM     PGM(&LIBT/CLARAD) MODULE(&LIBF/CLARAD) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+             CRTPGM     PGM(&LIBT/CLARAH) MODULE(&LIBF/CLARAH) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+             CRTPGM     PGM(&LIBT/WSCKH) MODULE(&LIBF/WSCKH) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+             CRTPGM     PGM(&LIBT/WSCKHS) MODULE(&LIBF/WSCKHS) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+             CRTPGM     PGM(&LIBT/ECHOC) MODULE(&LIBF/ECHOC) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+             CRTPGM     PGM(&LIBT/ECHOCS) MODULE(&LIBF/ECHOCS) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+             CRTPGM     PGM(&LIBT/WSECHOC) MODULE(&LIBF/WSECHOC) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+             CRTPGM     PGM(&LIBT/WSECHOCS) MODULE(&LIBF/WSECHOCS) +
+                          BNDSRVPGM((&LIBT/CFSAPI))
+
+
+ENDPGM
