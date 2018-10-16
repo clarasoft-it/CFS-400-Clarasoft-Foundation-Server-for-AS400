@@ -1,10 +1,10 @@
       /////////////////////////////////////////////////////////////////////////////////
       //
-      //    Clarasoft Foundation Server 400
+      //    Clarasoft Foundation Server for AS400
       //
       //    CFSAPIH
       //
-      //    CFS 400 Definitions for ILE RPG
+      //    CFS-400 Definitions for ILE RPG
       //    Version 1.0.0
       //
       //
@@ -39,7 +39,7 @@
       *  CFS Constants
       *----------------------------------------------------------------------
 
-      /copy CSCOREH
+      /include CSCOREH
 
      DCS_MASK_ERROR...
      D                 C                     Const(x'80000000')
@@ -47,6 +47,18 @@
      D                 C                     Const(x'0FFF0000')
      DCS_MASK_DIAG...
      D                 C                     Const(x'0000FFFF')
+
+     DCFS_SEC_SERVER_SESSION...
+     D                 C                     Const(1)
+     DCFS_SEC_SERVER_SESSION_CLIENT_AUTH...
+     D                 C                     Const(2)
+     DCFS_SEC_SERVER_SESSION_CLIENT_AUTH_CRITICAL...
+     D                 C                     Const(3)
+
+     DCFS_SEC_CLIENT_SESSION_SERVER_AUTH_FULL...
+     D                 C                     Const(1)
+     DCFS_SEC_CLIENT_SESSION_SERVER_AUTH_PASSTHROUGH...
+     D                 C                     Const(2)
 
      DCFS_SERVICEINFO_FMT_100...
      D                 C                     Const(x'00000100')
@@ -99,11 +111,6 @@
      D                 C                     Const(x'0000FFFE')
      DCFS_DIAG_UNKNOWN...
      D                 C                     Const(x'0000FFFF')
-
-     DCFS_SEC_CLIENT_SESSION_SERVER_AUTH_FULL...
-     D                 C                     Const(1)
-     DCFS_SEC_CLIENT_SESSION_SERVER_AUTH_PASSTHROUGH...
-     D                 C                     Const(2)
 
      DCFS_SERVICEINFO_100...
      D                 DS                    Align
@@ -515,4 +522,3 @@
      D  Size                         20U 0 Value
 
       /ENDIF
-
