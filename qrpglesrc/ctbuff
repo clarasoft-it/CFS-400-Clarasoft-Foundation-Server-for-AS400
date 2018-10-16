@@ -11,7 +11,8 @@
 
      H NOMAIN
 
-      /COPY CTBASEH
+      /COPY CSCOREH
+      /COPY CTLSTH
 
      DCTBUFF_MAX_NODESIZE...
      D                 C                   Const(65535)
@@ -1520,4 +1521,3 @@
       /End-Free
 
      P                 E
-
