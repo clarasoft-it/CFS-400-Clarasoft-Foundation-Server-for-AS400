@@ -95,10 +95,12 @@
       * Payload format
       *---------------------------------------------------------------
 
-     DCSAP_FMT_TEXT...
+     DCSAP_FMT_NULL...
      D                 C                   Const(x'00000000')
-     DCSAP_FMT_BINARY...
+     DCSAP_FMT_TEXT...
      D                 C                   Const(x'00000001')
+     DCSAP_FMT_BINARY...
+     D                 C                   Const(x'00000002')
 
       *---------------------------------------------------------------
       * Security flags
@@ -122,6 +124,7 @@
      DCtlCode                         3A
      DUserRef                        32A
      DDataFrameSize                  10I 0
+     DDataFrameFmt                   10I 0
      DUserCtlSize                    10I 0
      DBytesAvail                     10I 0
 
@@ -319,6 +322,7 @@
      DBytes            S             10I 0
      DSize             S             10I 0
      DDataSize         S             20U 0
+     DDataFmt          S             10A
      DRc               S             10I 0
      DSSLResult        S             10I 0
      DBuffer           S               *
@@ -328,6 +332,10 @@
 
          Clear @CtlFrame;
          hResult = CS_SUCCESS;
+         Instance.DataFrameSize = 0;
+         Instance.DataFrameOffset = 1;
+
+         CTBUFF_Set(Instance.pDataFrame: *Null: 0);
 
          Receive(Instance.pCONN:
                  %Addr(DataSize):
@@ -360,6 +368,30 @@
                If Rc = CS_SUCCESS;
                  CSAP_PRIVATE_MemCpy(%Addr(@CtlFrame.CtlCode):
                                      Jsondata.Value: JsonData.Size);
+               EndIf;
+
+               Rc = CTJSP_Lookup(Instance.pJsonIn:
+                                  '/control/datafmt':
+                                  JsonData);
+
+               If Rc = CS_SUCCESS;
+                 If JsonData.type = JSON_TYPE_NULL;
+                   @CtlFrame.DataFrameFmt = CSAP_FMT_NULL;
+                 Else;
+                   Clear DataFmt;
+                   CSAP_PRIVATE_MemCpy(%Addr(DataFmt):
+                                       Jsondata.Value: JsonData.Size);
+
+                   Select;
+                     When DataFmt = 'bin';
+                       @CtlFrame.DataFrameFmt = CSAP_FMT_BINARY;
+                     Other;
+                       @CtlFrame.DataFrameFmt = CSAP_FMT_TEXT;
+                   EndSl;
+
+                 EndIf;
+               Else;
+                 @CtlFrame.DataFrameFmt = CSAP_FMT_NULL;
                EndIf;
 
                Clear @CtlFrame.UserRef;
@@ -406,26 +438,22 @@
              Else;
 
                // No control frame
-               return CS_FAILURE;
+               Return CS_FAILURE;
 
              EndIf;
 
            Else;
 
              // CSAP protocol not implemented; we are done
-             return CS_FAILURE;
+             Return CS_FAILURE;
 
            EndIf;
 
-           Instance.DataFrameSize = 0;
-           Instance.DataFrameOffset = 1;
-           CTBUFF_Set(Instance.pDataFrame: *Null: 0);
+           If @CtlFrame.DataFrameFmt <> CSAP_FMT_NULL;
 
-           Rc = Receive(Instance.pCONN:
-                        %Addr(DataSize):
-                        -1);
-
-           If %Bitand(Rc: CSWSCK_MASK_ERROR) = CS_SUCCESS;
+             Rc = Receive(Instance.pCONN:
+                          %Addr(DataSize):
+                          -1);
 
              Instance.DataFrameSize += DataSize;
 
@@ -484,16 +512,18 @@
 
              EndDo;
 
+             If hResult = CS_SUCCESS;
+
+               @CtlFrame.BytesAvail = CTBUFF_Length(Instance.pDataFrame);
+               @CtlFrame.DataFrameSize = @CtlFrame.BytesAvail;
+
+             EndIf;
+
            Else;
 
-             hResult = CS_FAILURE;
+             // No data to read
+             hResult = CS_SUCCESS;
 
-           EndIf;
-
-           If hResult = CS_SUCCESS;
-
-             @CtlFrame.BytesAvail = CTBUFF_Length(Instance.pDataFrame);
-             @CtlFrame.DataFrameSize = @CtlFrame.BytesAvail;
            EndIf;
 
          Else;
@@ -653,6 +683,7 @@
      DFormat           S             10I 0
      DFinState         S             10I 0
      DString           S             64A
+     DDataFmt          S             10A
 
       /Free
 
@@ -684,6 +715,26 @@
                                @UserCtl: @Size);
          EndIf;
 
+         Select;
+
+           When @DataFmt = CSAP_FMT_NULL;
+
+             CTJSO_InsertNull(Instance.pJsonOut: '/control': 'datafmt');
+
+           When @DataFmt = CSAP_FMT_BINARY;
+
+             DataFmt = 'bin';
+             CTJSO_InsertString(Instance.pJsonOut: '/control': 'datafmt':
+                            %Addr(DataFmt): 3);
+           Other;
+
+             DataFmt = 'txt';
+             CTJSO_InsertString(Instance.pJsonOut: '/control': 'datafmt':
+                            %Addr(DataFmt): 3);
+
+         EndSl;
+
+
          CTJSO_Serialize(Instance.pJsonOut: '/': Instance.pBuffer);
          Size = CTBUFF_Length(Instance.pBuffer);
          Data = %Alloc(Size);
@@ -701,118 +752,35 @@
 
          If %bitand(Rc: CS_MASK_ERROR) = CS_SUCCESS;
 
-           Select;
-             When @DataFmt = CSAP_FMT_BINARY;
-               Format = CSWSCK_OPER_BINARY;
-             Other;
-               Format = CSWSCK_OPER_TEXT;
-           EndSl;
+           If @DataFmt <> CSAP_FMT_NULL;
 
-           // Send the data
-           Count = CTLST_Count(Instance.pResponseFrame);
+             Select;
+               When @DataFmt = CSAP_FMT_BINARY;
+                 Format = CSWSCK_OPER_BINARY;
+               Other;
+                 Format = CSWSCK_OPER_TEXT;
+             EndSl;
 
-           hResult = CS_SUCCESS;
+             // Send the data
+             Count = CTLST_Count(Instance.pResponseFrame);
 
-           If Count > 0;
+             hResult = CS_SUCCESS;
 
-             If Count = 1;
+             If Count > 0;
 
-               Size = CTLST_ItemSize(Instance.pResponseFrame: i);
+               If Count = 1;
 
-               If Size > 0;
-
-                 Data = %Alloc(Size);
-                 CTLST_Get(Instance.pResponseFrame: Data: Size: i);
-                 FinState = CSWSCK_FIN_ON;
-                 DataSize = Size; // cannot cast in RPG
-
-                 Rc = Send(Instance.pCONN:
-                           Format:
-                           Data:
-                           DataSize:
-                           CSWSCK_FIN_ON:
-                           -1);
-
-                 Dealloc Data;
-
-                 If %bitand(Rc: CS_MASK_ERROR) = CS_FAILURE;
-                   // Failure to send all data
-                   hResult = CS_FAILURE;
-                 EndIf;
-
-               EndIf;
-
-             Else;
-
-               Size = CTLST_ItemSize(Instance.pResponseFrame: i);
-
-               If Size > 0;
-
-                 Data = %Alloc(Size);
-                 CTLST_Get(Instance.pResponseFrame: Data: Size: i);
-                 DataSize = Size; // cannot cast in RPG
-                 Rc = Send(Instance.pCONN:
-                           Format:
-                           Data:
-                           DataSize:
-                           CSWSCK_FIN_OFF:
-                           -1);
-
-                 Dealloc Data;
-
-                 If %bitand(Rc: CS_MASK_ERROR) = CS_FAILURE;
-                   // Failure to send all data
-                   hResult = CS_FAILURE;
-                 EndIf;
-
-               EndIf;
-
-               If hResult = CS_SUCCESS;
-
-                 For i=2 To Count-1 By 1;
-
-                   Size = CTLST_ItemSize(Instance.pResponseFrame: i);
-
-                   If Size > 0;
-
-                     Data = %Alloc(Size);
-                     CTLST_Get(Instance.pResponseFrame: Data: Size: i);
-                     DataSize = Size; // cannot cast in RPG
-
-                     Rc = Send(Instance.pCONN:
-                               CSWSCK_OPER_CONTINUATION:
-                               Data:
-                               DataSize:
-                               CSWSCK_FIN_OFF:
-                               -1);
-
-                     Dealloc Data;
-
-                     If %bitand(Rc: CS_MASK_ERROR) = CS_FAILURE;
-                       // Failure to send all data
-                       hResult = CS_FAILURE;
-                       Leave;
-                     EndIf;
-
-                   EndIf;
-
-                 EndFor;
-
-               EndIf;
-
-               If hResult = CS_SUCCESS;
-
-                 // Send last fragment
                  Size = CTLST_ItemSize(Instance.pResponseFrame: i);
 
                  If Size > 0;
 
                    Data = %Alloc(Size);
-                   DataSize = Size; // cannot cast in RPG
                    CTLST_Get(Instance.pResponseFrame: Data: Size: i);
+                   FinState = CSWSCK_FIN_ON;
+                   DataSize = Size; // cannot cast in RPG
 
                    Rc = Send(Instance.pCONN:
-                             CSWSCK_OPER_CONTINUATION:
+                             Format:
                              Data:
                              DataSize:
                              CSWSCK_FIN_ON:
@@ -821,7 +789,94 @@
                    Dealloc Data;
 
                    If %bitand(Rc: CS_MASK_ERROR) = CS_FAILURE;
+                     // Failure to send all data
                      hResult = CS_FAILURE;
+                   EndIf;
+
+                 EndIf;
+
+               Else;
+
+                 Size = CTLST_ItemSize(Instance.pResponseFrame: i);
+
+                 If Size > 0;
+
+                   Data = %Alloc(Size);
+                   CTLST_Get(Instance.pResponseFrame: Data: Size: i);
+                   DataSize = Size; // cannot cast in RPG
+                   Rc = Send(Instance.pCONN:
+                             Format:
+                             Data:
+                             DataSize:
+                             CSWSCK_FIN_OFF:
+                             -1);
+
+                   Dealloc Data;
+
+                   If %bitand(Rc: CS_MASK_ERROR) = CS_FAILURE;
+                     // Failure to send all data
+                     hResult = CS_FAILURE;
+                   EndIf;
+
+                 EndIf;
+
+                 If hResult = CS_SUCCESS;
+
+                   For i=2 To Count-1 By 1;
+
+                     Size = CTLST_ItemSize(Instance.pResponseFrame: i);
+
+                     If Size > 0;
+
+                       Data = %Alloc(Size);
+                       CTLST_Get(Instance.pResponseFrame: Data: Size: i);
+                       DataSize = Size; // cannot cast in RPG
+
+                       Rc = Send(Instance.pCONN:
+                                 CSWSCK_OPER_CONTINUATION:
+                                 Data:
+                                 DataSize:
+                                 CSWSCK_FIN_OFF:
+                                 -1);
+
+                       Dealloc Data;
+
+                       If %bitand(Rc: CS_MASK_ERROR) = CS_FAILURE;
+                         // Failure to send all data
+                         hResult = CS_FAILURE;
+                         Leave;
+                       EndIf;
+
+                     EndIf;
+
+                   EndFor;
+
+                 EndIf;
+
+                 If hResult = CS_SUCCESS;
+
+                   // Send last fragment
+                   Size = CTLST_ItemSize(Instance.pResponseFrame: i);
+
+                   If Size > 0;
+
+                     Data = %Alloc(Size);
+                     DataSize = Size; // cannot cast in RPG
+                     CTLST_Get(Instance.pResponseFrame: Data: Size: i);
+
+                     Rc = Send(Instance.pCONN:
+                               CSWSCK_OPER_CONTINUATION:
+                               Data:
+                               DataSize:
+                               CSWSCK_FIN_ON:
+                               -1);
+
+                     Dealloc Data;
+
+                     If %bitand(Rc: CS_MASK_ERROR) = CS_FAILURE;
+                       hResult = CS_FAILURE;
+                     EndIf;
+
                    EndIf;
 
                  EndIf;
@@ -829,7 +884,9 @@
                EndIf;
 
              EndIf;
-
+           Else;
+             // No data to send
+             hResult = CS_SUCCESS;
            EndIf;
 
          Else;
@@ -1160,4 +1217,3 @@
       /End-Free
 
      P                 E
-
