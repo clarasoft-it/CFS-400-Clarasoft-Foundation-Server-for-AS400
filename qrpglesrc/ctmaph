@@ -11,7 +11,7 @@
       /IF NOT DEFINED(CTMAPH)
       /DEFINE CTMAPH
 
-      /Include CTBASEH
+      /Include CTLSTH
 
      DCTMAP_Clear...
      D                 PR            10I 0
@@ -59,4 +59,4 @@
      D@Size                          10I 0
 
       /ENDIF
-
+	
