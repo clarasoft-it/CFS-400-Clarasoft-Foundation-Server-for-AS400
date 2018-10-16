@@ -32,6 +32,8 @@
       /IF NOT DEFINED(CSAPAPIH)
       /DEFINE CSAPAPIH
 
+      /INCLUDE CSCOREH
+
       *---------------------------------------------------------------
       * CSAP Error domains
       *---------------------------------------------------------------
@@ -78,10 +80,13 @@
       *---------------------------------------------------------------
       * Payload format
       *---------------------------------------------------------------
-     DCSAP_FMT_TEXT...
+
+     DCSAP_FMT_NULL...
      D                 C                   Const(x'00000000')
-     DCSAP_FMT_BINARY...
+     DCSAP_FMT_TEXT...
      D                 C                   Const(x'00000001')
+     DCSAP_FMT_BINARY...
+     D                 C                   Const(x'00000002')
 
       *---------------------------------------------------------------
       * Security flags
@@ -105,6 +110,7 @@
      DCtlCode                         3A
      DUserRef                        32A
      DDataFrameSize                  10I 0
+     DDataFrameFmt                   10I 0
      DUserCtlSize                    10I 0
      DBytesAvail                     10I 0
 
@@ -188,3 +194,4 @@
      D@DataFmt                       10I 0 Value
 
       /ENDIF
+	
