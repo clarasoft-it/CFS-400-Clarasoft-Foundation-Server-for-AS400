@@ -10,7 +10,12 @@
 
      H NOMAIN
 
-      /COPY CTBASEH
+      /COPY CSCOREH
+
+     DCTLST_TOP...
+     D                 C                   Const(0)
+     DCTLST_BOTTOM...
+     D                 C                   Const(2147483646)
 
      DCTLST_PRIVATE_MemCpy...
      D                 PR                  ExtProc('memcpy')
@@ -725,4 +730,3 @@
            Return CS_FAILURE;
       /End-Free
      P                 E
- 
