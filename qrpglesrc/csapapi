@@ -1024,7 +1024,7 @@
               When DIRX01SCMD = '*SSL';
 
                 Clear SessionInfo;
-                AppID = %Trim(DIRX01PID) + x'00';
+                AppID = %Trim(DIRX01APID) + x'00';
 
                 SessionInfo.szApplicationID = %Addr(AppID);
 
