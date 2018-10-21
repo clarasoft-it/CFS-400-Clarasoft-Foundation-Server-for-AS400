@@ -42,7 +42,9 @@
 
       /include cfsapih
       /include ctjsnh
-      /include ctbaseh
+      /include cscoreh
+      /include ctlsth
+      /include ctbuffh
 
      PCSAPBRKR         B                   EXPORT
      D                 PI            10I 0
@@ -308,6 +310,8 @@
                             DataSize:
                             CSWSCK_FIN_ON:
                             -1);
+
+                  ErrCode = CS_FAILURE; // To leave the receive loop
 
                 EndIf;
 
