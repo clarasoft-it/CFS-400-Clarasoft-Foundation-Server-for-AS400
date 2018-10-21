@@ -60,12 +60,13 @@
 *-----------------------------------------------------------------------
 
 
-     A          R CSCFSR
+     A          R CFSREGR
      A            RGSRVNM       64A
      A            RGLIBNM       10A
      A            RGPRCHD       10A
      A            RGPRCNM      255A
      A            RGAPPID      128A
      A          K RGSRVNM
+
      
      
