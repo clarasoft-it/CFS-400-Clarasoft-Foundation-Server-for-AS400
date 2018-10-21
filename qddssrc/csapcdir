@@ -13,7 +13,7 @@
      A            DIR001DESC   255A
      A            DIR001FLGS   255A
      A            DIRX01SCMD    10A
-     A            DIRX01PID     32A
+     A            DIRX01APID    32A
      A          K DIR001ALIA
 
 
