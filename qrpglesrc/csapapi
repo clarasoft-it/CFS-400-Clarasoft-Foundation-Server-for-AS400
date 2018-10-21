@@ -44,7 +44,8 @@
 
      FCSAPCDIR  IF   E           K DISK
 
-      /INCLUDE CTBASEH
+      /INCLUDE CTLSTH
+      /INCLUDE CTBUFFH
       /INCLUDE CFSAPIH
       /include CTJSNH
 
@@ -1217,3 +1218,4 @@
       /End-Free
 
      P                 E
+     
