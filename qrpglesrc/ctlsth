@@ -8,8 +8,8 @@
       * Copyright 2013 Clarasoft I.T. Solutions Inc.
       *===================================================================
 
-      /IF NOT DEFINED(CTLST)
-      /DEFINE CTLST
+      /IF NOT DEFINED(CTLSTH)
+      /DEFINE CTLSTH
 
      DCTLST_TOP...
      D                 C                   Const(0)
