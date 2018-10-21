@@ -1,0 +1,131 @@
+
+      /////////////////////////////////////////////////////////////////////////////////
+      //
+      //    Clarasoft Foundation Server for AS400
+      //
+      //    RUNSERV
+      //    Demonstration CSAP service called dynamically by CSAP broker
+      //    Version 1.0.0
+      //
+      //    Compile module with:
+      //
+      //       CRTRPGMOD MODULE(RUNSERV) SRCFILE(QRPGLESRC)
+      //                 SRCMBR(RUNSERV) DBGVIEW(*ALL)
+      //
+      //    Build this as a service program program with:
+      //
+      //       CRTSRVPGM SRVPGM(RUNSERV) MODULE(RUNSERV)
+      //       BNDSRVPGM(CFSAPI) EXPORT(*ALL)
+      //
+      //     Distributed under the MIT license
+      //
+      //     Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+      //
+      //     Permission is hereby granted, free of charge, to any person obtaining
+      //     a copy of this software and associated documentation files
+      //     (the "Software"), to deal in the Software without restriction,
+      //     including without limitation the rights to use, copy, modify,
+      //     merge, publish, distribute, sublicense, and/or sell
+      //     copies of the Software, and to permit persons to whom the Software is
+      //     furnished to do so, subject to the following conditions:
+      //     The above copyright notice and this permission notice shall be
+      //     included in all copies or substantial portions of the Software.
+      //     THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+      //     EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+      //     MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+      //     IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR
+      //     ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+      //     TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+      //     THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      //
+      /////////////////////////////////////////////////////////////////////////////////
+
+
+     H NOMAIN
+
+      /Copy csapapih
+
+      *----------------------------------------------------------------------
+      * RUNECHO: non secure CFS echo server handler
+      *----------------------------------------------------------------------
+
+     PRUNSERV...
+     P                 B                   EXPORT
+     D                 PI            10I 0
+     D@ServiceName                   64A   Value
+     D@SessionID                     32A   Value
+     D@Conn                            *   Value
+     D@lpVtbl                          *   Value
+     D@UserData                        *   Value
+
+     DString           S            256A
+     DCtl              S            256A
+     Dconn             S               *
+     DRc               S             10I 0
+     DSize             S             10I 0
+     DCtlFrame         DS                  LikeDS(CSAP_CtlFrame)
+
+      /Free
+
+          conn = CSAP_Constructor();
+
+          Rc = CSAP_OpenChannel(conn:
+                                @ServiceName:
+                                @SessionID:
+                                @Conn:
+                                @lpVtbl:
+                                @UserData);
+
+          DoW 1 = 1;
+
+            Rc = CSAP_Receive(conn: CtlFrame);
+
+            If Rc <> CS_SUCCESS;
+              Leave;
+            EndIf;
+
+            Size = CtlFrame.DataFrameSize;
+            Clear String;
+            CSAP_GetData(conn: %Addr(String): Size);
+
+            If String = 'QUIT' Or String = 'quit';
+
+              String = 'ECHO: Goodby!!!';
+              CSAP_PutData(conn: %Addr(String): %Len(%Trim(String)));
+
+              CSAP_Send(conn:
+                        %Addr(Ctl):
+                        %Len(%Trim(Ctl)):
+                        'USER REF':
+                        CSAP_FMT_TEXT);
+
+              Leave;
+
+            EndIf;
+
+            String = 'ECHO: ' + %Trim(String);
+            CSAP_PutData(conn: %Addr(String): %Len(%Trim(String)));
+
+            Ctl = 'CONTREOL RECORD EXAMPLE';
+
+            Rc = CSAP_Send(conn:
+                           %Addr(Ctl):
+                           %Len(%Trim(Ctl)):
+                           'USER REF':
+                           CSAP_FMT_TEXT);
+
+            If Rc <> CS_SUCCESS;
+              Leave;
+            EndIf;
+
+          EndDo;
+
+          CSAP_CloseChannel(conn);
+
+          *InLR = *On;
+
+          Return 0;
+
+      /End-Free
+
+     P                 E
