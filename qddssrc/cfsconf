@@ -60,11 +60,11 @@
 *
 *-----------------------------------------------------------------------
 
-A          R CSFCONF
-A            CFINST        32A
-A            CFPORT        10A
-A            CFMINHND      10A
-A            CFMAXHND      10A
-A            CFHNDPTH      64A
-A            CFBKLOG       10A
-A          K CFINST
+     A          R CFSCONFR
+     A            CFINST        32A
+     A            CFPORT        10A
+     A            CFMINHND      10A
+     A            CFMAXHND      10A
+     A            CFHNDPTH      64A
+     A            CFBKLOG       10A
+     A          K CFINST
