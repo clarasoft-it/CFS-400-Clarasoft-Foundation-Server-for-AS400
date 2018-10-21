@@ -10,7 +10,9 @@
 
      H NOMAIN
 
-      /COPY CTBASEH
+      /COPY CSCOREH
+      /COPY CTLSTH
+      /COPY CTBUFFH
 
      DCTMAPX_Instance  DS                  Qualified Based(Null)
      DTree                             *
