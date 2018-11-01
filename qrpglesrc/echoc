@@ -55,10 +55,6 @@
      D@Host                          32A
      D@Port                          10A
 
-      *----------------------------------------------------------------------
-      * ECHOHANDLER: non secure CFS echo server handler
-      *----------------------------------------------------------------------
-
      DpCONN            S               *
      DappID            S             32A
      DFromCCSID        S              6A
