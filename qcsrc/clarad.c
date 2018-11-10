@@ -1,28 +1,18 @@
 /* ==========================================================================
   Clarasoft Foundation Server 400
-
   Clara Daemon
   Main listening daemon with pre-spawned handlers
   Version 1.0.0
-
   Command line arguments:
-
      - handler instance name. This is the key into the CFSCONF file
        which holds daemon configuration information.
-
   Compile module with:
-
           CRTSQLCI OBJ(CLARAD) SRCFILE(QCSRC)
               SRCMBR(CLARAD) DBGVIEW(*SOURCE)
-
   Build program with:
-
      CRTPGM PGM(CLARAD) MODULE(CLARAD CSLIST CFSAPI)
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -243,7 +233,7 @@ int main(int argc, char** argv) {
 
   ////////////////////////////////////////////////////////////////////////////
   // The list of handler information structures must be initialised first
-  // because the cleanup handler will use it.
+  // because the clean up handler will use it.
   ////////////////////////////////////////////////////////////////////////////
 
   handlers = CSLIST_Constructor();
@@ -369,8 +359,8 @@ int main(int argc, char** argv) {
   for (;;) {
 
     ////////////////////////////////////////////////////////////////////////
-    // We wait to perhaps add some periodic processing after a timeout.
-    // This is up to the implemetor.
+    // We wait to perhaps add some periodic processing after a time out.
+    // This is up to the implementer.
     ////////////////////////////////////////////////////////////////////////
 
     numDescriptors = poll(listenerFdSet, 1, 60000);
@@ -383,7 +373,7 @@ int main(int argc, char** argv) {
       else {
 
         //////////////////////////////////////////////////////////////////
-        // Some error occured.
+        // Some error occurred.
         //////////////////////////////////////////////////////////////////
       }
     }
@@ -394,7 +384,7 @@ int main(int argc, char** argv) {
         //////////////////////////////////////////////////////////////////
         // A connection request has come in; we want to
         // get an available handler. For this, we specify
-        // a zero timeout to immediately get the descriptors
+        // a zero time out to immediately get the descriptors
         // that are ready.
         //////////////////////////////////////////////////////////////////
 
@@ -420,7 +410,7 @@ int main(int argc, char** argv) {
           else {
 
             ////////////////////////////////////////////////////////////
-            // Some error occured.
+            // Some error occurred.
             ////////////////////////////////////////////////////////////
           }
         }
@@ -447,7 +437,7 @@ int main(int argc, char** argv) {
           else {
 
             ////////////////////////////////////////////////////////////
-            // Some error occured.
+            // Some error occurred.
             ////////////////////////////////////////////////////////////
           }
         }
@@ -483,7 +473,7 @@ int main(int argc, char** argv) {
                 else {
 
                   ///////////////////////////////////////////////////
-                  // Some error occured. Insert error handler here
+                  // Some error occurred. Insert error handler here
                   ///////////////////////////////////////////////////
                 }
               }
@@ -518,7 +508,7 @@ int main(int argc, char** argv) {
                 else {
 
                   ////////////////////////////////////////////////////
-                  // Some error occured... Insert error handler here
+                  // Some error occurred... Insert error handler here
                   ////////////////////////////////////////////////////
                 }
               }
@@ -662,7 +652,7 @@ pid_t
       CSLIST_Insert(handlers, &hi, sizeof(HANDLERINFO), CSLIST_BOTTOM);
 
       // So we will now listen in on the new handler's
-      // ability to service a conenction
+      // ability to service a connection
 
       handlerFdSet[descriptorIndex].fd = streamfd[0];
       handlerFdSet[descriptorIndex].events = POLLIN;
@@ -709,7 +699,7 @@ void signalCatcher(int signal)
 
                 // Note that the descriptor set index is
                 // aligned with the handler list index. We
-                // dont remove handlers from the list
+                // don't remove handlers from the list
                 // once they are terminated. We just mark them
                 // as inactive so that we don't send them
                 // the SIGTERM signal when this daemon
@@ -842,4 +832,3 @@ unsigned long setJobServerType(void) {
 
    return 1;
 }
-
