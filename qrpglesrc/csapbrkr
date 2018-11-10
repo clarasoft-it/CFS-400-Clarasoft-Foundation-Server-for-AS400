@@ -14,6 +14,8 @@
       //
       //       CRTSQLRPGI OBJ(CSAPBRKR) SRCFILE(QRPGLESRC)
       //                 OBJTYPE(*MODULE) DBGVIEW(*SOURCE)
+      //     
+      //     Bind this module into a service program and register it in CFSREG.
       //
       //     Distributed under the MIT license
       //
