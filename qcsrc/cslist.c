@@ -1,14 +1,10 @@
 /* ===========================================================================
   Clarasoft core tools
-
   cslist.c
   Linked list
   Version 1.0.0
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -200,7 +196,7 @@ CSRESULT CSLIST_Insert(CSLIST* This, void* value,
   if (index >= This->numItems)
   {
     // index is zero-based; if it is
-    // equal to at leat the number
+    // equal to at least the number
     // of items, we assume caller
     // wants to insert at the end of
     // the list
@@ -588,4 +584,3 @@ CSRESULT CSLIST_PRIVATE_Goto(CSLIST* This, long index)
 
   return CS_SUCCESS;
 }
-
