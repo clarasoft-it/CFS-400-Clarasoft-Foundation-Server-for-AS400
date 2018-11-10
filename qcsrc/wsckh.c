@@ -1,23 +1,22 @@
-
 /* ==========================================================================
   Clarasoft Foundation Server 400
-
   wsckh.c
   Web socket server
   Version 1.0.0
-
+  
   Compile module with:
+  
      CRTSQLCI OBJ(WSCKH) SRCFILE(QCSRC)
               SRCMBR(WSCKH.C) DBGVIEW(*SOURCE)
-
+	      
   Build program with:
-
+  
     CRTPGM PGM(WSCKH) MODULE(WSCKH) BNDSRVPGM((CFSAPI))
-
+    
   Distributed under the MIT license
-
+  
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
+  
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -102,7 +101,7 @@ int main (int argc, char **argv)
   CFS_PROTOCOLHANDLERPROC InprocHandler; // Pointer to handler function
 
   /* ------------------------------------------------------------------------
-   This code is to register a cleanup handler
+   This code is to register a clean up handler
    for when the main server job is cancelled. This is not
    necessary but is proper i5 OS practice for servers.
    The #pragma directive must be coupled with another at some later point
@@ -213,7 +212,7 @@ int main (int argc, char **argv)
         if (conn_fd >= 0) {
 
           //////////////////////////////////////////////////////////////////
-          // perform websocke handshake
+          // perform websocket handshake
           //////////////////////////////////////////////////////////////////
 		
           pCONN = CSWSCK_OpenChannel(conn_fd, 0, 0);
@@ -262,4 +261,3 @@ void Cleanup(_CNL_Hndlr_Parms_T* data) {
    close(stream_fd);
    close(conn_fd);
 }
-
