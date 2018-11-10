@@ -122,7 +122,7 @@ int main (int argc, char **argv)
   CFS_SERVERSESSION_100 sinfo;
 
   /* ------------------------------------------------------------------------
-   This code is to register a cleanup handler
+   This code is to register a clean up handler
    for when the main server job is cancelled. This is not
    necessary but is proper i5 OS practice for servers.
    The #pragma directive must be coupled with another at some later point
@@ -276,7 +276,7 @@ int main (int argc, char **argv)
       if (conn_fd >= 0) {
 
         //////////////////////////////////////////////////////////////////
-        // perform websocke handshake
+        // perform websocket handshake
         //////////////////////////////////////////////////////////////////
 
         pCONN = Vtbl.Open(conn_fd,
