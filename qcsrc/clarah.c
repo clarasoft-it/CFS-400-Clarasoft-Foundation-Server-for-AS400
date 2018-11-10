@@ -1,48 +1,35 @@
 /* ==========================================================================
   Clarasoft Foundation Server 400
-
   clarah.c
   Clara daemon handler
   Version 1.0.0
-
+  
   Command line arguments
      - protocol (service) implementation name
-
+     
   Compile module with:
     CRTSQLCI OBJ(CLARAH) SRCFILE(QCSRC)
          SRCMBR(CLARAH) DBGVIEW(*SOURCE)
-
+         
   Build program with:
-
     CRTPGM PGM(CLARAH) MODULE(CLARAH) BNDSRVPGM(CFSAPI)
-
+    
   To use this handler, call the clarad daemon as follow:
-
     call clarad parm('MY_SERVICE_INSTANCE')
-
+    
   The parameter is the key into the CFSCONF file, which
   will hold the name of this handler (CLARAH).
-
+  
   When clarad spawns clarah, the parameter string is passed
   to clarah, which will in turn read the CFSREG file under the
   parameter key; there, it will find the service program,
   and procedure name to bind and call as the service's implementation
-  when a client connects. Note that the exported function is responsible
-  for the proper cleanup of resources such as allocated memory and
-  opened files. Unexpected behaviours can result depending on
-  how activation groups are specified and other issues. For example,
-  if you have coded your service handler in RPG, then not setting *INLR
-  on before returning will have the next invocation of the handler
-  in the state it was in; this is usually not desirable since
-  different clients will likely connect to this handler's instance.
-
-  The handler function will receive the client connection socket
-  descriptor handed over by clarad.
-
+  when a client connects. 
+  
   Distributed under the MIT license
-
+  
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
+  
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -115,7 +102,7 @@ int main (int argc, char **argv)
   CFS_INSTANCE pInstance;
 
   /* ------------------------------------------------------------------------
-   This code is to register a cleanup handler
+   This code is to register a clean up handler
    for when the main server job is cancelled. This is not
    necessary but is proper i5 OS practice for servers.
    The #pragma directive must be coupled with another at some later point
@@ -145,7 +132,7 @@ int main (int argc, char **argv)
   // CFSREG file.
   //
   // If the main daemon sends the value *NOLINK, then this means this
-  // handler implemnts the service and no service program needs to be
+  // handler implements the service and no service program needs to be
   // activated.
   ///////////////////////////////////////////////////////////////////////////
 
