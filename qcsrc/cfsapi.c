@@ -1,17 +1,12 @@
 /* ===========================================================================
   Clarasoft Foundation Server 400
-
   cfsapi.c
   Networking Primitives
   Version 1.0.0
-
   Compile module with:
      CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -140,7 +135,7 @@ typedef struct tagCFS_CLIENTSESSION_100 {
 
   int connTimeout;
 
-  // Indicates what to do if server certtificate fails authentication
+  // Indicates what to do if server certificate fails authentication
 
   // CFS_SEC_CLIENT_SESSION_SERVER_AUTH_FULL
   // CFS_SEC_CLIENT_SESSION_SERVER_AUTH_PASSTHROUGH
@@ -153,7 +148,7 @@ typedef struct tagCFS_SERVERSESSION_100 {
 
   char* szApplicationID;
 
-  // The following indicates the type of authetication for client:
+  // The following indicates the type of authentication for client:
   //
   // CFS_SEC_SERVER_SESSION (no client authentication)
   // CFS_SEC_SERVER_SESSION_CLIENT_AUTH
@@ -311,7 +306,7 @@ CSRESULT
 //
 // CFS_Close
 //
-// This function closes a non-secure session and environement.
+// This function closes a non-secure session and environment.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -620,7 +615,7 @@ CSRESULT
       if (errno == EINTR) {
 
          ///////////////////////////////////////////////////
-         // recv() was interupted by a signal
+         // recv() was interrupted by a signal
          // or the kernel could not allocate an
          // internal data structure. We will call
          // recv() again.
@@ -635,9 +630,9 @@ CSRESULT
             if (timeout != 0) {
 
                ////////////////////////////////////////////////////////////
-               // This means we must wait up to a given timeout; this
-               // is the only time we will be waitng as this means
-               // we did not read any data and a positive timeout
+               // This means we must wait up to a given time out; this
+               // is the only time we will be waiting as this means
+               // we did not read any data and a positive time out
                // means we give the peer some time to send over the data.
                ////////////////////////////////////////////////////////////
 
@@ -686,7 +681,7 @@ CSRESULT
                      if (errno == EINTR) {
 
                         ///////////////////////////////////////////////////
-                        // poll() was interupted by a signal
+                        // poll() was interrupted by a signal
                         // or the kernel could not allocate an
                         // internal data structure. We will call
                         // poll() again.
@@ -778,7 +773,7 @@ CSRESULT
          if (errno == EINTR) {
 
             ///////////////////////////////////////////////////
-            // recv() was interupted by a signal
+            // recv() was interrupted by a signal
             // or the kernel could not allocate an
             // internal data structure. We will call
             // recv() again.
@@ -792,7 +787,7 @@ CSRESULT
 
                ///////////////////////////////////////////////////
                // Once in this loop, we read until we block;
-               // the timeout no longer applies (it applied
+               // the time out no longer applies (it applied
                // only for the first read).
                ///////////////////////////////////////////////////
 
@@ -896,7 +891,7 @@ CSRESULT
          if (errno == EINTR) {
 
             ///////////////////////////////////////////////////
-            // recv() was interupted by a signal
+            // recv() was interrupted by a signal
             // or the kernel could not allocate an
             // internal data structure. We will call
             // recv() again.
@@ -911,12 +906,12 @@ CSRESULT
                if (timeout != 0) {
 
                   ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given timeout.
+                  // This means we must wait up to a given time out.
                   // This may occur several times in this loop so that
                   // the actual time it takes to read an entire buffer
-                  // can exceed the timeout. The caller should not
+                  // can exceed the time out. The caller should not
                   // depend on a precise execution time for this function
-                  // based on the timeout value.
+                  // based on the time out value.
                   ////////////////////////////////////////////////////////////
 
 
@@ -968,7 +963,7 @@ CSRESULT
                         if (errno == EINTR) {
 
                            ///////////////////////////////////////////////////
-                           // poll() was interupted by a signal
+                           // poll() was interrupted by a signal
                            // or the kernel could not allocate an
                            // internal data structure. We will call
                            // poll() again.
@@ -1197,7 +1192,7 @@ CSRESULT
 //
 // CFS_SecureClose
 //
-// This function closes the secure session and environement.
+// This function closes the secure session and environment.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1320,7 +1315,7 @@ CFS_INSTANCE*
 //
 // CFS_SecureOpenChannel
 //
-// This function initialises a secure environement and session. It also
+// This function initialises a secure environment and session. It also
 // initialises an CFS_INSTANCE structure that must be used for secure
 // communication with a peer.
 //
@@ -1436,7 +1431,7 @@ CSRESULT
    }
 
    //////////////////////////////////////////////////////////////////////////
-   // If we blocked, then we will wait up to the timeout.
+   // If we blocked, then we will wait up to the time out.
    //////////////////////////////////////////////////////////////////////////
 
    switch(*iSSLResult) {
@@ -1482,9 +1477,9 @@ CSRESULT
          if (timeout != 0) {
 
             ////////////////////////////////////////////////////////////
-            // This means we must wait up to a given timeout; this
-            // is the only time we will be waitng as this means
-            // we did not read any data and a positive timeout
+            // This means we must wait up to a given time out; this
+            // is the only time we will be waiting as this means
+            // we did not read any data and a positive time out
             // means we give the peer some time to send over data.
             ////////////////////////////////////////////////////////////
 
@@ -1533,7 +1528,7 @@ CSRESULT
                   if (errno == EINTR) {
 
                      ///////////////////////////////////////////////////
-                     // poll() was interupted by a signal
+                     // poll() was interrupted by a signal
                      // or the kernel could not allocate an
                      // internal data structure. We will call
                      // poll() again.
@@ -1628,7 +1623,7 @@ CSRESULT
 
                ///////////////////////////////////////////////////
                // Once in this loop, we read until we block;
-               // the timeout no longer applies (it applied
+               // the time out no longer applies (it applied
                // only for the first read).
                ///////////////////////////////////////////////////
 
@@ -1749,16 +1744,16 @@ CSRESULT
 
                /////////////////////////////////////////////////////////////
                //
-               // We can block under the following circunstances:
+               // We can block under the following circumstances:
                //
                // 1) We blocked before getting all the expected data.
-               //    If we have a non-zero timout, we will wait up to
-               //    that timeout for data.
+               //    If we have a non-zero time out, we will wait up to
+               //    that time out for data.
                //
                // 2) We wanted to get up to a fragment; if we have
-               //    a non-zero timeout value, and if we got no data,
-               //    we will wait up to the timeout value or until
-               //    some data arrives. If we have a zero timeout value,
+               //    a non-zero time out value, and if we got no data,
+               //    we will wait up to the time out value or until
+               //    some data arrives. If we have a zero time out value,
                //    we simply return to the caller with the appropriate
                //    diagnostics (along with data if any).
                //
@@ -1767,15 +1762,15 @@ CSRESULT
                if (timeout != 0) {
 
                   ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given timeout;
+                  // This means we must wait up to a given time out;
                   // note that we could be doing this more than once
                   // for example suppose we want to read 10 bytes
-                  // and block on the firat read; we then wait but
-                  // data arrives within the timeout. We then read
+                  // and block on the first read; we then wait but
+                  // data arrives within the time out. We then read
                   // 3 bytes and block again. We will wait again up
-                  // to the timeout. The point is that the total
+                  // to the time out. The point is that the total
                   // amount of time waiting for data could
-                  // theoretically exceed the timeout value.
+                  // theoretically exceed the time out value.
                   ////////////////////////////////////////////////////////////
 
 
@@ -1927,7 +1922,7 @@ CSRESULT
    }
 
    //////////////////////////////////////////////////////////////////////////
-   // If we blocked, then we will wait up to the timeout.
+   // If we blocked, then we will wait up to the time out.
    //////////////////////////////////////////////////////////////////////////
 
    switch(*iSSLResult) {
@@ -1973,9 +1968,9 @@ CSRESULT
          if (timeout != 0) {
 
             ////////////////////////////////////////////////////////////
-            // This means we must wait up to a given timeout; this
-            // is the only time we will be waitng as this means
-            // we did not write any data and a positive timeout
+            // This means we must wait up to a given time out; this
+            // is the only time we will be waiting as this means
+            // we did not write any data and a positive time out
             // means we give the kernel some time to send over the data.
             ////////////////////////////////////////////////////////////
 
@@ -2024,7 +2019,7 @@ CSRESULT
                   if (errno == EINTR) {
 
                      ///////////////////////////////////////////////////
-                     // poll() was interupted by a signal
+                     // poll() was interrupted by a signal
                      // or the kernel could not allocate an
                      // internal data structure. We will call
                      // poll() again.
@@ -2119,7 +2114,7 @@ CSRESULT
 
                ///////////////////////////////////////////////////
                // Once in this loop, we write until we block;
-               // the timeout no longer applies (it applied
+               // the time out no longer applies (it applied
                // only for the first write).
                ///////////////////////////////////////////////////
 
@@ -2242,16 +2237,16 @@ CSRESULT
 
                /////////////////////////////////////////////////////////////
                //
-               // We can block under the following circunstances:
+               // We can block under the following circumstances:
                //
                // 1) We blocked before writing all the required data.
-               //    If we have a non-zero timout, we will wait up to
-               //    that timeout to write data.
+               //    If we have a non-zero time out, we will wait up to
+               //    that time out to write data.
                //
                // 2) We wanted to write up to a fragment; if we have
-               //    a non-zero timeout value, and if we wrote no data,
-               //    we will wait up to the timeout value or until
-               //    some data can be written. If we have a zero timeout
+               //    a non-zero time out value, and if we wrote no data,
+               //    we will wait up to the time out value or until
+               //    some data can be written. If we have a zero time out
                //    value, we simply return to the caller with the
                //    appropriate diagnostics.
                //
@@ -2260,11 +2255,11 @@ CSRESULT
                if (timeout != 0) {
 
                   ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given timeout;
+                  // This means we must wait up to a given time out;
                   // note that we could be doing this more than once.
                   // The point is that the total
                   // amount of time waiting to write data could
-                  // theoretically exceed the timeout value.
+                  // theoretically exceed the time out value.
                   ////////////////////////////////////////////////////////////
 
 
@@ -2292,7 +2287,7 @@ CSRESULT
                         /////////////////////////////////////////////////////
                         // If we get anything other than POLLOUT
                         // this means we cannot write
-                        // after our timeout period.
+                        // after our time out period.
                         /////////////////////////////////////////////////////
 
                         return   CS_FAILURE
@@ -2574,7 +2569,7 @@ CSRESULT
       if (errno == EINTR) {
 
          ///////////////////////////////////////////////////
-         // send() was interupted by a signal
+         // send() was interrupted by a signal
          // or the kernel could not allocate an
          // internal data structure. We will call
          // send() again.
@@ -2589,9 +2584,9 @@ CSRESULT
             if (timeout != 0) {
 
                ////////////////////////////////////////////////////////////
-               // This means we must wait up to a given timeout; this
-               // is the only time we will be waitng as this means
-               // we did not write any data and a positive timeout
+               // This means we must wait up to a given time out; this
+               // is the only time we will be waiting as this means
+               // we did not write any data and a positive time out
                // means we give the kernel some time to send over the data.
                ////////////////////////////////////////////////////////////
 
@@ -2617,7 +2612,7 @@ CSRESULT
 
                   /////////////////////////////////////////////////////////
                   // If we get anything other than POLLOUT
-                  // this means thre was an error.
+                  // this means there was an error.
                   /////////////////////////////////////////////////////////
 
                   if (!fdset[0].revents & POLLOUT) {
@@ -2640,7 +2635,7 @@ CSRESULT
                      if (errno == EINTR) {
 
                         ///////////////////////////////////////////////////
-                        // poll() was interupted by a signal
+                        // poll() was interrupted by a signal
                         // or the kernel could not allocate an
                         // internal data structure. We will call
                         // poll() again.
@@ -2732,7 +2727,7 @@ CSRESULT
          if (errno == EINTR) {
 
             ///////////////////////////////////////////////////
-            // send() was interupted by a signal
+            // send() was interrupted by a signal
             // or the kernel could not allocate an
             // internal data structure. We will call
             // send() again.
@@ -2746,7 +2741,7 @@ CSRESULT
 
                ///////////////////////////////////////////////////
                // Once in this loop, we write until we block;
-               // the timeout no longer applies (it applied
+               // the time out no longer applies (it applied
                // only for the first write).
                ///////////////////////////////////////////////////
 
@@ -2850,7 +2845,7 @@ CSRESULT
          if (errno == EINTR) {
 
             ///////////////////////////////////////////////////
-            // send() was interupted by a signal
+            // send() was interrupted by a signal
             // or the kernel could not allocate an
             // internal data structure. We will call
             // send() again.
@@ -2865,9 +2860,9 @@ CSRESULT
                if (timeout != 0) {
 
                   ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given timeout; this
-                  // is the only time we will be waitng as this means
-                  // we did not write any data and a positive timeout
+                  // This means we must wait up to a given time out; this
+                  // is the only time we will be waiting as this means
+                  // we did not write any data and a positive time out
                   // means we give the kernel some time to send over the data.
                   ////////////////////////////////////////////////////////////
 
@@ -2916,7 +2911,7 @@ CSRESULT
                         if (errno == EINTR) {
 
                            ///////////////////////////////////////////////////
-                           // poll() was interupted by a signal
+                           // poll() was interrupted by a signal
                            // or the kernel could not allocate an
                            // internal data structure. We will call
                            // poll() again.
