@@ -1,18 +1,12 @@
 /* ==========================================================================
   Clarasoft Foundation Server 400
-
   cswsck.c
   Web Socket Protocol Implementation
   Version 1.0.0
-
   Compile module with:
-
      CRTCMOD MODULE(CSWSCK) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -971,7 +965,7 @@ CSRESULT CSWSCK_Receive(CSWSCK*   This,
         This->dataSize = 0;
 
         ////////////////////////////////////////////////////////////////////
-        // It's not clear fromthe RFC if a PONG frame from a client
+        // It's not clear from the RFC if a PONG frame from a client
         // will have its mask set when no data is sent...
         // this is just in case
         ////////////////////////////////////////////////////////////////////
@@ -2059,7 +2053,7 @@ CSRESULT CSWSCK_SecureSend(CSWSCK*  This,
      else {
         ws_header[1] = 0x00 | 127;
 
-        // For Portabiliy; AS400 is already in NBO
+        // For Portability; AS400 is already in NBO
         iSize64 = htonll(iOutDataSize);
         memcpy(&ws_header[2], &iSize64, sizeof(uint64_t));
         iSize = 10;
@@ -2219,7 +2213,7 @@ CSRESULT CSWSCK_Send(CSWSCK*  This,
      else {
         ws_header[1] = 0x00 | 127;
 
-        // For Portabiliy; AS400 is already in NBO
+        // For Portability; AS400 is already in NBO
         iSize64 = htonll(iOutDataSize);
         memcpy(&ws_header[2], &iSize64, sizeof(uint64_t));
         iSize = 10;
