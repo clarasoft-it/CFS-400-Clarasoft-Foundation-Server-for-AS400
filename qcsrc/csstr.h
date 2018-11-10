@@ -1,14 +1,10 @@
 /* ==========================================================================
   Clarasoft Core Tools
-
   csstr.h
   string utilities
   Version 1.0.0
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -142,10 +138,10 @@ CSRESULT
 //
 // This: The address of a pointer to the CSSTRCV instance to release.
 //
-// iFromCCSID:  A long integer identiying the CCSID
+// iFromCCSID:  A long integer identifying the CCSID
 //              of the input string to convert.
 //
-// iToCCSID: a long integer identiying the CCSID
+// iToCCSID: a long integer identifying the CCSID
 //           of the out string; this is the CCSID to which the input
 //           string will be converted.
 //
@@ -215,12 +211,12 @@ long
 //
 // This: The address of a pointer to the CSSTRCV instance to release.
 //
-// inBuffer a pointer to the buffer to be converted. This buffer
-//          needs not be null terminated since its size is provided.
-//          The function does not assume the buffer is null-terminated.
+// inBuffer: a pointer to the buffer to be converted. This buffer
+//           needs not be null terminated since its size is provided.
+//           The function does not assume the buffer is null-terminated.
 //
 // size: The number of bytes to convert from the input buffer. This is NOT
-//       nessarily the number of characters to be converted.
+//       necessarily the number of characters to be converted.
 //
 //
 // Possible return values:
@@ -277,7 +273,7 @@ long
 //
 //    CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG_UNKNOWN;
 //
-//      None of the above errors occured but the conversion failed.
+//      None of the above errors occurred but the conversion failed.
 //
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -317,12 +313,12 @@ CSRESULT
 //
 // This: The address of a pointer to the CSSTRCV instance to release.
 //
-// inBuffer a pointer to the buffer to be converted. This buffer
-//          needs not be null terminated since its size is provided.
-//          The function does not assume the buffer is null-terminated.
+// inBuffer: a pointer to the buffer to be converted. This buffer
+//           needs not be null terminated since its size is provided.
+//           The function does not assume the buffer is null-terminated.
 //
 // size: The number of bytes to convert from the input buffer. This is NOT
-//       nessarily the number of characters to be converted.
+//       necessarily the number of characters to be converted.
 //
 //
 // Possible return values:
@@ -379,7 +375,7 @@ CSRESULT
 //
 //    CS_FAILURE | CS_OPER_CSSTRCV | CS_DIAG_UNKNOWN;
 //
-//      None of the above errors occured but the conversion failed.
+//      None of the above errors occurred but the conversion failed.
 //
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -408,7 +404,7 @@ CSRESULT
 //  inSize: the length of the input buffer.
 //
 //
-//  outBuffer: the address of the bufffer that will hold the converted
+//  outBuffer: the address of the buffer that will hold the converted
 //             string; the buffer will be null-terminated. The caller
 //             must insure that the resulting buffer be large enough to
 //             hold the converted string along with the null terminator.
@@ -447,7 +443,7 @@ uint64_t
 //  inSize: the length of the input buffer.
 //
 //
-//  outBuffer: the address of the bufffer that will hold the converted
+//  outBuffer: the address of the buffer that will hold the converted
 //             string; the buffer will be null-terminated. The caller
 //             must insure that the resulting buffer be large enough to
 //             hold the converted string along with the null terminator.
@@ -478,20 +474,20 @@ uint64_t
 // CSSTR_StrTok
 //
 // This function is like the strtok function but can handle
-// delimiters more than one charater in length.
+// delimiters more than one character in length.
 // Like the strtok function, the input buffer will be
 // modified by the function.
 // Examples:
-//   "", with delimter equal to :
+//   "", with delimiter equal to :
 //     function returns zero tokens;
 //     return value is null.
-//   "abc", with delimter equal to :
-//     fucntion returns zero tokens;
+//   "abc", with delimiter equal to :
+//     function returns zero tokens;
 //     return value is null;
-//   ":", with delimter equal to :
-//     fucntion returns one token;
+//   ":", with delimiter equal to :
+//     function returns one token;
 //     return value is pointer to an empty string;
-//   "abc:", with delimter equal to :
+//   "abc:", with delimiter equal to :
 //     function returns 1 token, namely "abc";
 //     return value is pointer to first token.
 //   "abc::"
@@ -535,7 +531,7 @@ char*
 //  inSize: the length of the input buffer.
 //
 //
-//  outBuffer: the address of the bufffer that will hold the converted
+//  outBuffer: the address of the buffer that will hold the converted
 //             string; the buffer will be null-terminated. The caller
 //             must insure that the resulting buffer be large enough to
 //             hold the converted string along with the null terminator.
@@ -573,7 +569,7 @@ uint64_t
 //  inSize: the length of the input buffer.
 //
 //
-//  outBuffer: the address of the bufffer that will hold the converted
+//  outBuffer: the address of the buffer that will hold the converted
 //             string; the buffer will be null-terminated. The caller
 //             must insure that the resulting buffer be large enough to
 //             hold the converted string along with the null terminator.
@@ -606,7 +602,7 @@ uint64_t
 //
 // CSSTR_toLowerCase
 //
-// Convers a string from uppercase to lowercase.
+// Converts a string from upper case to lower case.
 //
 //
 // Parameters
@@ -635,7 +631,7 @@ int
 //
 // CSSTR_toUpperCase
 //
-// Convers a string from lowercase to uppercase.
+// Converts a string from lower case to upper case.
 //
 //
 // Parameters
@@ -699,7 +695,7 @@ long
 //  in: the address of the null-terminated URL-encoded string.
 //
 //  out: the address of the receiving buffer. The caller must insure that
-//       the resulting  buffer is largeg enough to recieve the encoded string
+//       the resulting  buffer is large enough to receive the encoded string
 //       or else an overflow may occur.
 //
 // Return values:
@@ -728,7 +724,7 @@ uint64_t
 //
 //  out: the address of the receiving buffer. This buffer will contain
 //       the URL-encoded string. The caller must insure that the resulting
-//       buffer is largeg enough to recieve the encoded string or else an
+//       buffer is large enough to receive the encoded string or else an
 //       overflow may occur.
 //
 // Return values:
