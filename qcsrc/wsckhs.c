@@ -1,23 +1,22 @@
-
 /* ==========================================================================
   Clarasoft Foundation Server 400
-
   wsckhs.c
   Web socket server using SSL
   Version 1.0.0
-
+  
   Compile module with:
+  
      CRTSQLCI OBJ(WSCKHS) SRCFILE(QCSRC)
               SRCMBR(WSCKHS.C) DBGVIEW(*SOURCE)
-
+              
   Build program with:
-
+  
     CRTPGM PGM(WSCKHS) MODULE(WSCKHS) BNDSRVPGM((CFSAPI))
-
+    
   Distributed under the MIT license
-
+  
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
+  
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -100,7 +99,7 @@ int main (int argc, char **argv)
   CFS_PROTOCOLHANDLERPROC InprocHandler; // Pointer to handler function
 
   /* ------------------------------------------------------------------------
-   This code is to register a cleanup handler
+   This code is to register a clean up handler
    for when the main server job is cancelled. This is not
    necessary but is proper i5 OS practice for servers.
    The #pragma directive must be coupled with another at some later point
