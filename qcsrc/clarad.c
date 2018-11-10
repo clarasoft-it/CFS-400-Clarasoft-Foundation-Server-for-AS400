@@ -3,16 +3,25 @@
   Clara Daemon
   Main listening daemon with pre-spawned handlers
   Version 1.0.0
+  
   Command line arguments:
+  
      - handler instance name. This is the key into the CFSCONF file
        which holds daemon configuration information.
+       
   Compile module with:
+  
           CRTSQLCI OBJ(CLARAD) SRCFILE(QCSRC)
               SRCMBR(CLARAD) DBGVIEW(*SOURCE)
+              
   Build program with:
+  
      CRTPGM PGM(CLARAD) MODULE(CLARAD CSLIST CFSAPI)
+     
   Distributed under the MIT license
+  
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+  
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
