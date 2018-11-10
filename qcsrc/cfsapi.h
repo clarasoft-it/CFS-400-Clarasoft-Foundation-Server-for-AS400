@@ -1,14 +1,10 @@
 /* ===========================================================================
   Clarasoft Foundation Server 400
-
   cfsapi.h
   Networking Primitives definitions
   Version 1.0.0
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -25,7 +21,6 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 =========================================================================== */
 
 #ifndef __CLARASOFT_CFS_CFSAPI_H__
@@ -133,7 +128,7 @@ typedef struct tagCFS_SERVERSESSION_100 {
 
   char* szApplicationID;
 
-  // The following indicates the type of authetication for client:
+  // The following indicates the type of authentication for client:
   //
   // CFS_SEC_SERVER_SESSION (no client authentication)
   // CFS_SEC_SERVER_SESSION_CLIENT_AUTH
@@ -244,26 +239,26 @@ CFS_INSTANCE*
 //         insure enough space for the maximum UUID representation.
 //
 //
-// mode: Indicates how to represent the generated UUID. Hexadicimal digits
-//       above 9 can be represented as either lowercase or uppercase
-//       letters. Also, the string represntation may include (or not)
-//       dashes seperating the UUID fields:
+// mode: Indicates how to represent the generated UUID. Hexadecimal digits
+//       above 9 can be represented as either lower case or upper case
+//       letters. Also, the string representation may include (or not)
+//       dashes separating the UUID fields:
 //
-//       CFS_UUID_UPPERCASE: returns UUID with upercase letters and no dash
+//       CFS_UUID_UPPERCASE: returns UUID with upper case letters and no dash
 //
 //          Example: D4BA3B92BD652AEC3B21107CD5F489D6
 //
-//       CFS_UUID_LOWERCASE: returns UUID with lowercase letters and no dash
+//       CFS_UUID_LOWERCASE: returns UUID with lower case letters and no dash
 //
 //          Example: d4ba3b92bd652aec3b21107cd5f489d6
 //
 //       CFS_UUID_UPPERCASE | CFS_UUID_DASHES : returns UUID with
-//                                              upercase letters and dashes.
+//                                              upper case letters and dashes.
 //
 //          Example: D4BA3B92-BD65-2AEC-3B21-107CD5F489D6
 //
 //       CFS_UUID_LOWERCASE | CFS_UUID_DASHES : returns UUID with
-//                                              lowercase letters and dashes.
+//                                              lower case letters and dashes.
 //
 //          Example: d4ba3b92-bd65-2aec-3b21-107cd5f489d6
 //
@@ -349,7 +344,7 @@ CFS_INSTANCE*
 //
 //            == 0 : perform a single read and return immediately.
 //
-//            >  0 : wait up to the specified timeout for data to arrive.
+//            >  0 : wait up to the specified time out for data to arrive.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -438,7 +433,7 @@ CSRESULT
 //
 //            == 0 : perform a single read and return immediately.
 //
-//            >  0 : wait up to the specified timeout for data to arrive.
+//            >  0 : wait up to the specified time out for data to arrive.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -471,7 +466,7 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM
 //
-//        An error occured while waiting to read data.
+//        An error occurred while waiting to read data.
 //        Caller can check errno for more info.
 //
 //
@@ -510,7 +505,7 @@ CSRESULT
 //
 //            == 0 : try to receive immediately and return.
 //
-//            >  0 : wait up to the specified timeout for data to arrive.
+//            >  0 : wait up to the specified time out for data to arrive.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -533,7 +528,7 @@ CSRESULT
 //
 // CFS_SecureClose
 //
-// This function closes the secure session and environement.
+// This function closes the secure session and environment.
 //
 //
 // Parameters
@@ -573,7 +568,7 @@ CSRESULT
 //              szHostName: a null-terminated string identifying the
 //                          target host to connect to.
 //
-//              port: the port number; dont convert this number in
+//              port: the port number; don't convert this number in
 //                    network byte order; the function will make the
 //                    necessary conversion.
 //
@@ -603,7 +598,7 @@ CFS_INSTANCE*
 //
 // CFS_SecureOpenChannel
 //
-// This function initialises a secure communication environement.
+// This function initialises a secure communication environment.
 // It also creates and
 // initialises an CFS_INSTANCE structure that must be used for secure
 // communication with a peer in all subsequent calls to the CFS_Secure*
@@ -678,7 +673,7 @@ CFS_INSTANCE*
 //
 //            == 0 : perform a single read and return immediately.
 //
-//            >  0 : wait up to the specified timeout for data to arrive.
+//            >  0 : wait up to the specified time out for data to arrive.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -699,8 +694,8 @@ CFS_INSTANCE*
 //
 //    CS_SUCCESS | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while waiting to read data. This
-//        can only be returned if the timeout is non-zero. Some data
+//        The time out expired while waiting to read data. This
+//        can only be returned if the time out is non-zero. Some data
 //        may have been read.
 //
 //    CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE
@@ -709,22 +704,22 @@ CFS_INSTANCE*
 //
 //    CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM
 //
-//        An error occured on the read operation.
+//        An error occurred on the read operation.
 //        Caller can check errno for more info.
 //
 //    CS_FAILURE | CFS_OPER_READ | CFS_DIAG_WOULDBLOCK
 //
-//        A zero timeout was specified and the read would
+//        A zero time out was specified and the read would
 //        have blocked; no data was available to read.
 //
 //    CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while waiting to read data. This
-//        can only be returned if the timeout is non-zero.
+//        The time out expired while waiting to read data. This
+//        can only be returned if the time out is non-zero.
 //
 //    CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM
 //
-//        An error occured while waiting to read data.
+//        An error occurred while waiting to read data.
 //        Caller can check errno for more info.
 //
 //
@@ -763,13 +758,13 @@ CSRESULT
 // size: The maximum number of bytes the buffer can receive.
 //
 // timeout: The maximum number of seconds to wait for data.
-//          Timeout values can be:
+//          Time out values can be:
 //
 //            <  0 : wait forever until data arrives.
 //
 //            == 0 : perform a single read and return immediately.
 //
-//            >  0 : wait up to the specified timeout for data to arrive.
+//            >  0 : wait up to the specified time out for data to arrive.
 //
 // iSSLResult: The address of a variable that will receive on return the
 //             GSK return code from the last call to the
@@ -796,21 +791,21 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_READ   | CFS_DIAG_SYSTEM
 //
-//        An error occured on the read operation. Caller
+//        An error occurred on the read operation. Caller
 //        can check iSSLResult and errno for more info.
 //
 //    CS_FAILURE | CFS_OPER_READ   | CFS_DIAG_WOULDBLOCK
 //
-//        The specified timeout is zero and the read would have blocked.
+//        The specified time out is zero and the read would have blocked.
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
 //
-//        An error occured on while waiting for data. Caller
+//        An error occurred on while waiting for data. Caller
 //        can check iSSLResult and errno for more info.
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while waiting for data.
+//        The time out expired while waiting for data.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -849,7 +844,7 @@ CSRESULT
 //
 //            == 0 : perform a single write and return immediately.
 //
-//            >  0 : wait up to the specified timeout until data can be sent.
+//            >  0 : wait up to the specified time out until data can be sent.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -863,7 +858,7 @@ CSRESULT
 //
 //    CS_SUCCESS | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while trying to write data. Some data
+//        The time out expired while trying to write data. Some data
 //        may have been written.
 //
 //    CS_SUCCESS | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
@@ -872,11 +867,11 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
 //
-//        An error occured on while waiting to write data.
+//        An error occurred on while waiting to write data.
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while waiting to write data.
+//        The time out expired while waiting to write data.
 //
 //    CS_FAILURE | CFS_OPER_WRITE  | CFS_DIAG_CONNCLOSE
 //
@@ -884,12 +879,12 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WRITE  | CFS_DIAG_SYSTEM
 //
-//        An error occured on the write operation. Caller
+//        An error occurred on the write operation. Caller
 //        can check errno for more info.
 //
 //    CS_FAILURE | CFS_OPER_WRITE  | CFS_DIAG_WOULDBLOCK
 //
-//        A zero timeout was specified and the write
+//        A zero time out was specified and the write
 //        operation would block. Some data may have been written.
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -928,7 +923,7 @@ CSRESULT
 //
 //            == 0 : perform a single write and return immediately.
 //
-//            >  0 : wait up to the specified timeout until data can be sent.
+//            >  0 : wait up to the specified time out until data can be sent.
 //
 // iSSLResult: The address of a variable that will receive on return the
 //             GSK return code from the last call to the
@@ -951,7 +946,7 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while waiting to write data.
+//        The time out expired while waiting to write data.
 //
 //    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_CONNCLOSE
 //
@@ -959,12 +954,12 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_SYSTEM
 //
-//        An error occured on the write operation. Caller
+//        An error occurred on the write operation. Caller
 //        can check iSSLResult and errno for more info.
 //
 //    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
 //
-//        A zero timeout was specified and the write
+//        A zero time out was specified and the write
 //        operation would block. Some data may have been written.
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -985,7 +980,7 @@ CSRESULT
 //
 // This function sends a file (socket) descriptor to another process.
 // The caller has already established a connection to the other process
-// via a local domain (UNIX) socket or via a streampipe.
+// via a local domain (UNIX) socket or via a stream pipe.
 //
 // Parameters
 // ---------------------------------------------------------------------------
@@ -998,15 +993,12 @@ CSRESULT
 //       Buffer size must be > 0.
 //
 // timeout: The maximum number of seconds to wait for the descriptor:
-//       Buffer size must be > 0.
-//
-// timeout: The maximum number of seconds to wait for the descriptor:
 //
 //            <  0 : wait forever.
 //
 //            == 0 : try to send immediately and return.
 //
-//            >  0 : wait up to the specified timeout.
+//            >  0 : wait up to the specified time out.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -1052,7 +1044,7 @@ CSRESULT
 //
 //            == 0 : perform a single write and return immediately.
 //
-//            >  0 : wait up to the specified timeout until data can be sent.
+//            >  0 : wait up to the specified time out until data can be sent.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -1066,7 +1058,7 @@ CSRESULT
 //
 //    CS_SUCCESS | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while trying to write data. Some data
+//        The time out expired while trying to write data. Some data
 //        may have been written.
 //
 //    CS_SUCCESS | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
@@ -1075,11 +1067,11 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
 //
-//        An error occured on while waiting to write data.
+//        An error occurred on while waiting to write data.
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while waiting to write data.
+//        The time out expired while waiting to write data.
 //
 //    CS_FAILURE | CFS_OPER_WRITE  | CFS_DIAG_CONNCLOSE
 //
@@ -1087,12 +1079,12 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WRITE  | CFS_DIAG_SYSTEM
 //
-//        An error occured on the write operation. Caller
+//        An error occurred on the write operation. Caller
 //        can check errno for more info.
 //
 //    CS_FAILURE | CFS_OPER_WRITE  | CFS_DIAG_WOULDBLOCK
 //
-//        A zero timeout was specified and the write
+//        A zero time out was specified and the write
 //        operation would block. Some data may have been written.
 //
 //////////////////////////////////////////////////////////////////////////////
@@ -1131,7 +1123,7 @@ CSRESULT
 //
 //            == 0 : perform a single write and return immediately.
 //
-//            >  0 : wait up to the specified timeout until data can be sent.
+//            >  0 : wait up to the specified time out until data can be sent.
 //
 // Possible return values:
 // ---------------------------------------------------------------------------
@@ -1145,11 +1137,11 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_SYSTEM
 //
-//        An error occured on while waiting to write data.
+//        An error occurred on while waiting to write data.
 //
 //    CS_FAILURE | CFS_OPER_WAIT   | CFS_DIAG_TIMEDOUT
 //
-//        The timeout expired while waiting to write data.
+//        The time out expired while waiting to write data.
 //
 //    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_CONNCLOSE
 //
@@ -1157,12 +1149,12 @@ CSRESULT
 //
 //    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_SYSTEM
 //
-//        An error occured on the write operation. Caller
+//        An error occurred on the write operation. Caller
 //        can check errno for more info.
 //
 //    CS_FAILURE | CFS_OPER_WRITE   | CFS_DIAG_WOULDBLOCK
 //
-//        A zero timeout was specified and the write
+//        A zero time out was specified and the write
 //        operation would block. Some data may have been written.
 //
 //////////////////////////////////////////////////////////////////////////////
