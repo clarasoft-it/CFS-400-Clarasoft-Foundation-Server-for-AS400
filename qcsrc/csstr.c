@@ -1,17 +1,12 @@
 /* ==========================================================================
   Clarasoft Core Tools
-
   csstr.c
   string implementation
   Version 1.0.0
-
   Compile module with:
      CRTCMOD MODULE(CSSTR) SRCFILE(QCSRC) DBGVIEW(*ALL)
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -1169,7 +1164,7 @@ uint64_t
 // CSSTR_StrTok
 //
 // This function is like the strtok function but can handle
-// delimiters more than one charater in length.
+// delimiters more than one character in length.
 // Like the strtok function, the input buffer will be
 // modified by the function.
 //
@@ -1224,7 +1219,7 @@ char*
           // this means we have found a delimiter
           found = 1;
 
-          // null the delimter's first char
+          // null the delimiter's first char
           *(nextToken + startDelim) = 0;
 
           break;
@@ -1679,7 +1674,7 @@ uint64_t
 //
 // CSSTR_toLowerCase
 //
-// Convers a string from uppercase to lowercase.
+// Converts a string from upper case to lower case.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1703,7 +1698,7 @@ int
 //
 // CSSTR_toUpperCase
 //
-// Convers a string from lowercase to uppercase.
+// Converts a string from lower case to upper case.
 //
 //////////////////////////////////////////////////////////////////////////////
 
