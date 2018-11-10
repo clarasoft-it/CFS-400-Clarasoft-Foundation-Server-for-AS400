@@ -1,14 +1,10 @@
 /* ==========================================================================
   Clarasoft Foundation Server 400
-
   cswsck.h
   Web Socket Protocol Implementation definitions
   Version 1.0.0
-
   Distributed under the MIT license
-
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -75,7 +71,7 @@ typedef void* CSWSCK;
 //       the CSWSCK_OpenClient() or the CSWSCK_OpenServer()
 //       function to initialise this instance.
 //
-// szBuffer: A pointer to the data that is to be sent alonside the CLOSE
+// szBuffer: A pointer to the data that is to be sent alongside the CLOSE
 //           operation.
 //
 // iDataSize: The number of bytes to send. This is the size of the buffer
@@ -231,11 +227,11 @@ CSWSCK
 //
 //       Converting the data from EBCDIC to UTF8 yielded a number of
 //       bytes larger than 125 bytes, which is the maximum number of
-//       bytes to send alongside a PING oepration.
+//       bytes to send alongside a PING operation.
 //
 //    CS_FAILURE | CSWSCK_OPER_PING | diagnostics from CFSAPI
 //
-//       A networking error occured.
+//       A networking error occurred.
 //
 //////////////////////////////////////////////////////////////////////////////
 
@@ -262,7 +258,7 @@ CSRESULT
 //
 // iDataSize: The address of an unsigned 64 bit integer that will receive
 //            the number of data bytes that were received. If the return
-//            value is CS_FAILURE, this value is undefined and shouild
+//            value is CS_FAILURE, this value is undefined and should
 //            not be trusted.
 //
 // timeout: the number of seconds to wait for the peer.
@@ -273,7 +269,7 @@ CSRESULT
 //
 //    CS_SUCCESS
 //
-//       This code can be combined with the following oepration codes:
+//       This code can be combined with the following operation codes:
 //
 //         CSWSCK_OPER_CONTINUATION
 //         CSWSCK_OPER_TEXT
@@ -281,7 +277,7 @@ CSRESULT
 //         CSWSCK_OPER_CLOSE
 //
 //       This code indicates which websocket
-//       operaation was erceived from the peer.
+//       operation was received from the peer.
 //
 //       The success code may be supplemented with the following
 //       diagnostic codes
@@ -433,11 +429,11 @@ CSWSCK*
 //
 //       Converting the data from EBCDIC to UTF8 yielded a number of
 //       bytes larger than 125 bytes, which is the maximum number of
-//       bytes to send alongside a PING oepration.
+//       bytes to send alongside a PING operation.
 //
 //    CS_FAILURE | CSWSCK_OPER_PING | diagnostics from CFSAPI
 //
-//       A networking error occured.
+//       A networking error occurred.
 //
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -464,7 +460,7 @@ CSRESULT
 //
 // iDataSize: The address of an unsigned 64 bit integer that will receive
 //            the number of data bytes that were received. If the return
-//            value is CS_FAILURE, this value is undefined and shouild
+//            value is CS_FAILURE, this value is undefined and should
 //            not be trusted.
 //
 // timeout: the number of seconds to wait for the peer.
@@ -483,7 +479,7 @@ CSRESULT
 //         CSWSCK_OPER_CLOSE
 //
 //       This code indicates which websocket
-//       operaation was erceived from the peer.
+//       operation was received from the peer.
 //
 //       The success code may be supplemented with the following
 //       diagnostic codes
