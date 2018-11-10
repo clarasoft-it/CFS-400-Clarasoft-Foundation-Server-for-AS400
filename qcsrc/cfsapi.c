@@ -3,10 +3,15 @@
   cfsapi.c
   Networking Primitives
   Version 1.0.0
+  
   Compile module with:
+  
      CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRC) DBGVIEW(*ALL)
+     
   Distributed under the MIT license
+  
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
+  
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
