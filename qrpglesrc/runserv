@@ -46,7 +46,7 @@
       /Copy csapapih
 
       *----------------------------------------------------------------------
-      * RUNECHO: non secure CFS echo server handler
+      * RUNSERV: non secure CFS echo server handler
       *----------------------------------------------------------------------
 
      PRUNSERV...
