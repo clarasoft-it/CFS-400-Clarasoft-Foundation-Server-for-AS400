@@ -1,6 +1,5 @@
 /* ==========================================================================
   Clarasoft Core Tools
-
   cslist.h
   Linked list definitions
   Version 1.0.0
