@@ -91,8 +91,8 @@
 
           Clear SessionDS;
 
-	  // We will use the FTP server certificate; any other valid
-	  // SSL certificate would do.
+          // We will use the FTP server certificate; any other valid
+          // SSL certificate would do.
 		
           appID = 'QIBM_QTMF_FTP_SERVER' + x'00';
 
