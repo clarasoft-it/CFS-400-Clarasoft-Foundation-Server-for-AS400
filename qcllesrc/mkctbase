@@ -42,7 +42,7 @@
              CRTSRVPGM  SRVPGM(&TRGLIB/CTBASE) MODULE(&SRCLIB/CTLST +
                           &SRCLIB/CTBUFF &SRCLIB/CTMAP &SRCLIB/CTMAPX +
                           &SRCLIB/CTJSO &SRCLIB/CTJSP) +
-                          EXPORT(*SRCFILE) SRCFILE(&SRCLIB/QSRVSRC)
+                          EXPORT(*SRCFILE) SRCFILE(&SRCLIB/QBNDSRC)
   ENDPGM
 
 
