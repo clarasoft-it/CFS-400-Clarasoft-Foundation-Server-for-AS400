@@ -49,7 +49,7 @@ PGM        PARM(&LIBF &LIBT)
 
              CRTSRVPGM  SRVPGM(&LIBT/CFSAPI) MODULE(CFSAPI CSSTR +
                           CSLIST CSWSCK) EXPORT(*SRCFILE) +
-                          SRCFILE(&LIBF/QSRVSRC) TEXT('Clarasoft +
+                          SRCFILE(&LIBF/QBNDSRC) TEXT('Clarasoft +
                           Foundation Server API')
 
              CRTSRVPGM  SRVPGM(&LIBT/ECHOH) MODULE(ECHOH) +
