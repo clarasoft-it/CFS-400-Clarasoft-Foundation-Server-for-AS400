@@ -492,7 +492,7 @@
 
      DCSSTRCV_Destructor...
      D                 PR            10U 0 ExtProc('CSSTRCV_Destructor')
-     D  Conv                           *   value
+     D  Conv                           *    
 
      DCSSTRCV_Get...
      D                 PR            10I 0 ExtProc('CSSTRCV_Get')
