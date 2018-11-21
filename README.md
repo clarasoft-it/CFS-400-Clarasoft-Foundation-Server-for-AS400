@@ -118,7 +118,7 @@ Opt  Job         User        Type     -----Status-----  Function
      DUSER       DUSER       INTER    ACTIVE            PGM-CLARAD    
 ```
      
-There are 3 handlers running waiting for clients to connect (this is specified in CFSCONF.CFMINHND); if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connexion and so on up to 10 executions of CLARAH (this is specified in CFSCONF.CFMAXHND). 
+There are 3 handlers running waiting for clients to connect (this is specified in CFSCONF.CFMINHND); if all 3 handlers are busy servicing connections, then a fourth handler will be executed to handle an additional connection and so on up to 10 executions of CLARAH (this is specified in CFSCONF.CFMAXHND). 
 
 ## CFS-400 example: Testing the ECHOH ILE RPG network service by running the ECHOC ILE RPG client
 
