@@ -197,15 +197,6 @@
 
           EndIf;
 
-          // This is very important if you do not want
-          // to keep the state of variables and files from
-          // a previous execution of this function from
-          // a previous client; also, be sure to close
-          // all files explicitely opened and free
-          // all allocated memory.
-
-          *InLR = *On;
-
           Return 0;
 
       /End-Free
