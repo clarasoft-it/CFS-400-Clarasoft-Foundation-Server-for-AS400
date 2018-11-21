@@ -191,6 +191,11 @@
                 if quit = 1;
                   Leave;
                 EndIf;
+		
+              Else;
+	      
+                Leave;
+		
               EndIf;
 
             EndDo;
