@@ -1896,8 +1896,6 @@ CSRESULT
                    INT_MAX :
                    leftToWrite;
 
-   writeSize = leftToWrite;
-
    //////////////////////////////////////////////////////////////////////////
    // We first try to write on the socket.
    //////////////////////////////////////////////////////////////////////////
@@ -2182,8 +2180,6 @@ CSRESULT
      leftToWrite > INT_MAX ?
                    INT_MAX :
                    leftToWrite;
-
-   writeSize = leftToWrite;
 
    do {
 
