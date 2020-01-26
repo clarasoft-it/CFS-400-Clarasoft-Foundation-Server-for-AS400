@@ -1309,6 +1309,7 @@ CSWSCK* CSWSCK_SecureOpenChannel(int   connfd,
   if (This->Connection != 0) {
 
      This->cvt = CSSTRCV_Constructor();
+     This->internalData = CSLIST_Constructor();
 
      size = 65535;
      hResult = CFS_SecureRead(This->Connection,
