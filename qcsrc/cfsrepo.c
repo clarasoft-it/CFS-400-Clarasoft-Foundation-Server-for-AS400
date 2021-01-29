@@ -42,7 +42,7 @@ EXEC SQL SET OPTION CLOSQLCSR=*ENDMOD;
 #include<stdlib.h>
 #include<string.h>
 
-#include "qcsrcx/cslib.h"
+#include "qcsrc/cslib.h"
 
 EXEC SQL INCLUDE SQLCA;
 
