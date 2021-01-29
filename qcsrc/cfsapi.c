@@ -1,17 +1,15 @@
 /* ===========================================================================
   Clarasoft Foundation Server 400
   cfsapi.c
-  Networking Primitives
-  Version 1.0.0
-  
+
   Compile module with:
-  
-     CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRC) DBGVIEW(*ALL)
-     
+
+     CRTCMOD MODULE(CFSAPI) SRCFILE(QCSRCX) DBGVIEW(*ALL)
+
   Distributed under the MIT license
-  
+
   Copyright (c) 2013 Clarasoft I.T. Solutions Inc.
-  
+
   Permission is hereby granted, free of charge, to any person obtaining
   a copy of this software and associated documentation files
   (the "Software"), to deal in the Software without restriction,
@@ -28,6 +26,19 @@
   ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
   TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
   THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---------------------------------------------------------------------------
+  Change history
+---------------------------------------------------------------------------
+
+  2013-10-31
+  Frederic Soucie
+  creation
+
+  2020-07-12
+  Frederic Soucie
+  Added global/local configuration support.
+
 =========================================================================== */
 
 #include <arpa/inet.h>
@@ -37,36 +48,27 @@
 #include <gskssl.h>
 #include <limits.h>
 #include <netdb.h>
-#include <QSYSINC/MIH/CVTHC>
-#include <QSYSINC/MIH/GENUUID>
-#include <QUSRJOBI.h>
-#include <QSYRUSRI.h>
+
 #include <QUSEC.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/poll.h>
 #include <sys/un.h>
 
-#include "qcsrc/cscore.h"
+#include "qcsrc/cslib.h"
+#include "qcsrc/cfsrepo.h"
 
 #define CFS_NTOP_ADDR_MAX             (1025)
 #define CFS_NTOP_PORT_MAX             (9)
 
-#define CFS_SSL_MAXRECORDSIZE         (16383UL)
-
-#define CFS_UUID_BUFFERSIZE           (37)
-#define CFS_UUID_UPPERCASE            (0x00000000)
-#define CFS_UUID_LOWERCASE            (0x00000001)
-#define CFS_UUID_DASHES               (0x00000002)
-
-#define CFS_CLIENTSESSION_FMT_100     (0x00001064)
-#define CFS_SERVERSESSION_FMT_100     (0x00002064)
+#define CFS_SSL_MAXRECORDSIZE         (16384)
 
 // Operation codes
 
 #define CFS_OPER_WAIT                 (0x00010000)
 #define CFS_OPER_READ                 (0x01010000)
 #define CFS_OPER_WRITE                (0x01020000)
+#define CFS_OPER_CONFIG               (0x01030000)
 
 // Diagnostic codes
 
@@ -86,120 +88,148 @@
 #define CFS_DIAG_SOCOPEN              (0x0000F00E)
 #define CFS_DIAG_SETFD                (0x0000F00F)
 #define CFS_DIAG_SOCINIT              (0x0000F010)
+#define CFS_DIAG_NOTFOUND             (0x0000F011)
+#define CFS_DIAG_SESSIONINIT          (0x0000F012)
+#define CFS_DIAG_SEQNUM_EXHAUSTED     (0x0000F013)
+#define CFS_DIAG_LIBNOTFOUND          (0x0000F014)
+#define CFS_DIAG_SRVCNOTFOUND         (0x0000F015)
+#define CFS_DIAG_PROCNOTFOUND         (0x0000F016)
+#define CFS_DIAG_SECMODE              (0x00000017)
 #define CFS_DIAG_SYSTEM               (0x0000FFFE)
 #define CFS_DIAG_UNKNOWN              (0x0000FFFF)
 
-#define CFS_SEC_SERVER_SESSION                          (1)
-#define CFS_SEC_SERVER_SESSION_CLIENT_AUTH              (2)
-#define CFS_SEC_SERVER_SESSION_CLIENT_AUTH_CRITICAL     (3)
+//////////////////////////////////////////////////////////////////////////////
+//  Foreward declaration;
+//////////////////////////////////////////////////////////////////////////////
 
-#define CFS_SEC_CLIENT_SESSION_SERVER_AUTH_FULL         (1)
-#define CFS_SEC_CLIENT_SESSION_SERVER_AUTH_PASSTHROUGH  (2)
+typedef struct tagCFS_SESSION CFS_SESSION;
 
-typedef struct tagCFS_INSTANCE {
+//////////////////////////////////////////////////////////////////////////////
+//  Virtual function table interface
+//////////////////////////////////////////////////////////////////////////////
+
+typedef struct tagCFSVTBL {
+
+  CSRESULT (*CFS_Read)         (CFS_SESSION*, char*, uint64_t*, int, int*);
+  CSRESULT (*CFS_ReadRecord)   (CFS_SESSION*, char*, uint64_t*, int, int*);
+  CSRESULT (*CFS_Write)        (CFS_SESSION*, char*, uint64_t*, int, int*);
+  CSRESULT (*CFS_WriteRecord)  (CFS_SESSION*, char*, uint64_t*, int, int*);
+
+} CFSVTBL;
+
+typedef CFSVTBL* LPCFSVTBL;
+
+typedef struct tagCFSENV {
+
+  LPCFSVTBL lpVtbl;
+
+  int secMode;
+
+  char  szConfigName[65];
+
+  gsk_handle ssl_henv;
+
+  CSLIST TlsCfg_Env;
+  CSLIST  TlsCfg_Session;
+
+  TLSCFG_PARAMINFO* ppi;
+
+} CFSENV;
+
+typedef struct tagCFS_SESSION {
+
+  LPCFSVTBL lpVtbl;
+
+  int connInfoFmt;
+
+  int connfd;
+  int connectTimeout;
+  int readTimeout;
+  int writeTimeout;
+  int gskHandleResetCipher;
+  int secMode;
+
+  char  szPort[11];
+  char  szConfigName[65];
+  char  szHostName[256];
 
   int32_t size;
-  int connfd;
-  gsk_handle ssl_henv;
+
   gsk_handle ssl_hsession;
-  char* szApplicationID;
 
-} CFS_INSTANCE;
+  CFSRPS  Cfg;
 
-enum CFS_security {
+  CFSENV*  pEnv;
+  CFSENV*  pLocalEnv;
 
-   CFS_security_none,
-   CFS_security_default,
-   CFS_security_ssl
-};
+  CSLIST  TlsCfg_Session;
+  CSLIST  TlsCfg_LocalSession;
 
-typedef struct tagJOBINFOSTRUCT {
+  CFSRPS_CONFIGINFO ci;
+  CFSRPS_PARAMINFO cfscpi;
 
-  int  bytesReturned;
-  int  bytesAvailable;
-  char JobName[10];
-  char JobUser[10];
-  char JobNumber[6];
-  char JobInternalID[16];
-  char JobStatus[10];
-  char JobType;
-  char JobSubType;
-  char reserved[2];
-  int  Priority;
-  int  Timeslice;
-  int  DefaultWait;
-  char Purge[10];
+  TLSCFG_PARAMINFO* ppi;
 
-}JOBINFOSTRUCT;
+} CFS_SESSION;
 
-typedef struct tagCFS_CLIENTSESSION_100 {
-
-  char* szHostName;
-  char* szApplicationID;
-  int port;
-
-  int connTimeout;
-
-  // Indicates what to do if server certificate fails authentication
-
-  // CFS_SEC_CLIENT_SESSION_SERVER_AUTH_FULL
-  // CFS_SEC_CLIENT_SESSION_SERVER_AUTH_PASSTHROUGH
-
-  GSK_ENUM_ID secSessionType;
-
-} CFS_CLIENTSESSION_100;
-
-typedef struct tagCFS_SERVERSESSION_100 {
-
-  char* szApplicationID;
-
-  // The following indicates the type of authentication for client:
-  //
-  // CFS_SEC_SERVER_SESSION (no client authentication)
-  // CFS_SEC_SERVER_SESSION_CLIENT_AUTH
-  // CFS_SEC_SERVER_SESSION_CLIENT_AUTH_CRITICAL
-
-  int secSessionType;
-
-} CFS_SERVERSESSION_100;
-
-// ---------------------------------------------------------------------------
-// Prototypes
-// ---------------------------------------------------------------------------
+//////////////////////////////////////////////////////////////////////////////
+//  Prototypes
+//////////////////////////////////////////////////////////////////////////////
 
 CSRESULT
-  CFS_Close
-    (CFS_INSTANCE* This);
-
-CFS_INSTANCE*
-  CFS_Connect
-    (void* sessionInfo,
-     int sessionInfoFmt);
+  CFS_CloseChannel
+    (CFS_SESSION* This,
+     int* e);
 
 CSRESULT
-  CFS_MakeUUID
-    (char* szUUID,
-     int mode);
+  CFS_CloseEnv
+    (CFSENV** pEnv);
 
-CFS_INSTANCE*
+CSRESULT
+  CFS_CloseSession
+    (CFS_SESSION* This,
+     int* e);
+
+CFSENV*
+  CFS_OpenEnv
+    (char* szConfig);
+
+CFS_SESSION*
+  CFS_OpenSession
+    (CFSENV* pEnv,
+     char* szSessionConfig,
+     char* szHost,
+     char* szPort,
+     int* e);
+
+CFS_SESSION*
   CFS_OpenChannel
-    (int connfd,
-     void* sessionInfo,
-     int sessionInfoFmt);
+    (CFSENV* pEnv,
+     char* szSessionConfig,
+     int connfd,
+     int* e);
+
+CSRESULT
+  CFS_QueryConfig
+    (CFS_SESSION* This,
+     char* szParam,
+     CFSRPS_PARAMINFO* cfscpi);
 
 CSRESULT
   CFS_Read
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
-     uint64_t* size,
-     int timeout);
+     uint64_t* maxSize,
+     int timeout,
+     int* e);
 
 CSRESULT
   CFS_ReadRecord
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* size,
-     int timeout);
+     int timeout,
+     int* e);
 
 CSRESULT
   CFS_ReceiveDescriptor
@@ -208,33 +238,16 @@ CSRESULT
      int timeout);
 
 CSRESULT
-  CFS_SecureClose
-    (CFS_INSTANCE* This);
-
-CFS_INSTANCE*
-  CFS_SecureConnect
-    (void*  sessionInfo,
-     int sessionInfoFmt,
-     int* iSSLResult);
-
-CFS_INSTANCE*
-  CFS_SecureOpenChannel
-    (int connfd,
-     void* sessionInfo,
-     int sessionInfoFmt,
-     int* iSSLResult);
-
-CSRESULT
   CFS_SecureRead
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
-     uint64_t* size,
+     uint64_t* maxSize,
      int timeout,
      int* iSSLResult);
 
 CSRESULT
   CFS_SecureReadRecord
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* size,
      int timeout,
@@ -242,15 +255,15 @@ CSRESULT
 
 CSRESULT
   CFS_SecureWrite
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
-     uint64_t* size,
+     uint64_t* maxSize,
      int timeout,
      int* iSSLResult);
 
 CSRESULT
   CFS_SecureWriteRecord
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* size,
      int timeout,
@@ -264,37 +277,29 @@ CSRESULT
 
 CSRESULT
   CFS_Write
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
-     uint64_t* size,
-     int timeout);
+     uint64_t* maxSize,
+     int timeout,
+     int* e);
 
 CSRESULT
   CFS_WriteRecord
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* size,
-     int timeout);
+     int timeout,
+     int* e);
 
-CSRESULT CFS_GetCurJobName
-  (char szJobName[27]);
+/*--------------------------------------------------------------------------*/
 
-/* ---------------------------------------------------------------------------
-   private functions
---------------------------------------------------------------------------- */
+CFS_SESSION*
+  CFS_Constructor
+    (void);
 
-CSRESULT
-  CFS_PRV_DoSecureConnect_100
-    (CFS_INSTANCE* cfsi,
-     struct addrinfo* addrInfo,
-     CFS_CLIENTSESSION_100* sessionInfo,
-     int*  iSSLResult);
-
-CSRESULT
-  CFS_PRV_DoSecureOpenChannel_100
-    (CFS_INSTANCE* cfsi,
-     CFS_SERVERSESSION_100* sessionInfo,
-     int*  iSSLResult);
+void
+  CFS_Destructor
+    (CFS_SESSION** This);
 
 CSRESULT
   CFS_PRV_NetworkToPresentation
@@ -305,256 +310,7 @@ CSRESULT
 CSRESULT
   CFS_PRV_SetBlocking
     (int connfd,
-     int blocking);
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_Close
-//
-// This function closes a non-secure session and environment.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CSRESULT
-  CFS_Close
-    (CFS_INSTANCE* This) {
-
-   close(This->connfd);
-
-   free(This);
-
-   return CS_SUCCESS;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_Connect
-//
-// This function initialises a non secure session. It also
-// initialises an CFS_INSTANCE structure that must be used for
-// communication with a peer.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CFS_INSTANCE*
-  CFS_Connect
-    (void* sessionInfo,
-     int sessionInfoFmt) {
-
-   int rc;
-   int e;
-
-   char szPort[11];
-
-   CSRESULT hResult;
-
-   CFS_INSTANCE* cfsi;
-
-   struct addrinfo* addrInfo;
-   struct addrinfo* addrInfo_first;
-   struct addrinfo  hints;
-   struct timeval tv;
-
-   fd_set readSet, writeSet;
-
-   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
-   cfsi->size = sizeof(CFS_INSTANCE);
-   cfsi->connfd = -1;
-
-   hResult = CS_FAILURE;
-
-   switch(sessionInfoFmt) {
-
-      case CFS_CLIENTSESSION_FMT_100:
-
-         memset(&hints, 0, sizeof(struct addrinfo));
-         hints.ai_family = AF_UNSPEC;
-         hints.ai_socktype = SOCK_STREAM;
-
-         sprintf(szPort, "%d",
-                 ((CFS_CLIENTSESSION_100*)sessionInfo)->port);
-
-         rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
-                               ->szHostName,
-                          szPort,
-                          &hints,
-                          &addrInfo);
-
-         if (rc == 0)
-         {
-
-            addrInfo_first = addrInfo;
-            cfsi->connfd = -1;
-
-            while (addrInfo != 0)
-            {
-               cfsi->connfd = socket(addrInfo->ai_family,
-                                     addrInfo->ai_socktype,
-                                     addrInfo->ai_protocol);
-
-               if (cfsi->connfd >= 0) {
-
-                  // Set socket to non-blocking
-                  CFS_PRV_SetBlocking(cfsi->connfd, 0);
-
-                  rc = connect(cfsi->connfd,
-                               addrInfo->ai_addr,
-                               addrInfo->ai_addrlen);
-
-                  if (rc < 0) {
-
-                    if (errno != EINPROGRESS) {
-
-                      e = errno;
-                      close(cfsi->connfd);
-                      cfsi->connfd = -1;
-                    }
-                    else {
-
-                      FD_ZERO(&readSet);
-                      FD_SET(cfsi->connfd, &readSet);
-
-                      writeSet = readSet;
-                      tv.tv_sec = ((CFS_CLIENTSESSION_100*)sessionInfo)
-                                  ->connTimeout;
-                      tv.tv_usec = 0;
-
-                      rc = select(cfsi->connfd+1,
-                                  &readSet,
-                                  &writeSet,
-                                  NULL,
-                                  &tv);
-
-                      if (rc <= 0) {
-
-                          e = errno;
-                          close(cfsi->connfd);
-                          cfsi->connfd = -1;
-                      }
-                      else {
-
-                        hResult = CS_SUCCESS;
-                      }
-                    }
-                  }
-                  else {
-
-                    hResult = CS_SUCCESS;
-                  }
-
-                  break;
-               }
-
-               addrInfo = addrInfo->ai_next;
-            }
-
-            freeaddrinfo(addrInfo_first);
-         }
-
-         break;
-   }
-
-   if (CS_FAIL(hResult)) {
-      free(cfsi);
-      cfsi = 0;
-   }
-
-   return cfsi;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_MakeUUID
-//
-// This function generates a UUID and returns its string representation.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CSRESULT
-  CFS_MakeUUID
-    (char* szUUID,
-     int mode) {
-
-  int size;
-  int i;
-
-  char szBuffer[CFS_UUID_BUFFERSIZE];
-
-  _UUID_Template_T Template;
-
-
-  memset(&Template, 0, sizeof(_UUID_Template_T));
-  Template.bytesProv = sizeof(_UUID_Template_T);
-  _GENUUID(&Template);
-
-  size = 32;
-  cvthc(szBuffer, Template.uuid, size);
-
-  if (mode & CFS_UUID_LOWERCASE) {
-
-    for(i=0; i<32; i++)
-       szBuffer[i] = (char)tolower(szBuffer[i]);
-  }
-
-  if (mode & CFS_UUID_DASHES) {
-
-    // Format with dashes
-
-     szUUID[8]  = '-';
-     szUUID[13] = '-';
-     szUUID[18] = '-';
-     szUUID[23] = '-';
-     memcpy(szUUID + 0,  szBuffer + 0,  8);
-     memcpy(szUUID + 9,  szBuffer + 8,  4);
-     memcpy(szUUID + 14, szBuffer + 12, 4);
-     memcpy(szUUID + 19, szBuffer + 16, 4);
-     memcpy(szUUID + 24, szBuffer + 20, 12);
-
-     szUUID[36] = 0;
-  }
-  else {
-
-     memcpy(szUUID, szBuffer, 32);
-     szUUID[32] = 0;
-  }
-
-  return CS_SUCCESS;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_OpenChannel
-//
-// This function initialises a non secure session. It also
-// initialises an CFS_INSTANCE structure that must be used for
-// communication with a peer.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CFS_INSTANCE*
-  CFS_OpenChannel
-    (int connfd,
-     void* sessionInfo,
-     int sessionInfoFmt) {
-
-   int rc;
-
-   CFS_INSTANCE* cfsi;
-
-   struct sockaddr_in6 server_addr;
-   struct hostent *server;
-
-   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
-
-   cfsi->size = sizeof(CFS_INSTANCE);
-
-   cfsi->connfd = connfd;
-
-   // Set socket to non-blocking mode
-   CFS_PRV_SetBlocking(cfsi->connfd, 0);
-
-   return cfsi;
-}
+    int blocking);
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -566,41 +322,80 @@ CFS_INSTANCE*
 
 CSRESULT
   CFS_Read
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* maxSize,
-     int timeout)
-{
+     int timeout,
+     int* e) {
 
    int rc;
    int readSize;
 
    struct pollfd fdset[1];
 
-   uint64_t initialSize;
-   uint64_t leftToRead;
-   uint64_t offset;
-
-   initialSize = *maxSize;
-
-   *maxSize    = 0;
-   offset      = 0;
-
-   leftToRead = initialSize;
-
-   //////////////////////////////////////////////////////////////////////////
-   // The total record size exceeds the maximum int value; we will
-   // read up to int size at a time until we fill the buffer.
-   //////////////////////////////////////////////////////////////////////////
-
    readSize =
-     leftToRead > INT_MAX ?
-                  INT_MAX :
-                  leftToRead;
+     (int)(*maxSize > INT_MAX ?
+                      INT_MAX :
+                      *maxSize);
 
-   //////////////////////////////////////////////////////////////////////////
-   // We first try to read the socket
-   //////////////////////////////////////////////////////////////////////////
+   fdset[0].fd = This->connfd;
+   fdset[0].events = POLLIN;
+
+   ////////////////////////////////////////////////////////////
+   // This branching label for restarting an interrupted
+   // poll call. An interrupted system call may result from
+   // a caught signal and will have errno set to EINTR. We
+   // must call poll again.
+
+   CFS_WAIT_POLL:
+
+   //
+   ////////////////////////////////////////////////////////////
+
+   rc = poll(fdset, 1, This->readTimeout >= 0 ? This->readTimeout * 1000: -1);
+
+   if (rc == 1) {
+
+     if (!(fdset[0].revents & POLLIN)) {
+
+       /////////////////////////////////////////////////////////
+       // If we get anything other than POLLIN
+       // this means an error occurred.
+       /////////////////////////////////////////////////////////
+
+       *e = errno;
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
+     }
+   }
+   else {
+
+     if (rc == 0) {
+
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT;
+     }
+     else {
+
+       if (errno == EINTR) {
+
+         ///////////////////////////////////////////////////
+         // poll() was interrupted by a signal
+         // or the kernel could not allocate an
+         // internal data structure. We will call
+         // poll() again.
+         ///////////////////////////////////////////////////
+
+         goto CFS_WAIT_POLL;
+       }
+       else {
+
+         *e = errno;
+         *maxSize = 0;
+         return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
+       }
+     }
+   }
 
    /////////////////////////////////////////////////////////
    // This branching label for restarting an interrupted
@@ -608,232 +403,49 @@ CSRESULT
    // from a signal and will have errno set to EINTR.
    // We must call recv() again.
 
-   CFS_WAIT_RECV_1:
+   CFS_WAIT_READ:
 
    //
    /////////////////////////////////////////////////////////
 
-   rc = recv(This->connfd, buffer + offset, readSize, 0);
+   rc = recv(This->connfd, buffer, readSize, 0);
 
    if (rc < 0) {
 
-      if (errno == EINTR) {
+     if (errno == EINTR) {
 
-         ///////////////////////////////////////////////////
-         // recv() was interrupted by a signal
-         // or the kernel could not allocate an
-         // internal data structure. We will call
-         // recv() again.
-         ///////////////////////////////////////////////////
+       ///////////////////////////////////////////////////
+       // recv() was interrupted by a signal
+       // or the kernel could not allocate an
+       // internal data structure. We will call
+       // recv() again.
+       ///////////////////////////////////////////////////
 
-         goto CFS_WAIT_RECV_1;
-      }
-      else {
+       goto CFS_WAIT_READ;
+     }
+     else {
 
-         if (errno == EWOULDBLOCK) {
-
-            if (timeout != 0) {
-
-               ////////////////////////////////////////////////////////////
-               // This means we must wait up to a given time out; this
-               // is the only time we will be waiting as this means
-               // we did not read any data and a positive time out
-               // means we give the peer some time to send over the data.
-               ////////////////////////////////////////////////////////////
-
-
-               ////////////////////////////////////////////////////////////
-               // This branching label for restarting an interrupted
-               // poll call. An interrupted system call may result from
-               // a caught signal and will have errno set to EINTR. We
-               // must call poll again.
-
-               CFS_WAIT_POLL:
-
-               //
-               ////////////////////////////////////////////////////////////
-
-
-               fdset[0].fd = This->connfd;
-               fdset[0].events = POLLIN;
-
-               rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-               if (rc == 1) {
-
-                  if (!fdset[0].revents & POLLIN) {
-
-                     /////////////////////////////////////////////////////////
-                     // If we get anything other than POLLIN
-                     // this means an error occurred.
-                     /////////////////////////////////////////////////////////
-
-                     return   CS_FAILURE
-                            | CFS_OPER_WAIT
-                            | CFS_DIAG_SYSTEM;
-                  }
-               }
-               else {
-
-                  if (rc == 0) {
-
-                     return   CS_SUCCESS
-                            | CFS_OPER_WAIT
-                            | CFS_DIAG_TIMEDOUT;
-                  }
-                  else {
-
-                     if (errno == EINTR) {
-
-                        ///////////////////////////////////////////////////
-                        // poll() was interrupted by a signal
-                        // or the kernel could not allocate an
-                        // internal data structure. We will call
-                        // poll() again.
-                        ///////////////////////////////////////////////////
-
-                        goto CFS_WAIT_POLL;
-                     }
-                     else {
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_SYSTEM;
-                     }
-                  }
-               }
-            }
-            else {
-
-               return   CS_FAILURE
-                      | CFS_OPER_READ
-                      | CFS_DIAG_WOULDBLOCK;
-            }
-         }
-         else {
-
-            return   CS_FAILURE
-                   | CFS_OPER_READ
-                   | CFS_DIAG_SYSTEM;
-         }
-      }
+       *e = errno;
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
+     }
    }
    else {
 
-      if (rc == 0) {
+     if (rc == 0) {
 
-         /////////////////////////////////////////////////////////////////
-         // This indicates a connection close; we are done.
-         /////////////////////////////////////////////////////////////////
+       /////////////////////////////////////////////////////////////////
+       // This indicates a connection close; we are done.
+       /////////////////////////////////////////////////////////////////
 
-         return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
-      }
-      else {
-
-         /////////////////////////////////////////////////////////////////
-         // We read some data (maybe as much as required) ...
-         // if not, we will continue reading for as long
-         // as we don't block.
-         /////////////////////////////////////////////////////////////////
-
-         offset += rc;
-         *maxSize += rc;
-         leftToRead -= rc;
-
-         readSize =
-            leftToRead > INT_MAX ?
-                         INT_MAX :
-                         leftToRead;
-
-         if (leftToRead == 0) {
-
-            // We have read as much as was required
-            return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_ALLDATA;
-         }
-      }
+       *e = errno;
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
+     }
    }
 
-   ////////////////////////////////////////////////////////////////
-   // If we get here, then we have read something but not up
-   // to the maximum buffer size and more can possibly be read.
-   ////////////////////////////////////////////////////////////////
-
-   do {
-
-      /////////////////////////////////////////////////////////
-      // This branching label for restarting an interrupted
-      // recv() call. An interrupted system call may result
-      // from a signal and will have errno set to EINTR.
-      // We must call recv() again.
-
-      CFS_WAIT_READ_2:
-
-      //
-      /////////////////////////////////////////////////////////
-
-      rc = recv(This->connfd, buffer + offset, readSize, 0);
-
-      if (rc < 0) {
-
-         if (errno == EINTR) {
-
-            ///////////////////////////////////////////////////
-            // recv() was interrupted by a signal
-            // or the kernel could not allocate an
-            // internal data structure. We will call
-            // recv() again.
-            ///////////////////////////////////////////////////
-
-            goto CFS_WAIT_READ_2;
-         }
-         else {
-
-            if (errno == EWOULDBLOCK) {
-
-               ///////////////////////////////////////////////////
-               // Once in this loop, we read until we block;
-               // the time out no longer applies (it applied
-               // only for the first read).
-               ///////////////////////////////////////////////////
-
-               return   CS_SUCCESS
-                      | CFS_OPER_READ
-                      | CFS_DIAG_WOULDBLOCK;
-            }
-            else {
-
-               return   CS_FAILURE
-                      | CFS_OPER_READ
-                      | CFS_DIAG_SYSTEM;
-            }
-         }
-      }
-      else {
-
-         if (rc == 0) {
-
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done.
-            /////////////////////////////////////////////////////////////////
-
-            return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
-         }
-         else {
-
-            offset += rc;
-            *maxSize += rc;
-            leftToRead -= rc;
-
-            readSize =
-               leftToRead > INT_MAX ?
-                            INT_MAX :
-                            leftToRead;
-         }
-      }
-   }
-   while (leftToRead > 0);
-
-   return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_ALLDATA;
+   *maxSize = (uint64_t)rc;
+   return CS_SUCCESS;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -846,192 +458,1646 @@ CSRESULT
 
 CSRESULT
   CFS_ReadRecord
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* size,
-     int timeout) {
+     int timeout,
+     int* e) {
 
    int rc;
    int readSize;
 
    struct pollfd fdset[1];
 
-   uint64_t initialSize;
    uint64_t leftToRead;
    uint64_t offset;
 
-   initialSize = *size;
+   leftToRead = *size;
+
    *size       = 0;
    offset      = 0;
 
-   leftToRead = initialSize;
-
    //////////////////////////////////////////////////////////////////////////
    // The total record size exceeds the maximum int value; we will
-   // read up to int size at a time until we fill the buffer.
+   // write up to int size at a time until we send the entire buffer.
    //////////////////////////////////////////////////////////////////////////
 
    readSize =
-     leftToRead > INT_MAX ?
-                  INT_MAX :
-                  leftToRead;
+     (int)(leftToRead > INT_MAX ?
+                        INT_MAX :
+                        leftToRead);
 
    do {
 
-      /////////////////////////////////////////////////////////
-      // This branching label for restarting an interrupted
-      // recv() call. An interrupted system call may result
-      // from a signal and will have errno set to EINTR.
-      // We must call recv() again.
+     ////////////////////////////////////////////////////////////
+     // This branching label for restarting an interrupted
+     // poll call. An interrupted system call may result from
+     // a caught signal and will have errno set to EINTR. We
+     // must call poll again.
 
-      CFS_WAIT_READ:
+     CFS_WAIT_POLL:
 
-      //
-      /////////////////////////////////////////////////////////
+     //
+     ////////////////////////////////////////////////////////////
 
-      rc = recv(This->connfd, buffer + offset, readSize, 0);
+     fdset[0].fd = This->connfd;
+     fdset[0].events = POLLIN;
 
-      if (rc < 0) {
+     rc = poll(fdset, 1,
+               This->readTimeout >= 0 ? This->readTimeout * 1000: -1);
+
+     if (rc == 1) {
+
+       /////////////////////////////////////////////////////////
+       // If we get anything other than POLLIN
+       // this means we got an error.
+       /////////////////////////////////////////////////////////
+
+       if (!(fdset[0].revents & POLLIN)) {
+
+        *e = errno;
+         return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
+       }
+     }
+     else {
+
+       if (rc == 0) {
+
+         *e = errno;
+         return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT;
+       }
+       else {
 
          if (errno == EINTR) {
 
-            ///////////////////////////////////////////////////
-            // recv() was interrupted by a signal
-            // or the kernel could not allocate an
-            // internal data structure. We will call
-            // recv() again.
-            ///////////////////////////////////////////////////
+           ///////////////////////////////////////////////////
+           // poll() was interrupted by a signal
+           // or the kernel could not allocate an
+           // internal data structure. We will call
+           // poll() again.
+           ///////////////////////////////////////////////////
 
-            goto CFS_WAIT_READ;
+           goto CFS_WAIT_POLL;
          }
          else {
 
-            if (errno == EWOULDBLOCK) {
-
-               if (timeout != 0) {
-
-                  ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given time out.
-                  // This may occur several times in this loop so that
-                  // the actual time it takes to read an entire buffer
-                  // can exceed the time out. The caller should not
-                  // depend on a precise execution time for this function
-                  // based on the time out value.
-                  ////////////////////////////////////////////////////////////
-
-
-                  ////////////////////////////////////////////////////////////
-                  // This branching label for restarting an interrupted
-                  // poll call. An interrupted system call may result from
-                  // a caught signal and will have errno set to EINTR. We
-                  // must call poll again.
-
-                  CFS_WAIT_POLL:
-
-                  //
-                  ////////////////////////////////////////////////////////////
-
-
-                  fdset[0].fd = This->connfd;
-                  fdset[0].events = POLLIN;
-
-                  rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-                  if (rc == 1) {
-
-                     if (!fdset[0].revents & POLLIN) {
-
-                        //////////////////////////////////////////////////////
-                        // If we get anything other than POLLIN,
-                        // the revents could have other bits set
-                        // such as POLLHUP, indicating the peer
-                        // closed its end. We ignore this
-                        // since connection closures are handled
-                        // when the socket is read.
-                        //////////////////////////////////////////////////////
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_SYSTEM;
-                     }
-                  }
-                  else {
-
-                     if (rc == 0) {
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_TIMEDOUT;
-                     }
-                     else {
-
-                        if (errno == EINTR) {
-
-                           ///////////////////////////////////////////////////
-                           // poll() was interrupted by a signal
-                           // or the kernel could not allocate an
-                           // internal data structure. We will call
-                           // poll() again.
-                           ///////////////////////////////////////////////////
-
-                           goto CFS_WAIT_POLL;
-                        }
-                        else {
-
-                           return   CS_FAILURE
-                                  | CFS_OPER_WAIT
-                                  | CFS_DIAG_SYSTEM;
-                        }
-                     }
-                  }
-               }
-               else {
-
-                  return   CS_FAILURE
-                         | CFS_OPER_READ
-                         | CFS_DIAG_WOULDBLOCK;
-               }
-            }
-            else {
-
-               return   CS_FAILURE
-                      | CFS_OPER_READ
-                      | CFS_DIAG_SYSTEM;
-            }
+           *e = errno;
+           return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
          }
-      }
-      else {
+       }
+     }
 
-         if (rc == 0) {
+     /////////////////////////////////////////////////////////
+     // This branching label for restarting an interrupted
+     // send() call. An interrupted system call may result
+     // from a signal and will have errno set to EINTR.
+     // We must call send() again.
 
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done.
-            /////////////////////////////////////////////////////////////////
+     CFS_WAIT_READ:
 
-            return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
-         }
-         else {
+     //
+     /////////////////////////////////////////////////////////
 
-            /////////////////////////////////////////////////////////////////
-            // We read some data (maybe as much as required) ...
-            // if not, we will continue reading for as long
-            // as we don't block.
-            /////////////////////////////////////////////////////////////////
+     rc = recv(This->connfd, buffer + offset, readSize, 0);
 
-            offset += rc;
-            *size += rc;
-            leftToRead -= rc;
+     if (rc < 0) {
 
-            readSize =
-               leftToRead > INT_MAX ?
-                            INT_MAX :
-                            leftToRead;
-         }
-      }
+       if (errno == EINTR) {
+
+         ///////////////////////////////////////////////////
+         // recv() was interrupted by a signal
+         // or the kernel could not allocate an
+         // internal data structure. We will call
+         // recv() again.
+         ///////////////////////////////////////////////////
+
+         goto CFS_WAIT_READ;
+       }
+       else {
+         *e = errno;
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
+       }
+     }
+     else {
+
+       if (rc == 0) {
+
+         /////////////////////////////////////////////////////////////////
+         // This indicates a connection close; we are done.
+         /////////////////////////////////////////////////////////////////
+
+         *e = errno;
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
+       }
+       else {
+
+         /////////////////////////////////////////////////////////////////
+         // We wrote some data (maybe as much as required) ...
+         // if not, we will continue writing for as long
+         // as we don't block before sending out the supplied buffer.
+         /////////////////////////////////////////////////////////////////
+
+         offset += rc;
+         *size += rc;
+         leftToRead -= rc;
+
+         readSize =
+           (int)(leftToRead > INT_MAX ?
+                              INT_MAX :
+                              leftToRead);
+       }
+     }
    }
    while (leftToRead > 0);
 
    return CS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_SecureRead
+//
+// This function reads a secure socket.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT
+  CFS_SecureRead
+    (CFS_SESSION* This,
+     char* buffer,
+     uint64_t* maxSize,
+     int timeout,
+     int* iSSLResult) {
+
+   int readSize;
+
+   ////////////////////////////////////////////////////////////
+   // The maximum number of bytes returned from a single
+   // GSKKit read function is 16k
+   ////////////////////////////////////////////////////////////
+
+   readSize =
+     (int)(*maxSize) > CFS_SSL_MAXRECORDSIZE ?
+                       CFS_SSL_MAXRECORDSIZE :
+                       (int)(*maxSize);
+
+   ////////////////////////////////////////////////////////////
+   // This branching label for restarting an interrupted
+   // gsk_secure_soc_read call.
+
+   CFS_SECURE_READ:
+
+   //
+   ////////////////////////////////////////////////////////////
+
+   *iSSLResult = gsk_secure_soc_read(This->ssl_hsession,
+                                     buffer,
+                                     readSize,
+                                     &readSize);
+
+   if (errno == EINTR) {
+
+     //////////////////////////////////////////////////////
+     // gsk_secure_soc_read was interrupted by a signal.
+     // we must restart gsk_secure_soc_read.
+     //////////////////////////////////////////////////////
+
+     goto CFS_SECURE_READ;
+   }
+
+   if (*iSSLResult == GSK_OK) {
+
+     if (readSize == 0) {
+
+       /////////////////////////////////////////////////////////////////
+       // This indicates a connection close
+       /////////////////////////////////////////////////////////////////
+
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
+     }
+   }
+   else {
+
+     switch(*iSSLResult) {
+
+       case GSK_WOULD_BLOCK:
+
+         *maxSize = 0;
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_WOULDBLOCK;
+
+       case GSK_IBMI_ERROR_TIMED_OUT:
+
+         *maxSize = 0;
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_TIMEDOUT;
+
+       case GSK_OS400_ERROR_CLOSED:
+       case GSK_ERROR_SOCKET_CLOSED:
+
+         *maxSize = 0;
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
+
+       case GSK_ERROR_SEQNUM_EXHAUSTED:
+
+         *maxSize = 0;
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SEQNUM_EXHAUSTED;
+
+       default:
+
+         *maxSize = 0;
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
+     }
+   }
+
+   *maxSize = (uint64_t)readSize;
+   return CS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_SecureReadRecord
+//
+// This function reads a specific number of bytes on a secure socket.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT
+  CFS_SecureReadRecord
+    (CFS_SESSION* This,
+     char* buffer,
+     uint64_t* size,
+     int timeout,
+     int* iSSLResult) {
+
+   int e;
+   int rc;
+   int readSize;
+
+   struct pollfd fdset[1];
+
+   uint64_t leftToRead;
+   uint64_t offset;
+
+   leftToRead = *size;
+
+   *size       = 0;
+   offset      = 0;
+
+   //////////////////////////////////////////////////////////////////////////
+   // If the total record size exceeds the maximum GSK SSL data size value,
+   // we will read up to 16k at a time until we reach the desired size.
+   //////////////////////////////////////////////////////////////////////////
+
+   readSize =
+       (int)(leftToRead > CFS_SSL_MAXRECORDSIZE ?
+                          CFS_SSL_MAXRECORDSIZE :
+                          leftToRead);
+
+   fdset[0].fd = This->connfd;
+   fdset[0].events = POLLIN;
+
+
+   /*
+   ////////////////////////////////////////////////////////////
+   // This branching label for restarting an interrupted
+   // poll call. An interrupted system call may result from
+   // a caught signal and will have errno set to EINTR. We
+   // must call poll again.
+
+   CFS_WAIT_POLL:
+
+   //
+   ////////////////////////////////////////////////////////////
+
+   rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
+
+   if (rc == 1) {
+
+     if (!(fdset[0].revents & POLLIN)) {
+
+       /////////////////////////////////////////////////////////
+       // If we get anything other than POLLIN
+       // this means an error occurred.
+       /////////////////////////////////////////////////////////
+
+       e = errno;
+       *size = 0;
+       return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
+     }
+   }
+   else {
+
+     if (rc == 0) {
+
+       *size = 0;
+       return CS_SUCCESS | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT;
+     }
+     else {
+
+       if (errno == EINTR) {
+
+         ///////////////////////////////////////////////////
+         // poll() was interrupted by a signal
+         // or the kernel could not allocate an
+         // internal data structure. We will call
+         // poll() again.
+         ///////////////////////////////////////////////////
+
+         goto CFS_WAIT_POLL;
+       }
+       else {
+
+         e = errno;
+         *size = 0;
+         return CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
+       }
+     }
+   }
+
+   */
+
+
+   do {
+
+     ////////////////////////////////////////////////////////////
+     // This branching label for restarting an interrupted
+     // gsk_secure_soc_read call.
+
+     CFS_SECURE_READ:
+
+     //
+     ////////////////////////////////////////////////////////////
+
+     *iSSLResult = gsk_secure_soc_read(This->ssl_hsession,
+                                       buffer + offset,
+                                       readSize,
+                                       &readSize);
+
+     if (errno == EINTR) {
+
+       //////////////////////////////////////////////////////
+       // gsk_secure_soc_read was interrupted by a signal.
+       // we must restart gsk_secure_soc_read.
+       //////////////////////////////////////////////////////
+
+       goto CFS_SECURE_READ;
+     }
+
+     if (*iSSLResult == GSK_OK) {
+
+       if (readSize == 0) {
+
+         /////////////////////////////////////////////////////////////////
+         // This indicates a connection close
+         /////////////////////////////////////////////////////////////////
+
+         return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
+       }
+       else {
+
+         offset += (uint64_t)readSize;
+         *size += (uint64_t)readSize;
+         leftToRead -= (uint64_t)readSize;
+
+         readSize =
+            (int)(leftToRead > CFS_SSL_MAXRECORDSIZE ?
+                               CFS_SSL_MAXRECORDSIZE :
+                               leftToRead);
+       }
+     }
+     else {
+
+       switch(*iSSLResult) {
+
+         case GSK_WOULD_BLOCK:
+
+           return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_WOULDBLOCK;
+
+         case GSK_IBMI_ERROR_TIMED_OUT:
+
+           return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_TIMEDOUT;
+
+         case GSK_OS400_ERROR_CLOSED:
+         case GSK_ERROR_SOCKET_CLOSED:
+
+           return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
+
+         case GSK_ERROR_SEQNUM_EXHAUSTED:
+
+           return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SEQNUM_EXHAUSTED;
+
+         default:
+
+           return   CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
+       }
+     }
+   }
+   while (leftToRead > 0);
+
+   return CS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Declare and initialize VTABLES
+//
+// Assign function pointers to vTable members. Functions must already
+// be defined before assignment; this is why those global variables
+// are declared here.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CFSVTBL dftVtbl = {
+  CFS_Read,
+  CFS_ReadRecord,
+  CFS_Write,
+  CFS_WriteRecord,
+};
+
+CFSVTBL secureVtbl = {
+  CFS_SecureRead,
+  CFS_SecureReadRecord,
+  CFS_SecureWrite,
+  CFS_SecureWriteRecord,
+};
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_CloseChannel
+//
+// This function closes a server session.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT
+  CFS_CloseChannel
+    (CFS_SESSION* This,
+     int* iSSLResult) {
+
+   if (This->secMode == 1) {
+
+     ///////////////////////////////////////////////////////
+     // Branching label for interrupted system call
+     GSK_SECURE_SOC_CLOSE_START:
+     ///////////////////////////////////////////////////////
+
+     *iSSLResult = gsk_secure_soc_close(&(This->ssl_hsession));
+
+     if (*iSSLResult != GSK_OK) {
+       if (*iSSLResult == GSK_ERROR_IO) {
+         if (errno == EINTR) {
+           goto GSK_SECURE_SOC_CLOSE_START;
+         }
+       }
+     }
+
+     close(This->connfd);
+   }
+   else {
+     close(This->connfd);
+   }
+
+   // Close the environement if it is local
+   if (This->pLocalEnv != 0) {
+     CFS_CloseEnv(&(This->pLocalEnv));
+   }
+
+   CFS_Destructor(&This);
+
+   return CS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_CloseEnv
+//
+// This function releases a global environment
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT
+  CFS_CloseEnv
+    (CFSENV** pEnv) {
+
+  int iSSLResult;
+
+  if (*pEnv != 0) {
+
+    if ((*pEnv)->secMode == 1) {
+
+      ///////////////////////////////////////////////////////
+      // Branching label for interrupted system call
+      GSK_ENVIRONMENT_CLOSE_START:
+      ///////////////////////////////////////////////////////
+
+      iSSLResult = gsk_environment_close(&((*pEnv)->ssl_henv));
+
+      if (iSSLResult != GSK_OK) {
+        if (iSSLResult == GSK_ERROR_IO) {
+          if (errno == EINTR) {
+            goto GSK_ENVIRONMENT_CLOSE_START;
+          }
+        }
+
+        return CS_FAILURE;
+      }
+    }
+
+    CSLIST_Destructor(&((*pEnv)->TlsCfg_Session));
+    CSLIST_Destructor(&((*pEnv)->TlsCfg_Env));
+
+    free(*pEnv);
+    *pEnv = 0;
+   }
+
+   return CS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_CloseSession
+//
+// This function closes a client session.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT
+  CFS_CloseSession
+    (CFS_SESSION* This,
+     int* iSSLResult) {
+
+   if (This->secMode == 1) {
+
+     ///////////////////////////////////////////////////////
+     // Branching label for interrupted system call
+     GSK_SECURE_SOC_CLOSE_START:
+     ///////////////////////////////////////////////////////
+
+     *iSSLResult = gsk_secure_soc_close(&(This->ssl_hsession));
+
+     if (*iSSLResult != GSK_OK) {
+       if (*iSSLResult == GSK_ERROR_IO) {
+         if (errno == EINTR) {
+           goto GSK_SECURE_SOC_CLOSE_START;
+         }
+       }
+     }
+
+     close(This->connfd);
+   }
+   else {
+     close(This->connfd);
+   }
+
+   // Close the environement if it is local
+
+   if (This->pLocalEnv != 0) {
+     CFS_CloseEnv(&(This->pLocalEnv));
+   }
+
+   CFS_Destructor(&This);
+
+   return CS_SUCCESS;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_OpenEnv
+//
+// This function creates a global environment
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CFSENV*
+  CFS_OpenEnv
+    (char* szConfigName) {
+
+  CFSENV* Instance;
+
+  int iSSLResult;
+  int iValue;
+
+  long count;
+  long i;
+
+  Instance = (CFSENV*)malloc(sizeof(CFSENV));
+
+  Instance->TlsCfg_Env = CSLIST_Constructor();
+  Instance->TlsCfg_Session = CSLIST_Constructor();
+
+  CSSTR_Trim(szConfigName, Instance->szConfigName);
+
+  if (Instance->szConfigName[0] == 0) {
+
+    Instance->lpVtbl = &dftVtbl;
+
+    // Indicate that we run in non-secure mode
+    Instance->secMode = 0;
+
+    return Instance;
+  }
+
+  if (CS_SUCCEED(TLSCFG_LsParam(Instance->szConfigName,
+                                TLSCFG_LVL_ENVIRON,
+                                TLSCFG_PARAMINFO_FMT_100,
+                                Instance->TlsCfg_Env))) {
+
+    iSSLResult = gsk_environment_open(&(Instance->ssl_henv));
+
+    if (iSSLResult != GSK_OK) {
+
+      CSLIST_Destructor(&(Instance->TlsCfg_Env));
+      CSLIST_Destructor(&(Instance->TlsCfg_Session));
+      free(Instance);
+
+      return 0;
+    }
+
+    count = CSLIST_Count(Instance->TlsCfg_Env);
+    for (i=0; i<count; i++) {
+
+      CSLIST_GetDataRef(Instance->TlsCfg_Env, (void**)&(Instance->ppi), i);
+
+      switch(Instance->ppi->type) {
+
+        case TLSCFG_PARAMTYPE_STRING:
+
+          ///////////////////////////////////////////////////////
+          // Branching label for interrupted system call
+          GSK_ATTRIBUTE_SET_BUFFER_START:
+          ///////////////////////////////////////////////////////
+
+          iSSLResult = gsk_attribute_set_buffer
+                               (Instance->ssl_henv,
+                                Instance->ppi->param,
+                                Instance->ppi->szValue,
+                                strlen(Instance->ppi->szValue));
+
+          if (iSSLResult != GSK_OK) {
+            if (iSSLResult == GSK_ERROR_IO) {
+              if (errno == EINTR) {
+                goto GSK_ATTRIBUTE_SET_BUFFER_START;
+              }
+            }
+            else {
+              i = count; // leave the loop
+            }
+          }
+
+          break;
+
+        case TLSCFG_PARAMTYPE_NUMERIC:
+
+          iValue = (int)strtol(Instance->ppi->szValue, 0, 10);
+
+          ///////////////////////////////////////////////////////
+          // Branching label for interrupted system call
+          GSK_ATTRIBUTE_SET_NUMERIC_VALUE_START:
+          ///////////////////////////////////////////////////////
+
+          iSSLResult =
+              gsk_attribute_set_numeric_value
+                      (Instance->ssl_henv,
+                       Instance->ppi->param,
+                       iValue);
+
+          if (iSSLResult != GSK_OK) {
+            if (iSSLResult == GSK_ERROR_IO) {
+              if (errno == EINTR) {
+                goto GSK_ATTRIBUTE_SET_NUMERIC_VALUE_START;
+              }
+            }
+            else {
+              i = count; // leave the loop
+            }
+          }
+
+          break;
+
+        case TLSCFG_PARAMTYPE_ENUM:
+
+          iValue = (int)strtol(Instance->ppi->szValue, 0, 10);
+
+          ///////////////////////////////////////////////////////
+          // Branching label for interrupted system call
+          GSK_ATTRIBUTE_SET_ENUM_START:
+          ///////////////////////////////////////////////////////
+
+          iSSLResult =
+              gsk_attribute_set_enum(Instance->ssl_henv,
+                               Instance->ppi->param,
+                               iValue);
+
+          if (iSSLResult != GSK_OK) {
+            if (iSSLResult == GSK_ERROR_IO) {
+              if (errno == EINTR) {
+                goto GSK_ATTRIBUTE_SET_ENUM_START;
+              }
+            }
+            else {
+              i = count; // leave the loop
+            }
+          }
+
+          break;
+      }
+    }
+
+    if (iSSLResult == GSK_OK) {
+
+      ///////////////////////////////////////////////////////
+      // Branching label for interrupted system call
+      GSK_ENVIRONMENT_INIT:
+      ///////////////////////////////////////////////////////
+
+      iSSLResult = gsk_environment_init(Instance->ssl_henv);
+
+      if (iSSLResult != GSK_OK) {
+        if (iSSLResult == GSK_ERROR_IO) {
+          if (errno == EINTR) {
+            goto GSK_ENVIRONMENT_INIT;
+          }
+        }
+        else {
+
+          gsk_environment_close(&(Instance->ssl_henv));
+          CSLIST_Destructor(&(Instance->TlsCfg_Env));
+          CSLIST_Destructor(&(Instance->TlsCfg_Session));
+          free(Instance);
+
+          return 0;
+        }
+      }
+      else {
+
+        // Initialize virtual function table
+        Instance->lpVtbl = &secureVtbl;
+
+        // Indicate that we run in secure mode
+        Instance->secMode = 1;
+
+        // Retrieve TLS session configuration
+        TLSCFG_LsParam(Instance->szConfigName,
+                       TLSCFG_LVL_SESSION,
+                       TLSCFG_PARAMINFO_FMT_100,
+                       Instance->TlsCfg_Session);
+
+        return Instance;
+      }
+    }
+    else {
+
+      CSLIST_Destructor(&(Instance->TlsCfg_Env));
+      CSLIST_Destructor(&(Instance->TlsCfg_Session));
+      free(Instance);
+
+      return 0; //CS_FAILURE | CFS_OPER_CONFIG | CFS_DIAG_ENVINIT;
+    }
+  }
+  else {
+
+    // Initialize virtual function table
+    Instance->lpVtbl = &dftVtbl;
+
+    // Indicate that we run in non-secure mode
+    Instance->secMode = 0;
+
+    return Instance;
+  }
+
+  CSLIST_Destructor(&(Instance->TlsCfg_Env));
+  CSLIST_Destructor(&(Instance->TlsCfg_Session));
+  free(Instance);
+
+  return 0;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_OpenChannel
+//
+// This function initialises a server session.
+//
+//
+//  Cases:
+//
+//     pEnv != 0, szSessionConfig == 0
+//        Use global environment and global session configuration
+//        caller must provide host and port
+//
+//     pEnv != 0, szSessionConfig != 0
+//        Use global environment and local TLS session configuration
+//        if host/port is provided, they will override session
+//        configuration host/port if any
+//
+//     pEnv == 0, szSessionConfig == 0
+//        This is a non-secure session and host/port must be provided
+//
+//     pEnv == 0, szSessionConfig != 0
+//        Use local environment and local session configuration
+//        if host/port is provided, they will override session
+//        configuration host/port if any
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CFS_SESSION*
+  CFS_OpenChannel
+    (CFSENV* pEnv,
+     char* szSessionConfig,
+     int connfd,
+     int* iSSLResult) {
+
+  TLSCFG_PARAMINFO* ppi;
+
+  long count;
+  long i;
+  int iValue;
+
+  CFS_SESSION* This;
+
+  This = CFS_Constructor();
+
+  if (szSessionConfig != 0) {
+
+    strcpy(This->ci.szPath, szSessionConfig);
+
+    if (CS_SUCCEED(CFSRPS_LoadConfig(This->Cfg, &(This->ci)))) {
+
+      if (CS_FAIL(CFSRPS_LookupParam(This->Cfg,
+                                     "READ_TO", &(This->cfscpi)))) {
+        This->readTimeout = 20;
+      }
+      else {
+        This->readTimeout = (int)strtol(This->cfscpi.szValue, 0, 10);
+      }
+
+      if (CS_FAIL(CFSRPS_LookupParam(This->Cfg, "WRITE_TO", &(This->cfscpi)))) {
+        This->writeTimeout = 20;
+      }
+      else {
+        This->writeTimeout = (int)strtol(This->cfscpi.szValue, 0, 10);
+      }
+
+      ////////////////////////////////////////////////////////////
+      // Get secure mode
+      ////////////////////////////////////////////////////////////
+
+      if (CS_SUCCEED(CFSRPS_LookupParam(This->Cfg, "SECURE_CONFIG", &(This->cfscpi)))) {
+
+        if (pEnv == 0) {
+
+          This->pEnv = This->pLocalEnv = CFS_OpenEnv(This->cfscpi.szValue);
+
+          if (This->pEnv == 0) {
+            CFS_Destructor(&This);
+            return 0;
+          }
+
+          This->TlsCfg_Session = This->pEnv->TlsCfg_Session;
+
+          This->secMode = This->pEnv->secMode;
+
+          // Use environment vTable
+          This->lpVtbl = This->pEnv->lpVtbl;
+        }
+        else {
+
+          ///////////////////////////////////////////////////////
+          // we want the session TLS configuration only
+          ///////////////////////////////////////////////////////
+          TLSCFG_LsParam(This->cfscpi.szValue,
+                         TLSCFG_LVL_SESSION,
+                         TLSCFG_PARAMINFO_FMT_100,
+                         This->TlsCfg_LocalSession);
+
+          // Alias TLS session config for later use
+          This->TlsCfg_Session = This->TlsCfg_LocalSession;
+
+          // adopt global environment
+          This->pEnv = pEnv;
+          This->secMode = This->pEnv->secMode;
+
+          // Use environment vTable
+          This->lpVtbl = This->pEnv->lpVtbl;
+        }
+      }
+      else {
+
+        if (pEnv == 0) {
+
+          // This means it is a non-secure session.
+          // Use non-secure default vTable
+
+          This->secMode = 0;
+          This->lpVtbl = &dftVtbl;
+        }
+        else {
+
+          // adopt global environment
+          This->pEnv = pEnv;
+
+          // Use environment vTable
+          This->lpVtbl = This->pEnv->lpVtbl;
+        }
+      }
+    }
+    else {
+      CFS_Destructor(&This);
+      return 0;
+    }
+  }
+  else {
+
+    This->readTimeout = 20;
+    This->writeTimeout = 20;
+
+    if (pEnv == 0) {
+
+      // This means it is a non-secure session.
+      This->secMode = 0;
+      // Use non-secure default vTable
+      This->lpVtbl = &dftVtbl;
+    }
+    else {
+
+      // use global environment TLS session parameters
+      // Alias TLS session config for later use
+      This->TlsCfg_Session = pEnv->TlsCfg_Session;
+
+      // adopt global environment
+      This->pEnv = pEnv;
+      This->secMode = This->pEnv->secMode;
+
+      // Use environment vTable
+      This->lpVtbl = This->pEnv->lpVtbl;
+    }
+  }
+
+  This->connfd = connfd;
+
+  // Set socket to non-blocking mode
+  CFS_PRV_SetBlocking(This->connfd, 1);
+
+  if (This->secMode == 1) {
+
+    ///////////////////////////////////////////////////////
+    // Branching label for interrupted system call
+    GSK_SECURE_SOC_OPEN_START:
+    ///////////////////////////////////////////////////////
+
+    *iSSLResult = gsk_secure_soc_open
+                    (This->pEnv->ssl_henv, &(This->ssl_hsession));
+
+    if (*iSSLResult != GSK_OK) {
+      if (*iSSLResult == GSK_ERROR_IO) {
+        if (errno == EINTR) {
+          goto GSK_SECURE_SOC_OPEN_START;
+        }
+      }
+      else {
+        close(This->connfd);
+        CFS_Destructor(&This);
+        return 0;
+      }
+    }
+
+    count = CSLIST_Count(This->TlsCfg_Session);
+
+    for (i=0; i<count; i++) {
+
+      CSLIST_GetDataRef(This->TlsCfg_Session, (void**)&(This->ppi), i);
+
+      switch(This->ppi->type) {
+
+        case TLSCFG_PARAMTYPE_STRING:
+
+          ///////////////////////////////////////////////////////
+          // Branching label for interrupted system call
+          GSK_ATTRIBUTE_SET_BUFFER_START:
+          ///////////////////////////////////////////////////////
+
+          *iSSLResult = gsk_attribute_set_buffer
+                          (This->ssl_hsession,
+                           This->ppi->param,
+                           This->ppi->szValue,
+                           strlen(This->ppi->szValue));
+
+          if (*iSSLResult != GSK_OK) {
+            if (*iSSLResult == GSK_ERROR_IO) {
+              if (errno == EINTR) {
+                goto GSK_ATTRIBUTE_SET_BUFFER_START;
+              }
+            }
+            else {
+              i = count; // leave the loop
+            }
+          }
+
+          break;
+
+        case TLSCFG_PARAMTYPE_NUMERIC:
+
+          iValue = (int)strtol(This->ppi->szValue, 0, 10);
+
+          ///////////////////////////////////////////////////////
+          // Branching label for interrupted system call
+          GSK_ATTRIBUTE_SET_NUMERIC_VALUE_START:
+          ///////////////////////////////////////////////////////
+
+          *iSSLResult =
+             gsk_attribute_set_numeric_value
+                           (This->ssl_hsession,
+                            This->ppi->param,
+                            iValue);
+
+          if (*iSSLResult != GSK_OK) {
+            if (*iSSLResult == GSK_ERROR_IO) {
+              if (errno == EINTR) {
+                goto GSK_ATTRIBUTE_SET_NUMERIC_VALUE_START;
+              }
+            }
+            else {
+              i = count; // leave the loop
+            }
+          }
+
+          break;
+
+        case TLSCFG_PARAMTYPE_ENUM:
+
+          iValue = (int)strtol(This->ppi->szValue, 0, 10);
+
+          ///////////////////////////////////////////////////////
+          // Branching label for interrupted system call
+          GSK_ATTRIBUTE_SET_ENUM_START:
+          ///////////////////////////////////////////////////////
+
+          *iSSLResult =
+             gsk_attribute_set_enum(This->ssl_hsession,
+                            This->ppi->param,
+                            iValue);
+
+          if (*iSSLResult != GSK_OK) {
+            if (*iSSLResult == GSK_ERROR_IO) {
+              if (errno == EINTR) {
+                goto GSK_ATTRIBUTE_SET_ENUM_START;
+              }
+            }
+            else {
+              i = count; // leave the loop
+            }
+          }
+
+          break;
+      }
+    }
+
+    if (*iSSLResult == GSK_OK) {
+
+      ///////////////////////////////////////////////////////
+      // Branching label for interrupted system call
+      GSK_ATTRIBUTE_SET_NUMERIC_VALUE_FD_START:
+      ///////////////////////////////////////////////////////
+
+      *iSSLResult = gsk_attribute_set_numeric_value
+                                  (This->ssl_hsession,
+                                   GSK_FD,
+                                   This->connfd);
+
+      if (*iSSLResult != GSK_OK) {
+        if (*iSSLResult == GSK_ERROR_IO) {
+          if (errno == EINTR) {
+            goto GSK_ATTRIBUTE_SET_NUMERIC_VALUE_FD_START;
+          }
+        }
+        else {
+          gsk_secure_soc_close(&(This->ssl_hsession));
+          close(This->connfd);
+          CFS_Destructor(&This);
+          return 0;
+        }
+      }
+
+      ///////////////////////////////////////////////////////
+      // Branching label for interrupted system call
+      GSK_SECURE_SOC_INIT_START:
+      ///////////////////////////////////////////////////////
+
+      *iSSLResult = gsk_secure_soc_init(This->ssl_hsession);
+
+      if (*iSSLResult != GSK_OK) {
+        if (*iSSLResult == GSK_ERROR_IO) {
+          if (errno == EINTR) {
+            goto GSK_SECURE_SOC_INIT_START;
+          }
+        }
+        else {
+          gsk_secure_soc_close(&(This->ssl_hsession));
+          close(This->connfd);
+          CFS_Destructor(&This);
+          return 0;
+        }
+      }
+    }
+    else {
+      gsk_secure_soc_close(&(This->ssl_hsession));
+      close(This->connfd);
+      CFS_Destructor(&This);
+      return 0;
+    }
+  }
+
+  return This;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_OpenSession
+//
+// This function initialises a connection to a server.
+//
+//
+//  Cases:
+//
+//     pEnv != 0, szSessionConfig == 0
+//        Use global environment and global session configuration
+//        caller must provide host and port
+//
+//     pEnv != 0, szSessionConfig != 0
+//        Use global environment and local TLS session configuration
+//        if host/port is provided, they will override session
+//        configuration host/port if any
+//
+//     pEnv == 0, szSessionConfig == 0
+//        This is a non-secure session and host/port must be provided
+//
+//     pEnv == 0, szSessionConfig != 0
+//        Use local environment and local session configuration
+//        if host/port is provided, they will override session
+//        configuration host/port if any
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CFS_SESSION*
+  CFS_OpenSession
+    (CFSENV* pEnv,
+     char* szSessionConfig,
+     char* szHost,
+     char* szPort,
+     int* iSSLResult) {
+
+  int rc;
+
+  CSRESULT hResult;
+
+  struct addrinfo* addrInfo;
+  struct addrinfo* addrInfo_first;
+  struct addrinfo  hints;
+  struct timeval tv;
+
+  fd_set readSet, writeSet;
+
+  int iValue;
+  int e;
+  long count;
+  long i;
+
+  CFS_SESSION* This;
+
+  This = CFS_Constructor();
+
+  if (szSessionConfig != 0) {
+
+    strcpy(This->ci.szPath, szSessionConfig);
+
+    if (CS_SUCCEED(CFSRPS_LoadConfig(This->Cfg, &(This->ci)))) {
+
+      if (CS_FAIL(CFSRPS_LookupParam(This->Cfg, "HOST", &(This->cfscpi)))) {
+
+        if (szHost != 0) {
+          strcpy(This->szHostName, szHost);
+        }
+        else {
+          strcpy(This->szHostName, "");
+        }
+      }
+      else {
+        strcpy(This->szHostName, This->cfscpi.szValue);
+      }
+
+      if (CS_FAIL(CFSRPS_LookupParam(This->Cfg, "PORT", &(This->cfscpi)))) {
+
+        if (szPort != 0) {
+          strcpy(This->szPort, szPort);
+        }
+        else {
+          strcpy(This->szPort, "-1");
+        }
+      }
+      else {
+        strcpy(This->szPort, This->cfscpi.szValue);
+      }
+
+      if (CS_FAIL(CFSRPS_LookupParam(This->Cfg,
+                                     "CONN_TO", &(This->cfscpi)))) {
+        This->connectTimeout = 20;
+      }
+      else {
+        This->connectTimeout = (int)strtol(This->cfscpi.szValue, 0, 10);
+      }
+
+      if (CS_FAIL(CFSRPS_LookupParam(This->Cfg,
+                                     "READ_TO", &(This->cfscpi)))) {
+        This->readTimeout = 20;
+      }
+      else {
+        This->readTimeout = (int)strtol(This->cfscpi.szValue, 0, 10);
+      }
+
+      if (CS_FAIL(CFSRPS_LookupParam(This->Cfg, "WRITE_TO", &(This->cfscpi)))) {
+        This->writeTimeout = 20;
+      }
+      else {
+        This->writeTimeout = (int)strtol(This->cfscpi.szValue, 0, 10);
+      }
+
+      ////////////////////////////////////////////////////////////
+      // Get secure mode
+      ////////////////////////////////////////////////////////////
+
+      if (CS_SUCCEED(CFSRPS_LookupParam(This->Cfg, "SECURE_CONFIG", &(This->cfscpi)))) {
+
+        if (pEnv == 0) {
+
+          This->pEnv = This->pLocalEnv = CFS_OpenEnv(This->cfscpi.szValue);
+
+          if (This->pEnv == 0) {
+            CFS_Destructor(&This);
+            return 0;
+          }
+
+          This->TlsCfg_Session = This->pEnv->TlsCfg_Session;
+
+          This->secMode = This->pEnv->secMode;
+
+          // Use environment vTable
+          This->lpVtbl = This->pEnv->lpVtbl;
+        }
+        else {
+
+          ///////////////////////////////////////////////////////
+          // we want the session TLS configuration only
+          ///////////////////////////////////////////////////////
+          TLSCFG_LsParam(This->cfscpi.szValue,
+                         TLSCFG_LVL_SESSION,
+                         TLSCFG_PARAMINFO_FMT_100,
+                         This->TlsCfg_LocalSession);
+
+          // Alias TLS session config for later use
+          This->TlsCfg_Session = This->TlsCfg_LocalSession;
+
+          // adopt global environment
+          This->pEnv = pEnv;
+          This->secMode = This->pEnv->secMode;
+
+          // Use environment vTable
+          This->lpVtbl = This->pEnv->lpVtbl;
+        }
+      }
+      else {
+
+        if (pEnv == 0) {
+
+          // This means it is a non-secure session.
+          // Use non-secure default vTable
+
+          This->secMode = 0;
+          This->lpVtbl = &dftVtbl;
+        }
+        else {
+
+          // adopt global environment
+          This->pEnv = pEnv;
+          This->secMode = This->pEnv->secMode;
+
+          // Use environment vTable
+          This->lpVtbl = This->pEnv->lpVtbl;
+        }
+      }
+    }
+    else {
+      CFS_Destructor(&This);
+      return 0;
+    }
+  }
+  else {
+
+    if (szPort == 0 || szHost == 0) {
+      CFS_Destructor(&This);
+      return 0;
+    }
+
+    strcpy(This->szHostName, szHost);
+    strcpy(This->szPort, szPort);
+
+    This->connectTimeout = 20;
+    This->readTimeout = 20;
+    This->writeTimeout = 20;
+
+    if (pEnv == 0) {
+
+      // This means it is a non-secure session.
+      This->secMode = 0;
+      // Use non-secure default vTable
+      This->lpVtbl = &dftVtbl;
+    }
+    else {
+
+      // use global environment TLS session parameters
+      // Alias TLS session config for later use
+      This->TlsCfg_Session = pEnv->TlsCfg_Session;
+
+      // adopt global environment
+      This->pEnv = pEnv;
+      This->secMode = This->pEnv->secMode;
+
+      // Use environment vTable
+      This->lpVtbl = This->pEnv->lpVtbl;
+    }
+  }
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+
+  hResult = CS_FAILURE;
+  if (getaddrinfo(This->szHostName,
+                   This->szPort,
+                   &hints,
+                   &addrInfo) == 0) {
+
+    addrInfo_first = addrInfo;
+
+    while (addrInfo != 0)
+    {
+      This->connfd = socket(addrInfo->ai_family,
+                            addrInfo->ai_socktype,
+                            addrInfo->ai_protocol);
+
+      if (This->connfd >= 0) {
+
+        // Set socket to non-blocking
+        CFS_PRV_SetBlocking(This->connfd, 0);
+
+        rc = connect(This->connfd,
+                     addrInfo->ai_addr,
+                     addrInfo->ai_addrlen);
+
+        if (rc < 0) {
+
+          if (errno != EINPROGRESS) {
+            e = errno;
+            close(This->connfd);
+          }
+          else {
+
+            FD_ZERO(&readSet);
+            FD_SET(This->connfd, &readSet);
+
+            writeSet = readSet;
+            tv.tv_sec = This->connectTimeout;
+
+            tv.tv_usec = 0;
+
+            rc = select(This->connfd+1,
+                        &readSet,
+                        &writeSet,
+                        NULL,
+                        &tv);
+
+            if (rc <= 0) {
+              e = errno;
+              close(This->connfd);
+            }
+            else {
+
+              // Set socket back to blocking
+              CFS_PRV_SetBlocking(This->connfd, 1);
+              hResult = CS_SUCCESS;
+            }
+          }
+        }
+        else {
+
+          // Set socket back to blocking
+          CFS_PRV_SetBlocking(This->connfd, 1);
+          hResult = CS_SUCCESS;
+        }
+
+        break;
+      }
+
+      addrInfo = addrInfo->ai_next;
+    }
+
+    freeaddrinfo(addrInfo_first);
+  }
+
+  if (CS_SUCCEED(hResult)) {
+
+    if (This->secMode == 1) {
+
+      // Initialize TLS session
+
+      ///////////////////////////////////////////////////////
+      // Branching label for interrupted system call
+      GSK_SECURE_SOC_OPEN_START:
+      ///////////////////////////////////////////////////////
+
+      *iSSLResult = gsk_secure_soc_open(This->pEnv->ssl_henv,
+                                        &(This->ssl_hsession));
+
+      if (*iSSLResult == GSK_OK) {
+
+        count = CSLIST_Count(This->TlsCfg_Session);
+
+        for (i=0; i<count; i++) {
+
+          CSLIST_GetDataRef(This->TlsCfg_Session, (void**)&(This->ppi), i);
+
+          switch(This->ppi->type) {
+
+            case TLSCFG_PARAMTYPE_STRING:
+
+              ///////////////////////////////////////////////////////
+              // Branching label for interrupted system call
+              GSK_ATTRIBUTE_SET_BUFFER_START:
+              ///////////////////////////////////////////////////////
+
+              *iSSLResult = gsk_attribute_set_buffer
+                                     (This->ssl_hsession,
+                                      This->ppi->param,
+                                      This->ppi->szValue,
+                                      strlen(This->ppi->szValue));
+
+              if (*iSSLResult != GSK_OK) {
+                if (*iSSLResult == GSK_ERROR_IO) {
+                  if (errno == EINTR) {
+                    goto GSK_ATTRIBUTE_SET_BUFFER_START;
+                  }
+                }
+                else {
+                  i = count; // leave the loop
+                }
+              }
+
+              break;
+
+            case TLSCFG_PARAMTYPE_NUMERIC:
+
+              iValue = (int)strtol(This->ppi->szValue, 0, 10);
+
+              ///////////////////////////////////////////////////////
+              // Branching label for interrupted system call
+              GSK_ATTRIBUTE_SET_NUMERIC_VALUE_START:
+              ///////////////////////////////////////////////////////
+
+              *iSSLResult =
+                  gsk_attribute_set_numeric_value
+                                     (This->ssl_hsession,
+                                      This->ppi->param,
+                                      iValue);
+
+              if (*iSSLResult != GSK_OK) {
+                if (*iSSLResult == GSK_ERROR_IO) {
+                  if (errno == EINTR) {
+                    goto GSK_ATTRIBUTE_SET_NUMERIC_VALUE_START;
+                  }
+                }
+                else {
+                  i = count; // leave the loop
+                }
+              }
+
+              break;
+
+            case TLSCFG_PARAMTYPE_ENUM:
+
+              iValue = (int)strtol(This->ppi->szValue, 0, 10);
+
+              ///////////////////////////////////////////////////////
+              // Branching label for interrupted system call
+              GSK_ATTRIBUTE_SET_ENUM_START:
+              ///////////////////////////////////////////////////////
+
+              *iSSLResult =
+                  gsk_attribute_set_enum(This->ssl_hsession,
+                                         This->ppi->param,
+                                         iValue);
+
+              if (*iSSLResult != GSK_OK) {
+                if (*iSSLResult == GSK_ERROR_IO) {
+                  if (errno == EINTR) {
+                    goto GSK_ATTRIBUTE_SET_ENUM_START;
+                  }
+                }
+                else {
+                  i = count; // leave the loop
+                }
+              }
+
+              break;
+          }
+        }
+
+        if (*iSSLResult == GSK_OK) {
+
+          ///////////////////////////////////////////////////////
+          // Branching label for interrupted system call
+          GSK_ATTRIBUTE_SET_NUMERIC_VALUE_FD_START:
+          ///////////////////////////////////////////////////////
+
+          *iSSLResult = gsk_attribute_set_numeric_value(This->ssl_hsession,
+                                                        GSK_FD,
+                                                        This->connfd);
+          if (*iSSLResult == GSK_OK) {
+
+            ///////////////////////////////////////////////////////
+            // Branching label for interrupted system call
+            GSK_SECURE_SOC_INIT_START:
+            ///////////////////////////////////////////////////////
+
+            *iSSLResult = gsk_secure_soc_init(This->ssl_hsession);
+
+            if (*iSSLResult != GSK_OK) {
+              if (*iSSLResult == GSK_ERROR_IO) {
+                if (errno == EINTR) {
+                  goto GSK_SECURE_SOC_INIT_START;
+                }
+              }
+              else {
+                gsk_secure_soc_close(&(This->ssl_hsession));
+                close(This->connfd);
+              }
+            }
+          }
+          else {
+            if (*iSSLResult == GSK_ERROR_IO) {
+              if (errno == EINTR) {
+                goto GSK_ATTRIBUTE_SET_NUMERIC_VALUE_FD_START;
+              }
+            }
+            else {
+              gsk_secure_soc_close(&(This->ssl_hsession));
+              close(This->connfd);
+            }
+          }
+        }
+        else {
+          gsk_secure_soc_close(&(This->ssl_hsession));
+          close(This->connfd);
+        }
+      }
+      else {
+
+        if (*iSSLResult == GSK_ERROR_IO) {
+          if (errno == EINTR) {
+            goto GSK_SECURE_SOC_OPEN_START;
+          }
+        }
+        else {
+          close(This->connfd);
+        }
+      }
+
+      if (*iSSLResult != GSK_OK) {
+        CFS_Destructor(&This);
+        return 0;
+      }
+    }
+
+    return This;
+  }
+
+  CFS_Destructor(&This);
+  return 0;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// CFS_QueryConfig
+//
+// This function retrieves a value from the CFS configuration.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+CSRESULT
+  CFS_QueryConfig
+    (CFS_SESSION* This,
+     char* szParam,
+     CFSRPS_PARAMINFO* cfscpi) {
+
+  return CFSRPS_LookupParam(This->Cfg, szParam, cfscpi);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1050,809 +2116,144 @@ CSRESULT
      int* descriptor,
      int timeout) {
 
-   // The peer needs to send some data
+  // The peer needs to send some data
    // even though we will ignore it; this is required
-   // by the sendmsg function.
+  // by the sendmsg function.
 
-   char dummyByte = 0;
+  char dummyByte = 0;
 
-   struct iovec iov[1];
+  struct iovec iov[1];
 
-   struct pollfd fdset[1];
+  struct pollfd fdset[1];
 
-   struct msghdr msgInstance;
+  struct msghdr msgInstance;
 
-   struct timeval to;
-   fd_set  readSet;
+  struct timeval to;
+  fd_set  readSet;
 
-   int rc;
-   int maxHandle;
+  int rc;
+  int maxHandle;
 
-   //////////////////////////////////////////////////////////////////////////
-   // ancillary (control) data.
-   // This is where the descriptor will be held.
-   //////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////
+  // ancillary (control) data.
+  // This is where the descriptor will be held.
+  //////////////////////////////////////////////////////////////////////////
 
 #ifdef MSGHDR_MSG_CONTROL
 
-   union {
-      struct cmsghdr cm;
-      char control[CMSG_SPACE(sizeof(int))];
-   } control_un;
+  union {
+    struct cmsghdr cm;
+    char control[CMSG_SPACE(sizeof(int))];
+  } control_un;
 
-   struct cmsghdr* cmptr;
+  struct cmsghdr* cmptr;
 
-   msgInstance.msg_control = control_un.control;
-   msgInstance.msg_controllen = sizeof(control_un.control);
+  msgInstance.msg_control = control_un.control;
+  msgInstance.msg_controllen = sizeof(control_un.control);
 
 #else
 
-   int receivedFD;
-   msgInstance.msg_accrights = (caddr_t)&receivedFD;
-   msgInstance.msg_accrightslen = sizeof(int);
+  int receivedFD;
+  msgInstance.msg_accrights = (caddr_t)&receivedFD;
+  msgInstance.msg_accrightslen = sizeof(int);
 
 #endif
 
-   msgInstance.msg_name = NULL;
-   msgInstance.msg_namelen = 0;
+  msgInstance.msg_name = NULL;
+  msgInstance.msg_namelen = 0;
 
-   //msgInstance.msg_iov = NULL;
-   //msgInstance.msg_iovlen = 0;
+  iov[0].iov_base = &dummyByte;
+  iov[0].iov_len = 1;
 
-   iov[0].iov_base = &dummyByte;
-   iov[0].iov_len = 1;
+  msgInstance.msg_iov = iov;
+  msgInstance.msg_iovlen = 1;
 
-   msgInstance.msg_iov = iov;
-   msgInstance.msg_iovlen = 1;
+  //////////////////////////////////////////////////////////////////////////
+  // This branching label for restarting an interrupted poll call.
+  // An interrupted system call may results from a caught signal
+  // and will have errno set to EINTR. We must call poll again.
 
-   //////////////////////////////////////////////////////////////////////////
-   // This branching label for restarting an interrupted poll call.
-   // An interrupted system call may results from a caught signal
-   // and will have errno set to EINTR. We must call poll again.
+  CFS_WAIT_DESCRIPTOR:
 
-   CFS_WAIT_DESCRIPTOR:
+  //
+  //////////////////////////////////////////////////////////////////////////
 
-   //
-   //////////////////////////////////////////////////////////////////////////
+  *descriptor = -1;
 
-   *descriptor = -1;
+  fdset[0].fd = fd;
+  fdset[0].events = POLLIN;
 
-   fdset[0].fd = fd;
-   fdset[0].events = POLLIN;
+  rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
 
-   rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
+  switch(rc) {
 
-   switch(rc) {
+    case 0:  // timed-out
 
-      case 0:  // timed-out
+      rc = CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT;
+      break;
 
-         rc = CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_TIMEDOUT;
-         break;
+    case 1:  // descriptor is ready
 
-      case 1:  // descriptor is ready
+      if (fdset[0].revents == POLLIN) {
 
-         if(fdset[0].revents == POLLIN) {
+        // get the descriptor
 
-            // get the descriptor
+        rc = recvmsg(fd, &msgInstance, 0);
 
-            rc = recvmsg(fd, &msgInstance, 0);
+        if (rc >= 0) {
 
-            if (rc >= 0) {
-
-               // Assume the rest will fail
-               rc = CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
+          // Assume the rest will fail
+          rc = CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
 
 #ifdef MSGHDR_MSG_CONTROL
 
 
-               if ( (cmptr = CMSG_FIRSTHDR(&msgInstance)) != NULL) {
+          if ( (cmptr = CMSG_FIRSTHDR(&msgInstance)) != NULL) {
 
-                  if (cmptr->cmsg_len == CMSG_LEN(sizeof(int))) {
+            if (cmptr->cmsg_len == CMSG_LEN(sizeof(int))) {
 
-                     if (cmptr->cmsg_level == SOL_SOCKET &&
-                         cmptr->cmsg_type  == SCM_RIGHTS) {
+              if (cmptr->cmsg_level == SOL_SOCKET &&
+                  cmptr->cmsg_type  == SCM_RIGHTS) {
 
-                        *descriptor = *((int*)CMSG_DATA(cmptr));
-                        rc = CS_SUCCESS;
+                *descriptor = *((int*)CMSG_DATA(cmptr));
+                rc = CS_SUCCESS;
 
-                     }
-                  }
-               }
+              }
+            }
+          }
 
 #else
 
-               if (msgInstance.msg_accrightslen == sizeof(receivedFD)) {
+          if (msgInstance.msg_accrightslen == sizeof(receivedFD)) {
 
-                  *descriptor = receivedFD;
-                  rc = CS_SUCCESS;
-               }
+            *descriptor = receivedFD;
+            rc = CS_SUCCESS;
+          }
 
 #endif
 
-            }
-            else {
-               rc = CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
-            }
-         }
+        }
+        else {
+          rc = CS_FAILURE | CFS_OPER_READ | CFS_DIAG_SYSTEM;
+        }
+      }
 
-         break;
+      break;
 
-      default:
+    default:
 
-         if (errno == EINTR) {
+      if (errno == EINTR) {
 
-            goto CFS_WAIT_DESCRIPTOR;
-         }
-         else {
-            rc = CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
-         }
+        goto CFS_WAIT_DESCRIPTOR;
+      }
+      else {
+        rc = CS_FAILURE | CFS_OPER_WAIT | CFS_DIAG_SYSTEM;
+      }
 
-         break;
+      break;
    }
 
    return rc;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_SecureClose
-//
-// This function closes the secure session and environment.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CSRESULT
-  CFS_SecureClose
-    (CFS_INSTANCE* This) {
-
-   int iSSLResult;
-
-   iSSLResult = gsk_secure_soc_close(&(This->ssl_hsession));
-   iSSLResult = gsk_environment_close(&(This->ssl_henv));
-
-   close(This->connfd);
-
-   free(This);
-
-   return CS_SUCCESS;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_SecureConnect
-//
-// This function initialises a secure connection to a secure server.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CFS_INSTANCE*
-  CFS_SecureConnect
-    (void* sessionInfo,
-     int sessionInfoFmt,
-     int* iSSLResult) {
-
-   int rc;
-   int e;
-   int iLocalSSLResult;
-
-   char szPort[11];
-   char szAddr[40];
-
-   CFS_INSTANCE* cfsi;
-   CSRESULT hResult;
-
-   struct addrinfo* addrInfo;
-   struct addrinfo* addrInfo_first;
-   struct addrinfo  hints;
-
-   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
-   cfsi->size = sizeof(CFS_INSTANCE);
-   cfsi->connfd = -1;
-
-   hResult = CS_FAILURE;
-
-   switch(sessionInfoFmt) {
-
-      case CFS_CLIENTSESSION_FMT_100:
-
-         memset(&hints, 0, sizeof(struct addrinfo));
-         hints.ai_family = AF_UNSPEC;
-         hints.ai_socktype = SOCK_STREAM;
-         hints.ai_protocol = IPPROTO_TCP;
-
-         sprintf(szPort, "%d",
-                 ((CFS_CLIENTSESSION_100*)sessionInfo)->port);
-
-         rc = getaddrinfo(((CFS_CLIENTSESSION_100*)sessionInfo)
-                               ->szHostName,
-                          szPort,
-                          &hints,
-                          &addrInfo);
-
-         if (rc == 0)
-         {
-            addrInfo_first = addrInfo;
-            cfsi->connfd = -1;
-
-            while (addrInfo != 0)
-            {
-               cfsi->connfd = socket(addrInfo->ai_family,
-                                     addrInfo->ai_socktype,
-                                     addrInfo->ai_protocol);
-
-               if (cfsi->connfd >= 0) {
-
-                  // Set socket to non-blocking mode and leave the loop
-                  CFS_PRV_SetBlocking(cfsi->connfd, 0);
-
-                  hResult = CFS_PRV_DoSecureConnect_100(cfsi,
-                                                        addrInfo,
-                                                        (CFS_CLIENTSESSION_100*)sessionInfo,
-                                                        &iLocalSSLResult);
-
-                  if (CS_SUCCEED(hResult)) {
-                    break;
-                  }
-                  else {
-                      close(cfsi->connfd);
-                  }
-               }
-
-               addrInfo = addrInfo->ai_next;
-            }
-
-            freeaddrinfo(addrInfo_first);
-         }
-
-         break;
-   }
-
-   if (CS_FAIL(hResult)) {
-
-      free(cfsi);
-      cfsi = 0;
-   }
-
-   return cfsi;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_SecureOpenChannel
-//
-// This function initialises a secure environment and session. It also
-// initialises an CFS_INSTANCE structure that must be used for secure
-// communication with a peer.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CFS_INSTANCE*
-  CFS_SecureOpenChannel
-    (int connfd,
-     void* sessionInfo,
-     int sessionInfoFmt,
-     int* iSSLResult) {
-
-   int rc;
-   int e;
-   int i;
-
-   CFS_INSTANCE* cfsi;
-
-   cfsi = (CFS_INSTANCE*)malloc(sizeof(CFS_INSTANCE));
-
-   cfsi->size = sizeof(CFS_INSTANCE);
-
-   cfsi->connfd = connfd;
-
-   // Set socket to non-blocking mode
-   CFS_PRV_SetBlocking(cfsi->connfd, 0);
-
-   switch(sessionInfoFmt) {
-
-      case CFS_SERVERSESSION_FMT_100:
-
-         if (CS_FAIL(CFS_PRV_DoSecureOpenChannel_100(cfsi,
-                                                 sessionInfo,
-                                                 iSSLResult))) {
-
-            CFS_SecureClose(cfsi);
-            cfsi = NULL;
-         }
-
-         break;
-   }
-
-   return cfsi;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_SecureRead
-//
-// This function reads a secure socket.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CSRESULT
-  CFS_SecureRead
-    (CFS_INSTANCE* This,
-     char* buffer,
-     uint64_t* maxSize,
-     int timeout,
-     int* iSSLResult) {
-
-   int rc;
-   int readSize;
-
-   struct pollfd fdset[1];
-
-   uint64_t initialSize;
-   uint64_t leftToRead;
-   uint64_t offset;
-
-   initialSize = *maxSize;
-   *maxSize    = 0;
-   offset      = 0;
-
-   leftToRead = initialSize;
-
-   //////////////////////////////////////////////////////////////////////////
-   // The total record size exceeds the maximum int value; we will
-   // read up to int size at a time until we fill the buffer.
-   //////////////////////////////////////////////////////////////////////////
-
-   readSize =
-     leftToRead > INT_MAX ?
-                  INT_MAX :
-                  leftToRead;
-
-   //////////////////////////////////////////////////////////////////////////
-   // We first try to read on the socket.
-   //////////////////////////////////////////////////////////////////////////
-
-   ////////////////////////////////////////////////////////////
-   // This branching label for restarting an interrupted
-   // gsk_secure_soc_read call.
-
-   CFS_SECURE_READ_1:
-
-   //
-   ////////////////////////////////////////////////////////////
-
-   *iSSLResult = gsk_secure_soc_read(This->ssl_hsession,
-                                     buffer + offset,
-                                     readSize,
-                                     &readSize);
-
-   if (errno == EINTR) {
-
-      //////////////////////////////////////////////////////
-      // gsk_secure_soc_read was interrupted by a signal.
-      // we must restart gsk_secure_soc_read.
-      //////////////////////////////////////////////////////
-
-      goto CFS_SECURE_READ_1;
-   }
-
-   //////////////////////////////////////////////////////////////////////////
-   // If we blocked, then we will wait up to the time out.
-   //////////////////////////////////////////////////////////////////////////
-
-   switch(*iSSLResult) {
-
-      case GSK_OK:
-
-         if (readSize == 0) {
-
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done.
-            /////////////////////////////////////////////////////////////////
-
-            return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
-         }
-         else {
-
-            /////////////////////////////////////////////////////////////////
-            // We got some data (maybe as much as required) ...
-            // if not, we will continue reading for as long
-            // as we don't block before filling in the supplied buffer.
-            /////////////////////////////////////////////////////////////////
-
-            offset += readSize;
-            *maxSize += readSize;
-            leftToRead -= readSize;
-
-            readSize =
-               leftToRead > INT_MAX ?
-                            INT_MAX :
-                            leftToRead;
-
-            if (leftToRead == 0) {
-
-               // We have read as much as was required
-               return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_ALLDATA;
-            }
-         }
-
-         break;
-
-      case GSK_WOULD_BLOCK:
-
-         if (timeout != 0) {
-
-            ////////////////////////////////////////////////////////////
-            // This means we must wait up to a given time out; this
-            // is the only time we will be waiting as this means
-            // we did not read any data and a positive time out
-            // means we give the peer some time to send over data.
-            ////////////////////////////////////////////////////////////
-
-
-            ////////////////////////////////////////////////////////////
-            // This branching label for restarting an interrupted
-            // poll call. An interrupted system call may result from
-            // a caught signal and will have errno set to EINTR. We
-            // must call poll again.
-
-            CFS_READ_WAIT:
-
-            //
-            ////////////////////////////////////////////////////////////
-
-
-            fdset[0].fd = This->connfd;
-            fdset[0].events = POLLIN;
-
-            rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-            if (rc == 1) {
-
-               if (!fdset[0].revents & POLLIN) {
-
-                  /////////////////////////////////////////////////////////
-                  // If we get anything other than POLLIN
-                  // this means we got an error.
-                  /////////////////////////////////////////////////////////
-
-                  return   CS_FAILURE
-                         | CFS_OPER_WAIT
-                         | CFS_DIAG_SYSTEM;
-               }
-            }
-            else {
-
-               if (rc == 0) {
-
-                  return   CS_SUCCESS
-                         | CFS_OPER_WAIT
-                         | CFS_DIAG_TIMEDOUT;
-               }
-               else {
-
-                  if (errno == EINTR) {
-
-                     ///////////////////////////////////////////////////
-                     // poll() was interrupted by a signal
-                     // or the kernel could not allocate an
-                     // internal data structure. We will call
-                     // poll() again.
-                     ///////////////////////////////////////////////////
-
-                     goto CFS_READ_WAIT;
-                  }
-                  else {
-
-                     return   CS_FAILURE
-                            | CFS_OPER_WAIT
-                            | CFS_DIAG_SYSTEM;
-                  }
-               }
-            }
-         }
-         else {
-
-            return   CS_SUCCESS
-                   | CFS_OPER_READ
-                   | CFS_DIAG_WOULDBLOCK;
-         }
-
-         break;
-
-
-      default:
-
-         return   CS_FAILURE
-                | CFS_OPER_READ
-                | CFS_DIAG_SYSTEM;
-   }
-
-   ////////////////////////////////////////////////////////////////
-   // If we get here, then we have read something but not up
-   // to the maximum buffer size and more may be available.
-   ////////////////////////////////////////////////////////////////
-
-   do {
-
-      ////////////////////////////////////////////////////////////
-      // This branching label for restarting an interrupted
-      // gsk_secure_soc_read call.
-
-      CFS_SECURE_READ_2:
-
-      //
-      ////////////////////////////////////////////////////////////
-
-      *iSSLResult = gsk_secure_soc_read(This->ssl_hsession,
-                                        buffer + offset,
-                                        readSize,
-                                        &readSize);
-
-      if (errno == EINTR) {
-
-         //////////////////////////////////////////////////////
-         // gsk_secure_soc_read was interrupted by a signal.
-         // we must restart gsk_secure_soc_read.
-         //////////////////////////////////////////////////////
-
-         goto CFS_SECURE_READ_2;
-      }
-
-      if (*iSSLResult == GSK_OK) {
-
-         if (readSize == 0) {
-
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done.
-            /////////////////////////////////////////////////////////////////
-
-            return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
-         }
-         else {
-
-            offset += readSize;
-            *maxSize += readSize;
-            leftToRead -= readSize;
-
-            readSize =
-               leftToRead > INT_MAX ?
-                            INT_MAX :
-                            leftToRead;
-         }
-      }
-      else {
-
-         switch(*iSSLResult) {
-
-            case GSK_WOULD_BLOCK:
-
-               ///////////////////////////////////////////////////
-               // Once in this loop, we read until we block;
-               // the time out no longer applies (it applied
-               // only for the first read).
-               ///////////////////////////////////////////////////
-
-               return   CS_SUCCESS
-                      | CFS_OPER_READ
-                      | CFS_DIAG_WOULDBLOCK;
-
-               break;
-
-            default:
-
-               return   CS_FAILURE
-                      | CFS_OPER_READ
-                      | CFS_DIAG_SYSTEM;
-         }
-      }
-   }
-   while (leftToRead > 0);
-
-   return CS_SUCCESS | CFS_OPER_READ | CFS_DIAG_ALLDATA;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// CFS_SecureReadRecord
-//
-// This function reads a specific number of bytes on a secure socket.
-//
-//////////////////////////////////////////////////////////////////////////////
-
-CSRESULT
-  CFS_SecureReadRecord
-    (CFS_INSTANCE* This,
-     char* buffer,
-     uint64_t* size,
-     int timeout,
-     int* iSSLResult) {
-
-   int rc;
-   int readSize;
-
-   struct pollfd fdset[1];
-
-   uint64_t initialSize;
-   uint64_t leftToRead;
-   uint64_t offset;
-
-   initialSize = *size;
-   *size       = 0;
-   offset      = 0;
-
-   leftToRead = initialSize;
-
-   //////////////////////////////////////////////////////////////////////////
-   // The total record size exceeds the maximum int value; we will
-   // read up to int size at a time until we fill the buffer.
-   //////////////////////////////////////////////////////////////////////////
-
-   readSize =
-     leftToRead > INT_MAX ?
-                  INT_MAX :
-                  leftToRead;
-
-   do {
-
-      ////////////////////////////////////////////////////////////
-      // This branching label for restarting an interrupted
-      // gsk_secure_soc_read call.
-
-      CFS_SECURE_READ:
-
-      //
-      ////////////////////////////////////////////////////////////
-
-      *iSSLResult = gsk_secure_soc_read(This->ssl_hsession,
-                                        buffer + offset,
-                                        readSize,
-                                        &readSize);
-
-      if (errno == EINTR) {
-
-         //////////////////////////////////////////////////////
-         // gsk_secure_soc_read was interrupted by a signal.
-         // we must restart gsk_secure_soc_read.
-         //////////////////////////////////////////////////////
-
-         goto CFS_SECURE_READ;
-      }
-
-      if (*iSSLResult == GSK_OK) {
-
-         if (readSize == 0) {
-
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done and since
-            // we did not get all the data, this is a failure.
-            /////////////////////////////////////////////////////////////////
-
-            return CS_FAILURE | CFS_OPER_READ | CFS_DIAG_CONNCLOSE;
-         }
-         else {
-
-            offset += readSize;
-            *size += readSize;
-            leftToRead -= readSize;
-
-            readSize =
-               leftToRead > INT_MAX ?
-                            INT_MAX :
-                            leftToRead;
-         }
-      }
-      else {
-
-         switch(*iSSLResult) {
-
-            case GSK_WOULD_BLOCK:
-
-               /////////////////////////////////////////////////////////////
-               //
-               // We can block under the following circumstances:
-               //
-               // 1) We blocked before getting all the expected data.
-               //    If we have a non-zero time out, we will wait up to
-               //    that time out for data.
-               //
-               // 2) We wanted to get up to a fragment; if we have
-               //    a non-zero time out value, and if we got no data,
-               //    we will wait up to the time out value or until
-               //    some data arrives. If we have a zero time out value,
-               //    we simply return to the caller with the appropriate
-               //    diagnostics (along with data if any).
-               //
-               /////////////////////////////////////////////////////////////
-
-               if (timeout != 0) {
-
-                  ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given time out;
-                  // note that we could be doing this more than once
-                  // for example suppose we want to read 10 bytes
-                  // and block on the first read; we then wait but
-                  // data arrives within the time out. We then read
-                  // 3 bytes and block again. We will wait again up
-                  // to the time out. The point is that the total
-                  // amount of time waiting for data could
-                  // theoretically exceed the time out value.
-                  ////////////////////////////////////////////////////////////
-
-
-                  ////////////////////////////////////////////////////////////
-                  // This branching label for restarting an interrupted
-                  // poll call. An interrupted system call may results from
-                  // a caught signal and will have errno set to EINTR. We
-                  // must call poll again.
-
-                  CFS_READ_WAIT:
-
-                  //
-                  ////////////////////////////////////////////////////////////
-
-
-                  fdset[0].fd = This->connfd;
-                  fdset[0].events = POLLIN;
-
-                  rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-                  if (rc == 1) {
-
-                     if (!fdset[0].revents & POLLIN) {
-
-                        /////////////////////////////////////////////////////
-                        // If we get anything other than POLLIN
-                        // this means we got an error.
-                        /////////////////////////////////////////////////////
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_SYSTEM;
-                     }
-                  }
-                  else {
-
-                     if (rc == 0) {
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_TIMEDOUT;
-                     }
-                     else {
-
-                        if (errno == EINTR) {
-
-                           goto CFS_READ_WAIT;
-                        }
-                        else {
-
-                           return   CS_FAILURE
-                                  | CFS_OPER_WAIT
-                                  | CFS_DIAG_SYSTEM;
-                        }
-                     }
-                  }
-               }
-               else {
-
-                  return   CS_FAILURE
-                         | CFS_OPER_READ
-                         | CFS_DIAG_WOULDBLOCK;
-               }
-
-               break;
-
-            default:
-
-               return   CS_FAILURE
-                      | CFS_OPER_READ
-                      | CFS_DIAG_SYSTEM;
-         }
-      }
-   }
-   while (leftToRead > 0);
-
-   return CS_SUCCESS;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1865,7 +2266,7 @@ CSRESULT
 
 CSRESULT
   CFS_SecureWrite
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* maxSize,
      int timeout,
@@ -1876,25 +2277,15 @@ CSRESULT
 
    struct pollfd fdset[1];
 
-   uint64_t initialSize;
-   uint64_t leftToWrite;
-   uint64_t offset;
-
-   initialSize = *maxSize;
-   *maxSize    = 0;
-   offset      = 0;
-
-   leftToWrite = initialSize;
-
    //////////////////////////////////////////////////////////////////////////
    // The total record size exceeds the maximum int value; we will
    // write up to int size at a time.
    //////////////////////////////////////////////////////////////////////////
 
    writeSize =
-     leftToWrite > INT_MAX ?
-                   INT_MAX :
-                   leftToWrite;
+        (int)(*maxSize > INT_MAX ?
+                         INT_MAX :
+                         *maxSize);
 
    //////////////////////////////////////////////////////////////////////////
    // We first try to write on the socket.
@@ -1904,240 +2295,64 @@ CSRESULT
    // This branching label for restarting an interrupted
    // gsk_secure_soc_write call.
 
-   CFS_SECURE_WRITE_1:
+   CFS_SECURE_WRITE:
 
    //
    ////////////////////////////////////////////////////////////
 
    *iSSLResult = gsk_secure_soc_write(This->ssl_hsession,
-                                      buffer + offset,
+                                      buffer,
                                       writeSize,
                                       &writeSize);
 
    if (errno == EINTR) {
 
-      //////////////////////////////////////////////////////
-      // gsk_secure_soc_write was interrupted by a signal.
-      // we must restart gsk_secure_soc_write.
-      //////////////////////////////////////////////////////
+     //////////////////////////////////////////////////////
+     // gsk_secure_soc_write was interrupted by a signal.
+     // we must restart gsk_secure_soc_write.
+     //////////////////////////////////////////////////////
 
-      goto CFS_SECURE_WRITE_1;
+     goto CFS_SECURE_WRITE;
    }
-
-   //////////////////////////////////////////////////////////////////////////
-   // If we blocked, then we will wait up to the time out.
-   //////////////////////////////////////////////////////////////////////////
 
    switch(*iSSLResult) {
 
-      case GSK_OK:
+     case GSK_OK:
 
-         if (writeSize == 0) {
+       if (writeSize == 0) {
 
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done.
-            /////////////////////////////////////////////////////////////////
+         /////////////////////////////////////////////////////////////////
+         // This indicates a connection close; we are done.
+         /////////////////////////////////////////////////////////////////
 
-            return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
-         }
-         else {
+         return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
+       }
 
-            /////////////////////////////////////////////////////////////////
-            // We wrote some data (maybe as much as required ...
-            // if not, we will continue writing for as long
-            // as we don't block before sending out the supplied buffer.
-            /////////////////////////////////////////////////////////////////
+       break;
 
-            offset += writeSize;
-            *maxSize += writeSize;
-            leftToWrite -= writeSize;
+     case GSK_WOULD_BLOCK:
 
-            writeSize =
-               leftToWrite > INT_MAX ?
-                             INT_MAX :
-                             leftToWrite;
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_WOULDBLOCK;
 
-            if (leftToWrite == 0) {
+     case GSK_ERROR_SOCKET_CLOSED:
+     case GSK_IBMI_ERROR_CLOSED:
 
-               // We have written as much as was required.
-               return CS_SUCCESS | CFS_OPER_WRITE | CFS_DIAG_ALLDATA;
-            }
-         }
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
 
-         break;
+     case GSK_ERROR_SEQNUM_EXHAUSTED:
 
-      case GSK_WOULD_BLOCK:
+       return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_SEQNUM_EXHAUSTED;
 
-         if (timeout != 0) {
+     default:
 
-            ////////////////////////////////////////////////////////////
-            // This means we must wait up to a given time out; this
-            // is the only time we will be waiting as this means
-            // we did not write any data and a positive time out
-            // means we give the kernel some time to send over the data.
-            ////////////////////////////////////////////////////////////
-
-
-            ////////////////////////////////////////////////////////////
-            // This branching label for restarting an interrupted
-            // poll call. An interrupted system call may result from
-            // a caught signal and will have errno set to EINTR. We
-            // must call poll again.
-
-            CFS_WRITE_WAIT:
-
-            //
-            ////////////////////////////////////////////////////////////
-
-
-            fdset[0].fd = This->connfd;
-            fdset[0].events = POLLOUT;
-
-            rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-            if (rc == 1) {
-
-               if (!fdset[0].revents & POLLOUT) {
-
-                  ///////////////////////////////////////////////////////
-                  // If we get anything other than POLLOUT
-                  // this means we got an error.
-                  ///////////////////////////////////////////////////////
-
-                  return   CS_FAILURE
-                         | CFS_OPER_WAIT
-                         | CFS_DIAG_SYSTEM;
-               }
-            }
-            else {
-
-               if (rc == 0) {
-
-                  return   CS_SUCCESS
-                         | CFS_OPER_WAIT
-                         | CFS_DIAG_TIMEDOUT;
-               }
-               else {
-
-                  if (errno == EINTR) {
-
-                     ///////////////////////////////////////////////////
-                     // poll() was interrupted by a signal
-                     // or the kernel could not allocate an
-                     // internal data structure. We will call
-                     // poll() again.
-                     ///////////////////////////////////////////////////
-
-                     goto CFS_WRITE_WAIT;
-                  }
-                  else {
-
-                     return   CS_FAILURE
-                            | CFS_OPER_WAIT
-                            | CFS_DIAG_SYSTEM;
-                  }
-               }
-            }
-         }
-         else {
-
-            return   CS_SUCCESS
-                   | CFS_OPER_WRITE
-                   | CFS_DIAG_WOULDBLOCK;
-         }
-
-         break;
-
-
-      default:
-
-         return   CS_FAILURE
-                | CFS_OPER_WRITE
-                | CFS_DIAG_SYSTEM;
+       *maxSize = 0;
+       return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_SYSTEM;
    }
 
-   ////////////////////////////////////////////////////////////////
-   // If we get here, then we have written something but not up
-   // to the maximum buffer size and more must be sent.
-   ////////////////////////////////////////////////////////////////
-
-   do {
-
-      ////////////////////////////////////////////////////////////
-      // This branching label for restarting an interrupted
-      // gsk_secure_soc_write call.
-
-      CFS_SECURE_WRITE_2:
-
-      //
-      ////////////////////////////////////////////////////////////
-
-      *iSSLResult = gsk_secure_soc_write(This->ssl_hsession,
-                                         buffer + offset,
-                                         writeSize,
-                                         &writeSize);
-
-      if (errno == EINTR) {
-
-         //////////////////////////////////////////////////////
-         // gsk_secure_soc_write was interrupted by a signal.
-         // we must restart gsk_secure_soc_write.
-         //////////////////////////////////////////////////////
-
-         goto CFS_SECURE_WRITE_2;
-      }
-
-      if (*iSSLResult == GSK_OK) {
-
-         if (writeSize == 0) {
-
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done.
-            /////////////////////////////////////////////////////////////////
-
-            return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
-         }
-         else {
-
-            offset += writeSize;
-            *maxSize += writeSize;
-            leftToWrite -= writeSize;
-
-            writeSize =
-               leftToWrite > INT_MAX ?
-                             INT_MAX :
-                             leftToWrite;
-         }
-      }
-      else {
-
-         switch(*iSSLResult) {
-
-            case GSK_WOULD_BLOCK:
-
-               ///////////////////////////////////////////////////
-               // Once in this loop, we write until we block;
-               // the time out no longer applies (it applied
-               // only for the first write).
-               ///////////////////////////////////////////////////
-
-               return   CS_SUCCESS
-                      | CFS_OPER_WRITE
-                      | CFS_DIAG_WOULDBLOCK;
-
-               break;
-
-            default:
-
-               return   CS_FAILURE
-                      | CFS_OPER_WRITE
-                      | CFS_DIAG_SYSTEM;
-         }
-      }
-   }
-   while (leftToWrite > 0);
-
-   return CS_SUCCESS | CFS_OPER_WRITE | CFS_DIAG_ALLDATA;
+   *maxSize = writeSize;
+   return CS_SUCCESS;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2150,7 +2365,7 @@ CSRESULT
 
 CSRESULT
   CFS_SecureWriteRecord
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* size,
      int timeout,
@@ -2161,180 +2376,92 @@ CSRESULT
 
    struct pollfd fdset[1];
 
-   uint64_t initialSize;
    uint64_t leftToWrite;
    uint64_t offset;
 
-   initialSize = *size;
+   leftToWrite = *size;
    *size       = 0;
    offset      = 0;
 
-   leftToWrite = initialSize;
-
-   //////////////////////////////////////////////////////////////////////////
-   // The total record size exceeds the maximum int value; we will
-   // write up to int size at a time until we send the entire buffer.
-   //////////////////////////////////////////////////////////////////////////
-
-   writeSize =
-     leftToWrite > INT_MAX ?
-                   INT_MAX :
-                   leftToWrite;
-
    do {
 
-      ////////////////////////////////////////////////////////////
-      // This branching label for restarting an interrupted
-      // gsk_secure_soc_write call.
+     //////////////////////////////////////////////////////////////////////////
+     // The total record size exceeds the maximum int value; we will
+     // write up to int size at a time.
+     //////////////////////////////////////////////////////////////////////////
 
-      CFS_SECURE_WRITE:
+     writeSize =
+         (int)(leftToWrite > INT_MAX ?
+                             INT_MAX :
+                             leftToWrite);
 
-      //
-      ////////////////////////////////////////////////////////////
+     ////////////////////////////////////////////////////////////
+     // This branching label for restarting an interrupted
+     // gsk_secure_soc_write call.
 
-      *iSSLResult = gsk_secure_soc_write(This->ssl_hsession,
-                                         buffer + offset,
-                                         writeSize,
-                                         &writeSize);
+     CFS_SECURE_WRITE:
 
-      if (errno == EINTR) {
+     //
+     ////////////////////////////////////////////////////////////
 
-         //////////////////////////////////////////////////////
-         // gsk_secure_soc_write was interrupted by a signal.
-         // we must restart gsk_secure_soc_write.
-         //////////////////////////////////////////////////////
+     *iSSLResult = gsk_secure_soc_write(This->ssl_hsession,
+                                        buffer,
+                                        writeSize,
+                                        &writeSize);
 
-         goto CFS_SECURE_WRITE;
-      }
+     if (errno == EINTR) {
 
-      if (*iSSLResult == GSK_OK) {
+       //////////////////////////////////////////////////////
+       // gsk_secure_soc_write was interrupted by a signal.
+       // we must restart gsk_secure_soc_write.
+       //////////////////////////////////////////////////////
+
+       goto CFS_SECURE_WRITE;
+     }
+
+     switch(*iSSLResult) {
+
+       case GSK_OK:
 
          if (writeSize == 0) {
 
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done and since
-            // we did not send all the data, this is a failure.
-            /////////////////////////////////////////////////////////////////
+           /////////////////////////////////////////////////////////////////
+           // This indicates a connection close; we are done.
+           /////////////////////////////////////////////////////////////////
 
-            return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
+           return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
          }
          else {
 
-            offset += writeSize;
-            *size += writeSize;
-            leftToWrite -= writeSize;
+           offset += writeSize;
+           *size += writeSize;
+           leftToWrite -= writeSize;
 
-            writeSize =
-               leftToWrite > INT_MAX ?
-                             INT_MAX :
-                             leftToWrite;
+           writeSize =
+               (int)(leftToWrite > INT_MAX ?
+                                   INT_MAX :
+                                   leftToWrite);
          }
-      }
-      else {
 
-         switch(*iSSLResult) {
+         break;
 
-            case GSK_WOULD_BLOCK:
+       case GSK_WOULD_BLOCK:
 
-               /////////////////////////////////////////////////////////////
-               //
-               // We can block under the following circumstances:
-               //
-               // 1) We blocked before writing all the required data.
-               //    If we have a non-zero time out, we will wait up to
-               //    that time out to write data.
-               //
-               // 2) We wanted to write up to a fragment; if we have
-               //    a non-zero time out value, and if we wrote no data,
-               //    we will wait up to the time out value or until
-               //    some data can be written. If we have a zero time out
-               //    value, we simply return to the caller with the
-               //    appropriate diagnostics.
-               //
-               /////////////////////////////////////////////////////////////
+         return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_WOULDBLOCK;
 
-               if (timeout != 0) {
+       case GSK_ERROR_SOCKET_CLOSED:
+       case GSK_IBMI_ERROR_CLOSED:
 
-                  ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given time out;
-                  // note that we could be doing this more than once.
-                  // The point is that the total
-                  // amount of time waiting to write data could
-                  // theoretically exceed the time out value.
-                  ////////////////////////////////////////////////////////////
+         return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
 
+       case GSK_ERROR_SEQNUM_EXHAUSTED:
 
-                  ////////////////////////////////////////////////////////////
-                  // This branching label for restarting an interrupted
-                  // poll call. An interrupted system call may results from
-                  // a caught signal and will have errno set to EINTR. We
-                  // must call poll again.
+         return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_SEQNUM_EXHAUSTED;
 
-                  CFS_WRITE_WAIT:
+       default:
 
-                  //
-                  ////////////////////////////////////////////////////////////
-
-
-                  fdset[0].fd = This->connfd;
-                  fdset[0].events = POLLOUT;
-
-                  rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-                  if (rc == 1) {
-
-                     if (!fdset[0].revents & POLLOUT) {
-
-                        /////////////////////////////////////////////////////
-                        // If we get anything other than POLLOUT
-                        // this means we cannot write
-                        // after our time out period.
-                        /////////////////////////////////////////////////////
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_SYSTEM;
-                     }
-                  }
-                  else {
-
-                     if (rc == 0) {
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_TIMEDOUT;
-                     }
-                     else {
-
-                        if (errno == EINTR) {
-
-                           goto CFS_WRITE_WAIT;
-                        }
-                        else {
-
-                           return   CS_FAILURE
-                                  | CFS_OPER_WAIT
-                                  | CFS_DIAG_SYSTEM;
-                        }
-                     }
-                  }
-               }
-               else {
-
-                  return   CS_FAILURE
-                         | CFS_OPER_WRITE
-                         | CFS_DIAG_WOULDBLOCK;
-               }
-
-               break;
-
-            default:
-
-               return   CS_FAILURE
-                      | CFS_OPER_WRITE
-                      | CFS_DIAG_SYSTEM;
-         }
-      }
+         return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_SYSTEM;
+     }
    }
    while (leftToWrite > 0);
 
@@ -2518,52 +2645,93 @@ CSRESULT
 
 CSRESULT
   CFS_Write
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* maxSize,
-     int timeout) {
+     int timeout,
+     int* e) {
 
    int rc;
    int writeSize;
 
    struct pollfd fdset[1];
 
-   uint64_t initialSize;
-   uint64_t leftToWrite;
-   uint64_t offset;
+   writeSize = (int)(*maxSize);
 
-   initialSize = *maxSize;
-   *maxSize    = 0;
-   offset      = 0;
+   fdset[0].fd = This->connfd;
+   fdset[0].events = POLLOUT;
 
-   leftToWrite = initialSize;
+   ////////////////////////////////////////////////////////////
+   // This branching label for restarting an interrupted
+   // poll call. An interrupted system call may result from
+   // a caught signal and will have errno set to EINTR. We
+   // must call poll again.
 
-   //////////////////////////////////////////////////////////////////////////
-   // The total record size exceeds the maximum int value; we will
-   // write up to int size at a time.
-   //////////////////////////////////////////////////////////////////////////
+   CFS_WAIT_POLL:
 
-   writeSize =
-     leftToWrite > INT_MAX ?
-                   INT_MAX :
-                   leftToWrite;
+   //
+   ////////////////////////////////////////////////////////////
 
-   //////////////////////////////////////////////////////////////////////////
-   // We first try to write on the socket.
-   //////////////////////////////////////////////////////////////////////////
+   rc = poll(fdset, 1, This->writeTimeout >= 0 ? This->writeTimeout * 1000: -1);
+
+   if (rc == 1) {
+
+      if (!(fdset[0].revents & POLLOUT)) {
+
+        /////////////////////////////////////////////////////////
+        // If we get anything other than POLLOUT
+        // this means an error occurred.
+        /////////////////////////////////////////////////////////
+
+        *e = errno;
+        return   CS_FAILURE
+               | CFS_OPER_WAIT
+               | CFS_DIAG_SYSTEM;
+      }
+   }
+   else {
+
+      if (rc == 0) {
+
+         return   CS_SUCCESS
+                  | CFS_OPER_WAIT
+                  | CFS_DIAG_TIMEDOUT;
+      }
+      else {
+
+         if (errno == EINTR) {
+
+            ///////////////////////////////////////////////////
+            // poll() was interrupted by a signal
+            // or the kernel could not allocate an
+            // internal data structure. We will call
+            // poll() again.
+            ///////////////////////////////////////////////////
+
+            goto CFS_WAIT_POLL;
+         }
+         else {
+
+            *e = errno;
+            return   CS_FAILURE
+                     | CFS_OPER_WAIT
+                     | CFS_DIAG_SYSTEM;
+         }
+      }
+   }
 
    /////////////////////////////////////////////////////////
    // This branching label for restarting an interrupted
-   // send() call. An interrupted system call may result
+   // recv() call. An interrupted system call may result
    // from a signal and will have errno set to EINTR.
-   // We must call send() again.
+   // We must call recv() again.
 
-   CFS_WAIT_SEND_1:
+   CFS_WAIT_WRITE:
 
    //
    /////////////////////////////////////////////////////////
 
-   rc = send(This->connfd, buffer + offset, writeSize, 0);
+   rc = send(This->connfd, buffer, writeSize, 0);
 
    if (rc < 0) {
 
@@ -2576,96 +2744,14 @@ CSRESULT
          // send() again.
          ///////////////////////////////////////////////////
 
-         goto CFS_WAIT_SEND_1;
+         goto CFS_WAIT_WRITE;
       }
       else {
 
-         if (errno == EWOULDBLOCK) {
-
-            if (timeout != 0) {
-
-               ////////////////////////////////////////////////////////////
-               // This means we must wait up to a given time out; this
-               // is the only time we will be waiting as this means
-               // we did not write any data and a positive time out
-               // means we give the kernel some time to send over the data.
-               ////////////////////////////////////////////////////////////
-
-
-               ////////////////////////////////////////////////////////////
-               // This branching label for restarting an interrupted
-               // poll call. An interrupted system call may result from
-               // a caught signal and will have errno set to EINTR. We
-               // must call poll again.
-
-               CFS_WAIT_POLL:
-
-               //
-               ////////////////////////////////////////////////////////////
-
-
-               fdset[0].fd = This->connfd;
-               fdset[0].events = POLLOUT;
-
-               rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-               if (rc == 1) {
-
-                  /////////////////////////////////////////////////////////
-                  // If we get anything other than POLLOUT
-                  // this means there was an error.
-                  /////////////////////////////////////////////////////////
-
-                  if (!fdset[0].revents & POLLOUT) {
-
-                     return   CS_FAILURE
-                            | CFS_OPER_WAIT
-                            | CFS_DIAG_SYSTEM;
-                  }
-               }
-               else {
-
-                  if (rc == 0) {
-
-                     return   CS_SUCCESS
-                            | CFS_OPER_WAIT
-                            | CFS_DIAG_TIMEDOUT;
-                  }
-                  else {
-
-                     if (errno == EINTR) {
-
-                        ///////////////////////////////////////////////////
-                        // poll() was interrupted by a signal
-                        // or the kernel could not allocate an
-                        // internal data structure. We will call
-                        // poll() again.
-                        ///////////////////////////////////////////////////
-
-                        goto CFS_WAIT_POLL;
-                     }
-                     else {
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_SYSTEM;
-                     }
-                  }
-               }
-            }
-            else {
-
-               return   CS_SUCCESS
-                      | CFS_OPER_WRITE
-                      | CFS_DIAG_WOULDBLOCK;
-            }
-         }
-         else {
-
-            return   CS_FAILURE
-                   | CFS_OPER_WAIT
-                   | CFS_DIAG_SYSTEM;
-         }
+         *e = errno;
+         return   CS_FAILURE
+                  | CFS_OPER_WRITE
+                  | CFS_DIAG_SYSTEM;
       }
    }
    else {
@@ -2676,114 +2762,12 @@ CSRESULT
          // This indicates a connection close; we are done.
          /////////////////////////////////////////////////////////////////
 
-         return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
-      }
-      else {
-
-         /////////////////////////////////////////////////////////////////
-         // We wrote some data (maybe as much as required) ...
-         // if not, we will continue writing for as long
-         // as we don't block before sending out the supplied buffer.
-         /////////////////////////////////////////////////////////////////
-
-         offset += rc;
-         *maxSize += rc;
-         leftToWrite -= rc;
-
-         writeSize =
-            leftToWrite > INT_MAX ?
-                          INT_MAX :
-                          leftToWrite;
-
-         if (leftToWrite == 0) {
-
-            // We have written as much as was required.
-            return CS_SUCCESS | CFS_OPER_WRITE | CFS_DIAG_ALLDATA;
-         }
+         return CS_SUCCESS | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
       }
    }
 
-   ////////////////////////////////////////////////////////////////
-   // If we get here, then we have written something but not up
-   // to the maximum buffer size and more must be sent.
-   ////////////////////////////////////////////////////////////////
-
-   do {
-
-      /////////////////////////////////////////////////////////
-      // This branching label for restarting an interrupted
-      // send() call. An interrupted system call may result
-      // from a signal and will have errno set to EINTR.
-      // We must call send() again.
-
-      CFS_WAIT_SEND_2:
-
-      //
-      /////////////////////////////////////////////////////////
-
-      rc = send(This->connfd, buffer + offset, writeSize, 0);
-
-      if (rc < 0) {
-
-         if (errno == EINTR) {
-
-            ///////////////////////////////////////////////////
-            // send() was interrupted by a signal
-            // or the kernel could not allocate an
-            // internal data structure. We will call
-            // send() again.
-            ///////////////////////////////////////////////////
-
-            goto CFS_WAIT_SEND_2;
-         }
-         else {
-
-            if (errno == EWOULDBLOCK) {
-
-               ///////////////////////////////////////////////////
-               // Once in this loop, we write until we block;
-               // the time out no longer applies (it applied
-               // only for the first write).
-               ///////////////////////////////////////////////////
-
-               return   CS_SUCCESS
-                      | CFS_OPER_WRITE
-                      | CFS_DIAG_WOULDBLOCK;
-            }
-            else {
-
-               return   CS_FAILURE
-                      | CFS_OPER_WRITE
-                      | CFS_DIAG_SYSTEM;
-            }
-         }
-      }
-      else {
-
-         if (writeSize == 0) {
-
-            /////////////////////////////////////////////////////////////////
-            // This indicates a connection close; we are done.
-            /////////////////////////////////////////////////////////////////
-
-            return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
-         }
-         else {
-
-            offset += rc;
-            *maxSize += rc;
-            leftToWrite -= rc;
-
-            writeSize =
-               leftToWrite > INT_MAX ?
-                             INT_MAX :
-                             leftToWrite;
-         }
-      }
-   }
-   while (leftToWrite > 0);
-
-   return CS_SUCCESS | CFS_OPER_WRITE | CFS_DIAG_ALLDATA;
+   *maxSize = (uint64_t)rc;
+   return CS_SUCCESS;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -2796,10 +2780,11 @@ CSRESULT
 
 CSRESULT
   CFS_WriteRecord
-    (CFS_INSTANCE* This,
+    (CFS_SESSION* This,
      char* buffer,
      uint64_t* size,
-     int timeout) {
+     int timeout,
+     int* e) {
 
    int rc;
    int writeSize;
@@ -2827,6 +2812,69 @@ CSRESULT
                    leftToWrite;
 
    do {
+
+      ////////////////////////////////////////////////////////////
+      // This branching label for restarting an interrupted
+      // poll call. An interrupted system call may result from
+      // a caught signal and will have errno set to EINTR. We
+      // must call poll again.
+
+      CFS_WAIT_POLL:
+
+      //
+      ////////////////////////////////////////////////////////////
+
+      fdset[0].fd = This->connfd;
+      fdset[0].events = POLLOUT;
+
+      rc = poll(fdset, 1, This->writeTimeout >= 0 ? This->writeTimeout * 1000: -1);
+
+      if (rc == 1) {
+
+         /////////////////////////////////////////////////////////
+         // If we get anything other than POLLOUT
+         // this means we got an error.
+         /////////////////////////////////////////////////////////
+
+         if (!(fdset[0].revents & POLLOUT)) {
+
+            *e = errno;
+            return   CS_FAILURE
+                     | CFS_OPER_WAIT
+                     | CFS_DIAG_SYSTEM;
+         }
+      }
+      else {
+
+         if (rc == 0) {
+
+            *e = errno;
+            return   CS_FAILURE
+                     | CFS_OPER_WAIT
+                     | CFS_DIAG_TIMEDOUT;
+         }
+         else {
+
+            if (errno == EINTR) {
+
+               ///////////////////////////////////////////////////
+               // poll() was interrupted by a signal
+               // or the kernel could not allocate an
+               // internal data structure. We will call
+               // poll() again.
+               ///////////////////////////////////////////////////
+
+               goto CFS_WAIT_POLL;
+            }
+            else {
+
+               *e = errno;
+               return   CS_FAILURE
+                        | CFS_OPER_WAIT
+                        | CFS_DIAG_SYSTEM;
+            }
+         }
+      }
 
       /////////////////////////////////////////////////////////
       // This branching label for restarting an interrupted
@@ -2856,92 +2904,10 @@ CSRESULT
          }
          else {
 
-            if (errno == EWOULDBLOCK) {
-
-               if (timeout != 0) {
-
-                  ////////////////////////////////////////////////////////////
-                  // This means we must wait up to a given time out; this
-                  // is the only time we will be waiting as this means
-                  // we did not write any data and a positive time out
-                  // means we give the kernel some time to send over the data.
-                  ////////////////////////////////////////////////////////////
-
-
-                  ////////////////////////////////////////////////////////////
-                  // This branching label for restarting an interrupted
-                  // poll call. An interrupted system call may result from
-                  // a caught signal and will have errno set to EINTR. We
-                  // must call poll again.
-
-                  CFS_WAIT_POLL:
-
-                  //
-                  ////////////////////////////////////////////////////////////
-
-
-                  fdset[0].fd = This->connfd;
-                  fdset[0].events = POLLOUT;
-
-                  rc = poll(fdset, 1, timeout >= 0 ? timeout * 1000: -1);
-
-                  if (rc == 1) {
-
-                     /////////////////////////////////////////////////////////
-                     // If we get anything other than POLLOUT
-                     // this means we got an error.
-                     /////////////////////////////////////////////////////////
-
-                     if (!fdset[0].revents & POLLOUT) {
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_SYSTEM;
-                     }
-                  }
-                  else {
-
-                     if (rc == 0) {
-
-                        return   CS_FAILURE
-                               | CFS_OPER_WAIT
-                               | CFS_DIAG_TIMEDOUT;
-                     }
-                     else {
-
-                        if (errno == EINTR) {
-
-                           ///////////////////////////////////////////////////
-                           // poll() was interrupted by a signal
-                           // or the kernel could not allocate an
-                           // internal data structure. We will call
-                           // poll() again.
-                           ///////////////////////////////////////////////////
-
-                           goto CFS_WAIT_POLL;
-                        }
-                        else {
-
-                           return   CS_FAILURE
-                                  | CFS_OPER_WAIT
-                                  | CFS_DIAG_SYSTEM;
-                        }
-                     }
-                  }
-               }
-               else {
-
-                  return   CS_FAILURE
-                         | CFS_OPER_WAIT
-                         | CFS_DIAG_WOULDBLOCK;
-               }
-            }
-            else {
-
-               return   CS_FAILURE
-                      | CFS_OPER_WAIT
-                      | CFS_DIAG_SYSTEM;
-            }
+           *e = errno;
+           return   CS_FAILURE
+                  | CFS_OPER_WAIT
+                  | CFS_DIAG_SYSTEM;
          }
       }
       else {
@@ -2952,7 +2918,8 @@ CSRESULT
             // This indicates a connection close; we are done.
             /////////////////////////////////////////////////////////////////
 
-            return CS_SUCCESS | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
+            *e = errno;
+            return CS_FAILURE | CFS_OPER_WRITE | CFS_DIAG_CONNCLOSE;
          }
          else {
 
@@ -2978,284 +2945,51 @@ CSRESULT
    return CS_SUCCESS;
 }
 
-/* ===========================================================================
-   PRIVATE FUNCTIONS
-=========================================================================== */
+/* ---------------------------------------------------------------------------
+   private functions
+--------------------------------------------------------------------------- */
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_PRV_DoSecureConnect_100
+// CFS_Constructor
 //
-// Sets up a secure session with a server
+// This function creates a network session object
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT
-  CFS_PRV_DoSecureConnect_100
-    (CFS_INSTANCE* cfsi,
-     struct addrinfo* addrInfo,
-     CFS_CLIENTSESSION_100* sessionInfo,
-     int* iSSLResult) {
+CFS_SESSION*
+  CFS_Constructor
+    (void) {
 
-   int rc;
-   int e;
+  CFS_SESSION* Instance;
 
-   CSRESULT hResult;
+  Instance = (CFS_SESSION*)malloc(sizeof(CFS_SESSION));
 
-   struct timeval tv;
+  Instance->Cfg = CFSRPS_Constructor();
+  Instance->TlsCfg_LocalSession = CSLIST_Constructor();
 
-   fd_set readSet, writeSet;
+  Instance->pEnv = 0;
+  Instance->pLocalEnv = 0;
 
-   *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                     GSK_SESSION_TYPE,
-                                     GSK_CLIENT_SESSION);
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   if (sessionInfo->szApplicationID == 0) {
-
-     *iSSLResult = gsk_attribute_set_buffer
-                               (cfsi->ssl_henv,
-                                GSK_KEYRING_FILE,
-                                "*SYSTEM",
-                                7);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_buffer
-                                 (cfsi->ssl_henv,
-                                  GSK_OS400_APPLICATION_ID,
-                                  sessionInfo->szApplicationID,
-                                  strlen(sessionInfo->szApplicationID));
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   switch(sessionInfo->secSessionType) {
-
-      case CFS_SEC_CLIENT_SESSION_SERVER_AUTH_PASSTHROUGH:
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                GSK_SERVER_AUTH_TYPE,
-                                GSK_SERVER_AUTH_PASSTHRU);
-
-        break;
-
-      default:
-
-         *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                GSK_SERVER_AUTH_TYPE,
-                                GSK_SERVER_AUTH_FULL);
-
-        break;
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   hResult = CS_SUCCESS;
-
-   rc = connect(cfsi->connfd,
-                addrInfo->ai_addr,
-                addrInfo->ai_addrlen);
-
-
-   if (rc < 0) {
-
-     if (errno != EINPROGRESS) {
-
-       e = errno;
-       gsk_environment_close(&(cfsi->ssl_henv));
-       hResult = CS_FAILURE;
-     }
-     else {
-
-       FD_ZERO(&readSet);
-       FD_SET(cfsi->connfd, &readSet);
-
-       writeSet = readSet;
-       tv.tv_sec = sessionInfo->connTimeout;
-       tv.tv_usec = 0;
-
-       rc = select(cfsi->connfd+1,
-                   &readSet,
-                   &writeSet,
-                   NULL,
-                   &tv);
-
-       if (rc <= 0) {
-
-         e = errno;
-         gsk_environment_close(&(cfsi->ssl_henv));
-         hResult = CS_FAILURE;
-       }
-     }
-   }
-
-   if (hResult == CS_SUCCESS) {
-
-     *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
-                                           &(cfsi->ssl_hsession));
-
-     if (*iSSLResult != GSK_OK) {
-       gsk_environment_close(&(cfsi->ssl_henv));
-       return CS_FAILURE;
-     }
-
-     *iSSLResult = gsk_attribute_set_numeric_value(cfsi->ssl_hsession,
-                                                   GSK_FD,
-                                                   cfsi->connfd);
-
-     if (*iSSLResult != GSK_OK) {
-       gsk_secure_soc_close(&(cfsi->ssl_hsession));
-       gsk_environment_close(&(cfsi->ssl_henv));
-       return CS_FAILURE;
-     }
-
-     *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
-
-     if (*iSSLResult != GSK_OK) {
-       gsk_secure_soc_close(&(cfsi->ssl_hsession));
-       gsk_environment_close(&(cfsi->ssl_henv));
-       return CS_FAILURE;
-     }
-   }
-
-   return hResult;
+  return Instance;
 }
 
 //////////////////////////////////////////////////////////////////////////////
 //
-// CFS_PRV_DoSecureOpenChannel_100
+// CFS_Destructor
 //
-// Sets up a secure session with a connecting client.
+// This function releases the resources allocated by a network session object
 //
 //////////////////////////////////////////////////////////////////////////////
 
-CSRESULT
-  CFS_PRV_DoSecureOpenChannel_100
-    (CFS_INSTANCE* cfsi,
-     CFS_SERVERSESSION_100* sessionInfo,
-     int*  iSSLResult) {
+void
+  CFS_Destructor
+    (CFS_SESSION** This) {
 
+  CFSRPS_Destructor(&((*This)->Cfg));
+  CSLIST_Destructor(&((*This)->TlsCfg_LocalSession));
 
-   int i;
-
-   *iSSLResult = gsk_environment_open(&(cfsi->ssl_henv));
-
-   if (*iSSLResult != GSK_OK) {
-      return CS_FAILURE;
-   }
-
-   if (sessionInfo->szApplicationID == 0) {
-
-      *iSSLResult = gsk_attribute_set_buffer
-                                     (cfsi->ssl_henv,
-                                      GSK_KEYRING_FILE,
-                                      "*SYSTEM",
-                                      7);
-   }
-   else {
-
-      *iSSLResult = gsk_attribute_set_buffer
-                                 (cfsi->ssl_henv,
-                                  GSK_OS400_APPLICATION_ID,
-                                  sessionInfo->szApplicationID,
-                                  strlen(sessionInfo->szApplicationID));
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   switch(sessionInfo->secSessionType) {
-
-      case CFS_SEC_SERVER_SESSION_CLIENT_AUTH_CRITICAL:
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                GSK_SESSION_TYPE,
-                                GSK_SERVER_SESSION_WITH_CL_AUTH_CRITICAL);
-
-              break;
-
-      case CFS_SEC_SERVER_SESSION_CLIENT_AUTH:
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_SESSION_TYPE,
-                                   GSK_SERVER_SESSION_WITH_CL_AUTH);
-
-              break;
-
-         default:
-
-        *iSSLResult = gsk_attribute_set_enum(cfsi->ssl_henv,
-                                   GSK_SESSION_TYPE,
-                                   GSK_SERVER_SESSION);
-
-              break;
-   }
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_environment_init(cfsi->ssl_henv);
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_secure_soc_open(cfsi->ssl_henv,
-                                     &(cfsi->ssl_hsession));
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_attribute_set_numeric_value(cfsi->ssl_hsession,
-                                                 GSK_FD,
-                                                 cfsi->connfd);
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_secure_soc_close(&(cfsi->ssl_hsession));
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   *iSSLResult = gsk_secure_soc_init(cfsi->ssl_hsession);
-
-   if (*iSSLResult != GSK_OK) {
-      gsk_secure_soc_close(&(cfsi->ssl_hsession));
-      gsk_environment_close(&(cfsi->ssl_henv));
-      return CS_FAILURE;
-   }
-
-   return CS_SUCCESS;
+  free(*This);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -3361,7 +3095,7 @@ CSRESULT
 CSRESULT
   CFS_PRV_SetBlocking
     (int connfd,
-	 int blocking) {
+    int blocking) {
 
     /* Save the current flags */
 
@@ -3379,24 +3113,4 @@ CSRESULT
 
     return CS_SUCCESS;
 }
-
-CSRESULT
-  CFS_GetCurJobName
-    (char szJobInfo[27]) {
-
-  JOBINFOSTRUCT jobInfo;
-
-  QUSRJOBI(&jobInfo,
-           sizeof(JOBINFOSTRUCT),
-           "JOBI0100",
-           "*                         ",
-           "                ");
-
-  memcpy(szJobInfo,    jobInfo.JobName,   10);
-  memcpy(szJobInfo+10, jobInfo.JobUser,   10);
-  memcpy(szJobInfo+20, jobInfo.JobNumber, 6);
-
-  szJobInfo[26] = 0;
-
-  return CS_SUCCESS;
-}
+ 
